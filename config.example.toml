@@ -9,6 +9,7 @@ speed_limit_bps = 0  # 0 = unlimited
 cache_size = 524288000  # 500 MB
 log_level = "info"
 # log_file = "data/rustnzbd.log"
+# history_retention = 100  # Number of NZBs to keep in history (omit for keep all)
 
 # NNTP servers — add as many as needed, ordered by priority
 [[servers]]
@@ -62,3 +63,9 @@ post_processing = 3
 name = "software"
 output_dir = "software"
 post_processing = 2
+
+# OpenTelemetry (can also be set via env vars: OTEL_ENABLED, OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME)
+[otel]
+enabled = false
+endpoint = "http://100.96.114.15:4317"  # OTLP gRPC endpoint (Loki via Tailscale)
+service_name = "rustnzbd"

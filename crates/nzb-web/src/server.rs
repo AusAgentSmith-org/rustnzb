@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::extract::Path;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use axum::Router;
 use http::{header, StatusCode};
 use rust_embed::Embed;
@@ -56,22 +56,41 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     let api_routes = Router::new()
         // Status
         .route("/status", get(handlers::h_status))
+        // Logs
+        .route("/logs", get(handlers::h_logs))
         // Queue
         .route("/queue", get(handlers::h_queue_list))
         .route("/queue/add", post(handlers::h_queue_add))
         .route("/queue/pause", post(handlers::h_queue_pause_all))
         .route("/queue/resume", post(handlers::h_queue_resume_all))
+        .route("/queue/pause-for", post(handlers::h_queue_pause_for))
         .route("/queue/{id}/pause", post(handlers::h_queue_pause))
         .route("/queue/{id}/resume", post(handlers::h_queue_resume))
         .route("/queue/{id}", delete(handlers::h_queue_delete))
         // History
         .route("/history", get(handlers::h_history_list))
         .route("/history/{id}", delete(handlers::h_history_delete))
+        .route("/history/{id}/retry", post(handlers::h_history_retry))
         .route("/history", delete(handlers::h_history_clear))
         // Config
         .route("/config", get(handlers::h_config_get))
         .route("/config/servers", get(handlers::h_servers_list))
-        .route("/config/categories", get(handlers::h_categories_list));
+        .route("/config/servers", post(handlers::h_server_add))
+        .route("/config/servers/{id}", put(handlers::h_server_update))
+        .route("/config/servers/{id}", delete(handlers::h_server_delete))
+        .route(
+            "/config/servers/{id}/test",
+            post(handlers::h_server_test),
+        )
+        .route("/config/categories", get(handlers::h_categories_list))
+        .route(
+            "/config/history-retention",
+            get(handlers::h_history_retention_get),
+        )
+        .route(
+            "/config/history-retention",
+            put(handlers::h_history_retention_set),
+        );
 
     // Arr-compatible API (Sonarr/Radarr)
     let sabnzbd_route = Router::new()
@@ -90,10 +109,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
 /// Start the HTTP server.
 pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
-    let addr = format!(
-        "{}:{}",
-        state.config.general.listen_addr, state.config.general.port
-    );
+    let config = state.config();
+    let addr = format!("{}:{}", config.general.listen_addr, config.general.port);
 
     let router = build_router(state);
     let listener = TcpListener::bind(&addr).await?;

@@ -30,7 +30,8 @@ async fn start_test_server() -> (String, tokio::task::JoinHandle<()>) {
         incomplete_dir,
         complete_dir,
     );
-    let state = Arc::new(AppState::new(config, qm));
+    let log_buffer = nzb_web::LogBuffer::new();
+    let state = Arc::new(AppState::new(config, std::path::PathBuf::from("config.toml"), qm, log_buffer));
 
     let router = build_router(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

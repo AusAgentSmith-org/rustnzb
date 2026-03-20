@@ -60,6 +60,16 @@ impl Default for Priority {
 // NZB data model
 // ---------------------------------------------------------------------------
 
+/// Per-server article download statistics for a job.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ServerArticleStats {
+    pub server_id: String,
+    pub server_name: String,
+    pub articles_downloaded: usize,
+    pub articles_failed: usize,
+    pub bytes_downloaded: u64,
+}
+
 /// A complete download job (parsed from one NZB file).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NzbJob {
@@ -99,6 +109,12 @@ pub struct NzbJob {
     pub password: Option<String>,
     /// Error message if failed
     pub error_message: Option<String>,
+    /// Current download speed for this job (bytes/sec)
+    #[serde(default)]
+    pub speed_bps: u64,
+    /// Per-server download statistics
+    #[serde(default)]
+    pub server_stats: Vec<ServerArticleStats>,
     /// Files in this job
     #[serde(skip)]
     pub files: Vec<NzbFile>,
@@ -174,6 +190,12 @@ pub struct HistoryEntry {
     /// Post-processing stages with results
     pub stages: Vec<StageResult>,
     pub error_message: Option<String>,
+    /// Per-server download statistics
+    #[serde(default)]
+    pub server_stats: Vec<ServerArticleStats>,
+    /// Raw NZB XML data (for retry)
+    #[serde(skip_serializing)]
+    pub nzb_data: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

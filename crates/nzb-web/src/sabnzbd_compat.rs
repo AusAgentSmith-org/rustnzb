@@ -37,7 +37,8 @@ fn validate_api_key(
     state: &AppState,
     provided: Option<&str>,
 ) -> Result<(), Json<serde_json::Value>> {
-    if let Some(ref configured_key) = state.config.general.api_key {
+    let config = state.config();
+    if let Some(ref configured_key) = config.general.api_key {
         let provided_key = provided.unwrap_or("");
         if !crate::auth::constant_time_eq(provided_key.as_bytes(), configured_key.as_bytes()) {
             return Err(Json(serde_json::json!({
@@ -183,7 +184,8 @@ pub async fn h_sabnzbd_api_post(
                         "NZB added to queue via arr API"
                     );
 
-                    qm.add_job(job).map_err(ApiError::from)?;
+                    let nzb_bytes = data.clone();
+                    qm.add_job(job, Some(nzb_bytes)).map_err(ApiError::from)?;
 
                     Ok(Json(serde_json::json!({
                         "status": true,
@@ -339,8 +341,8 @@ fn handle_history(state: &AppState, req: &SabApiRequest) -> Json<serde_json::Val
 }
 
 fn handle_get_config(state: &AppState) -> Json<serde_json::Value> {
-    let categories: Vec<serde_json::Value> = state
-        .config
+    let config = state.config();
+    let categories: Vec<serde_json::Value> = config
         .categories
         .iter()
         .map(|c| {
@@ -358,7 +360,7 @@ fn handle_get_config(state: &AppState) -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "config": {
             "misc": {
-                "complete_dir": state.config.general.complete_dir,
+                "complete_dir": config.general.complete_dir,
             },
             "categories": categories,
         }

@@ -9,6 +9,8 @@ pub struct AppConfig {
     pub general: GeneralConfig,
     pub servers: Vec<ServerConfig>,
     pub categories: Vec<CategoryConfig>,
+    #[serde(default)]
+    pub otel: OtelConfig,
 }
 
 impl Default for AppConfig {
@@ -17,6 +19,7 @@ impl Default for AppConfig {
             general: GeneralConfig::default(),
             servers: Vec::new(),
             categories: vec![CategoryConfig::default()],
+            otel: OtelConfig::default(),
         }
     }
 }
@@ -44,6 +47,8 @@ pub struct GeneralConfig {
     pub log_level: String,
     /// Log file path (None = stdout only)
     pub log_file: Option<PathBuf>,
+    /// History retention: how many NZBs to keep in history (None = keep all)
+    pub history_retention: Option<usize>,
 }
 
 impl Default for GeneralConfig {
@@ -59,6 +64,29 @@ impl Default for GeneralConfig {
             cache_size: 500 * 1024 * 1024, // 500 MB
             log_level: "info".into(),
             log_file: None,
+            history_retention: None, // keep all
+        }
+    }
+}
+
+/// OpenTelemetry configuration. All values can be overridden via env vars.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OtelConfig {
+    /// Enable OpenTelemetry export
+    pub enabled: bool,
+    /// OTLP endpoint for logs and metrics
+    pub endpoint: String,
+    /// Service name reported to the collector
+    pub service_name: String,
+}
+
+impl Default for OtelConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoint: "http://100.96.114.15:3100".into(),
+            service_name: "rustnzbd".into(),
         }
     }
 }

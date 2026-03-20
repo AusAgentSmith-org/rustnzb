@@ -12,6 +12,9 @@ services:
     environment:
       - TZ=Australia/Sydney
       - RUST_LOG=info
+      - OTEL_ENABLED=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://100.96.114.15:4317
+      - OTEL_SERVICE_NAME=rustnzbd
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:9090/api/status"]
       interval: 30s

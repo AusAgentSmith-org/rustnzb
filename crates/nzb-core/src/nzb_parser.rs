@@ -176,6 +176,8 @@ pub fn parse_nzb(name: &str, data: &[u8]) -> Result<NzbJob, NzbError> {
         output_dir: std::path::PathBuf::new(),
         password: meta_password,
         error_message: None,
+        speed_bps: 0,
+        server_stats: Vec::new(),
         files,
     })
 }

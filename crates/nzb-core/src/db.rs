@@ -113,6 +113,25 @@ impl Database {
             )?;
         }
 
+        if version < 2 {
+            info!("Applying database migration v2");
+            self.conn.execute_batch(
+                "
+                -- Add NZB data storage and server stats to history
+                ALTER TABLE history ADD COLUMN nzb_data BLOB;
+                ALTER TABLE history ADD COLUMN server_stats TEXT DEFAULT '[]';
+
+                -- Add server stats to queue
+                ALTER TABLE queue ADD COLUMN server_stats TEXT DEFAULT '[]';
+
+                -- Add NZB data to queue for preservation
+                ALTER TABLE queue ADD COLUMN nzb_raw BLOB;
+
+                UPDATE schema_version SET version = 2;
+                ",
+            )?;
+        }
+
         Ok(())
     }
 
@@ -213,6 +232,8 @@ impl Database {
                     output_dir: row.get::<_, String>(15)?.into(),
                     password: row.get(16)?,
                     error_message: row.get(17)?,
+                    speed_bps: 0,
+                    server_stats: Vec::new(),
                     files: Vec::new(), // Loaded separately
                 })
             })?
@@ -228,10 +249,11 @@ impl Database {
     /// Move a completed/failed job to history.
     pub fn history_insert(&self, entry: &HistoryEntry) -> Result<(), NzbError> {
         let stages_json = serde_json::to_string(&entry.stages).unwrap_or_default();
+        let server_stats_json = serde_json::to_string(&entry.server_stats).unwrap_or_default();
         self.conn.execute(
             "INSERT INTO history (id, name, category, status, total_bytes, downloaded_bytes,
-             added_at, completed_at, output_dir, stages, error_message)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             added_at, completed_at, output_dir, stages, error_message, nzb_data, server_stats)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 entry.id,
                 entry.name,
@@ -244,6 +266,8 @@ impl Database {
                 entry.output_dir.to_string_lossy().to_string(),
                 stages_json,
                 entry.error_message,
+                entry.nzb_data,
+                server_stats_json,
             ],
         )?;
         Ok(())
@@ -253,7 +277,8 @@ impl Database {
     pub fn history_list(&self, limit: usize) -> Result<Vec<HistoryEntry>, NzbError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, category, status, total_bytes, downloaded_bytes,
-             added_at, completed_at, output_dir, stages, error_message
+             added_at, completed_at, output_dir, stages, error_message, server_stats,
+             CASE WHEN nzb_data IS NOT NULL THEN 1 ELSE 0 END as has_nzb
              FROM history ORDER BY completed_at DESC LIMIT ?1",
         )?;
 
@@ -262,6 +287,10 @@ impl Database {
                 let stages_json: String = row.get::<_, Option<String>>(9)?.unwrap_or_default();
                 let stages: Vec<StageResult> =
                     serde_json::from_str(&stages_json).unwrap_or_default();
+                let stats_json: String = row.get::<_, Option<String>>(11)?.unwrap_or_default();
+                let server_stats: Vec<ServerArticleStats> =
+                    serde_json::from_str(&stats_json).unwrap_or_default();
+                let has_nzb: i64 = row.get(12)?;
 
                 Ok(HistoryEntry {
                     id: row.get(0)?,
@@ -275,11 +304,110 @@ impl Database {
                     output_dir: row.get::<_, String>(8)?.into(),
                     stages,
                     error_message: row.get(10)?,
+                    server_stats,
+                    // Don't load actual blob in list - just note if it exists
+                    nzb_data: if has_nzb != 0 { Some(Vec::new()) } else { None },
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(entries)
+    }
+
+    /// Get the raw NZB data for a history entry (for retry).
+    pub fn history_get_nzb_data(&self, id: &str) -> Result<Option<Vec<u8>>, NzbError> {
+        let result = self.conn.query_row(
+            "SELECT nzb_data FROM history WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, Option<Vec<u8>>>(0),
+        );
+        match result {
+            Ok(data) => Ok(data),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(NzbError::Database(e)),
+        }
+    }
+
+    /// Enforce history retention limit by deleting oldest entries.
+    pub fn history_enforce_retention(&self, max_entries: usize) -> Result<(), NzbError> {
+        self.conn.execute(
+            "DELETE FROM history WHERE id NOT IN (
+                SELECT id FROM history ORDER BY completed_at DESC LIMIT ?1
+            )",
+            params![max_entries as i64],
+        )?;
+        Ok(())
+    }
+
+    /// Get a single history entry by ID.
+    pub fn history_get(&self, id: &str) -> Result<Option<HistoryEntry>, NzbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, category, status, total_bytes, downloaded_bytes,
+             added_at, completed_at, output_dir, stages, error_message, server_stats
+             FROM history WHERE id = ?1",
+        )?;
+
+        let result = stmt.query_row(params![id], |row| {
+            let stages_json: String = row.get::<_, Option<String>>(9)?.unwrap_or_default();
+            let stages: Vec<StageResult> =
+                serde_json::from_str(&stages_json).unwrap_or_default();
+            let stats_json: String = row.get::<_, Option<String>>(11)?.unwrap_or_default();
+            let server_stats: Vec<ServerArticleStats> =
+                serde_json::from_str(&stats_json).unwrap_or_default();
+
+            Ok(HistoryEntry {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                category: row.get(2)?,
+                status: parse_status(&row.get::<_, String>(3)?),
+                total_bytes: row.get::<_, i64>(4)? as u64,
+                downloaded_bytes: row.get::<_, i64>(5)? as u64,
+                added_at: parse_datetime(&row.get::<_, String>(6)?),
+                completed_at: parse_datetime(&row.get::<_, String>(7)?),
+                output_dir: row.get::<_, String>(8)?.into(),
+                stages,
+                error_message: row.get(10)?,
+                server_stats,
+                nzb_data: None,
+            })
+        });
+
+        match result {
+            Ok(entry) => Ok(Some(entry)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(NzbError::Database(e)),
+        }
+    }
+
+    /// Store raw NZB data for a queue job.
+    pub fn queue_store_nzb_data(&self, id: &str, nzb_data: &[u8]) -> Result<(), NzbError> {
+        self.conn.execute(
+            "UPDATE queue SET nzb_raw = ?2 WHERE id = ?1",
+            params![id, nzb_data],
+        )?;
+        Ok(())
+    }
+
+    /// Get raw NZB data from a queue job.
+    pub fn queue_get_nzb_data(&self, id: &str) -> Result<Option<Vec<u8>>, NzbError> {
+        let result = self.conn.query_row(
+            "SELECT nzb_raw FROM queue WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, Option<Vec<u8>>>(0),
+        );
+        match result {
+            Ok(data) => Ok(data),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(NzbError::Database(e)),
+        }
+    }
+
+    /// Count history entries.
+    pub fn history_count(&self) -> Result<usize, NzbError> {
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM history", [], |row| row.get(0))?;
+        Ok(count as usize)
     }
 
     /// Remove a history entry.
@@ -364,6 +492,8 @@ mod tests {
             output_dir: "/downloads/test".into(),
             password: None,
             error_message: None,
+            speed_bps: 0,
+            server_stats: Vec::new(),
             files: Vec::new(),
         };
 
@@ -394,6 +524,8 @@ mod tests {
                 duration_secs: 2.5,
             }],
             error_message: None,
+            server_stats: Vec::new(),
+            nzb_data: None,
         };
 
         db.history_insert(&entry).unwrap();

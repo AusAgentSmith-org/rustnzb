@@ -45,6 +45,7 @@ pub enum ProgressUpdate {
         segment_number: u32,
         decoded_bytes: u64,
         file_complete: bool,
+        server_id: Option<String>,
     },
     /// An article failed on all servers (counted as bad/missing).
     ArticleFailed {
@@ -52,6 +53,7 @@ pub enum ProgressUpdate {
         file_id: String,
         segment_number: u32,
         error: String,
+        server_id: Option<String>,
     },
     /// The entire job has finished (all articles processed).
     JobFinished {
@@ -321,6 +323,7 @@ async fn download_worker(
                     segment_number: item.segment_number,
                     decoded_bytes: process_result.decoded_bytes,
                     file_complete: process_result.file_complete,
+                    server_id: Some(primary_server.id.clone()),
                 });
             }
             Err(ArticleError::ArticleNotFound) => {
@@ -345,6 +348,7 @@ async fn download_worker(
                         file_id: item.file_id.clone(),
                         segment_number: item.segment_number,
                         error: "Article not found on any server".into(),
+                        server_id: Some(primary_server.id.clone()),
                     });
                 } else {
                     // Put back for another server's worker
@@ -389,6 +393,7 @@ async fn download_worker(
                         file_id: item.file_id.clone(),
                         segment_number: item.segment_number,
                         error: format!("Decode error: {msg}"),
+                        server_id: Some(primary_server.id.clone()),
                     });
                 } else {
                     debug!(article = %item.message_id, "Decode failed, trying other server");
@@ -404,6 +409,7 @@ async fn download_worker(
                     file_id: item.file_id.clone(),
                     segment_number: item.segment_number,
                     error: format!("Assembly error: {msg}"),
+                    server_id: Some(primary_server.id.clone()),
                 });
             }
         }
@@ -456,7 +462,7 @@ async fn fetch_article_with_retry(
     conn: &mut NntpConnection,
     item: &WorkItem,
     assembler: &FileAssembler,
-    server: &ServerConfig,
+    _server: &ServerConfig,
     worker_id: &str,
 ) -> Result<ProcessResult, ArticleError> {
     let mut last_error = None;

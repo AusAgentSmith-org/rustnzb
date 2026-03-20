@@ -40,8 +40,14 @@ bytes = "1"
 crc32fast = "1"
 # Logging
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "registry"] }
 tracing-appender = "0.2"
+# OpenTelemetry
+opentelemetry = "0.28"
+opentelemetry_sdk = { version = "0.28", features = ["rt-tokio", "metrics"] }
+opentelemetry-otlp = { version = "0.28", features = ["grpc-tonic", "metrics", "logs"] }
+tracing-opentelemetry = "0.29"
+opentelemetry-appender-tracing = "0.28"
 # Error handling
 thiserror = "2"
 anyhow = "1"
@@ -85,6 +91,11 @@ tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive", "env"] }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry-appender-tracing = { workspace = true }
 
 [dev-dependencies]
 reqwest = { workspace = true, features = ["multipart", "json"] }

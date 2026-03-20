@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
@@ -23,7 +24,7 @@ use crate::download_engine::{DownloadEngine, ProgressUpdate};
 // Speed tracker (simple rolling window)
 // ---------------------------------------------------------------------------
 
-struct SpeedTracker {
+pub(crate) struct SpeedTracker {
     /// Bytes downloaded in the current window.
     window_bytes: AtomicU64,
     /// Current speed in bytes per second.
@@ -31,7 +32,7 @@ struct SpeedTracker {
 }
 
 impl SpeedTracker {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             window_bytes: AtomicU64::new(0),
             current_bps: AtomicU64::new(0),
@@ -39,12 +40,12 @@ impl SpeedTracker {
     }
 
     /// Record downloaded bytes.
-    fn record(&self, bytes: u64) {
+    pub fn record(&self, bytes: u64) {
         self.window_bytes.fetch_add(bytes, Ordering::Relaxed);
     }
 
     /// Called periodically to compute speed and reset the window.
-    fn tick(&self, elapsed_secs: f64) {
+    pub fn tick(&self, elapsed_secs: f64) {
         let bytes = self.window_bytes.swap(0, Ordering::Relaxed);
         if elapsed_secs > 0.001 {
             let bps = (bytes as f64 / elapsed_secs) as u64;
@@ -52,7 +53,7 @@ impl SpeedTracker {
         }
     }
 
-    fn bps(&self) -> u64 {
+    pub fn bps(&self) -> u64 {
         self.current_bps.load(Ordering::Relaxed)
     }
 }
@@ -68,6 +69,10 @@ struct JobState {
     engine: Arc<DownloadEngine>,
     /// Handle to the download task (so we can await or abort it).
     task_handle: Option<tokio::task::JoinHandle<()>>,
+    /// Per-job speed tracker.
+    speed: Arc<SpeedTracker>,
+    /// Raw NZB data for retry.
+    nzb_data: Option<Vec<u8>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -86,13 +91,17 @@ pub struct QueueManager {
     servers: Mutex<Vec<ServerConfig>>,
     /// Whether all downloads are globally paused.
     globally_paused: AtomicBool,
-    /// Speed tracker.
+    /// Global speed tracker.
     speed: SpeedTracker,
     /// Database for persistence.
     db: Mutex<Database>,
     /// App config (incomplete_dir, complete_dir).
     incomplete_dir: std::path::PathBuf,
     complete_dir: std::path::PathBuf,
+    /// Timed pause: when to auto-resume (None = not timed).
+    pause_until: Mutex<Option<DateTime<Utc>>>,
+    /// History retention limit (None = keep all).
+    history_retention: Mutex<Option<usize>>,
 }
 
 impl QueueManager {
@@ -112,13 +121,24 @@ impl QueueManager {
             db: Mutex::new(db),
             incomplete_dir,
             complete_dir,
+            pause_until: Mutex::new(None),
+            history_retention: Mutex::new(None),
         })
+    }
+
+    /// Set history retention limit.
+    pub fn set_history_retention(&self, limit: Option<usize>) {
+        *self.history_retention.lock() = limit;
     }
 
     /// Add a job to the queue and start downloading.
     ///
     /// The job should already have its `work_dir` and `output_dir` set.
-    pub fn add_job(self: &Arc<Self>, mut job: NzbJob) -> nzb_core::Result<()> {
+    pub fn add_job(
+        self: &Arc<Self>,
+        mut job: NzbJob,
+        nzb_data: Option<Vec<u8>>,
+    ) -> nzb_core::Result<()> {
         // Ensure work directory exists
         std::fs::create_dir_all(&job.work_dir)?;
 
@@ -126,6 +146,10 @@ impl QueueManager {
         {
             let db = self.db.lock();
             db.queue_insert(&job)?;
+            // Store raw NZB data if available
+            if let Some(ref data) = nzb_data {
+                let _ = db.queue_store_nzb_data(&job.id, data);
+            }
         }
 
         let job_id = job.id.clone();
@@ -146,6 +170,8 @@ impl QueueManager {
                 job,
                 engine,
                 task_handle: None,
+                speed: Arc::new(SpeedTracker::new()),
+                nzb_data,
             };
             self.jobs.lock().insert(job_id.clone(), state);
             self.job_order.lock().push(job_id);
@@ -154,14 +180,15 @@ impl QueueManager {
 
         // Start downloading
         job.status = JobStatus::Downloading;
-        self.start_download(job);
+        self.start_download(job, nzb_data);
         Ok(())
     }
 
     /// Start the download for a job.
-    fn start_download(self: &Arc<Self>, job: NzbJob) {
+    fn start_download(self: &Arc<Self>, job: NzbJob, nzb_data: Option<Vec<u8>>) {
         let job_id = job.id.clone();
         let engine = Arc::new(DownloadEngine::new());
+        let job_speed = Arc::new(SpeedTracker::new());
         let (progress_tx, progress_rx) = mpsc::unbounded_channel();
 
         let servers = self.servers.lock().clone();
@@ -177,6 +204,8 @@ impl QueueManager {
             job,
             engine,
             task_handle: Some(task_handle),
+            speed: Arc::clone(&job_speed),
+            nzb_data,
         };
 
         self.jobs.lock().insert(job_id.clone(), state);
@@ -190,7 +219,7 @@ impl QueueManager {
         // Spawn the progress handler
         let qm = Arc::clone(self);
         tokio::spawn(async move {
-            qm.handle_progress(job_id, progress_rx).await;
+            qm.handle_progress(job_id, progress_rx, job_speed).await;
         });
     }
 
@@ -199,6 +228,7 @@ impl QueueManager {
         self: Arc<Self>,
         job_id: String,
         mut progress_rx: mpsc::UnboundedReceiver<ProgressUpdate>,
+        job_speed: Arc<SpeedTracker>,
     ) {
         let mut last_db_update = Instant::now();
 
@@ -209,9 +239,11 @@ impl QueueManager {
                     segment_number,
                     decoded_bytes,
                     file_complete,
+                    server_id,
                     ..
                 } => {
                     self.speed.record(decoded_bytes);
+                    job_speed.record(decoded_bytes);
 
                     // Update in-memory job state
                     {
@@ -219,6 +251,32 @@ impl QueueManager {
                         if let Some(state) = jobs.get_mut(&job_id) {
                             state.job.downloaded_bytes += decoded_bytes;
                             state.job.articles_downloaded += 1;
+
+                            // Update per-server stats
+                            if let Some(ref sid) = server_id {
+                                let stats = &mut state.job.server_stats;
+                                if let Some(ss) = stats.iter_mut().find(|s| s.server_id == *sid)
+                                {
+                                    ss.articles_downloaded += 1;
+                                    ss.bytes_downloaded += decoded_bytes;
+                                } else {
+                                    // Find server name from config
+                                    let sname = self
+                                        .servers
+                                        .lock()
+                                        .iter()
+                                        .find(|s| s.id == *sid)
+                                        .map(|s| s.name.clone())
+                                        .unwrap_or_else(|| sid.clone());
+                                    stats.push(ServerArticleStats {
+                                        server_id: sid.clone(),
+                                        server_name: sname,
+                                        articles_downloaded: 1,
+                                        articles_failed: 0,
+                                        bytes_downloaded: decoded_bytes,
+                                    });
+                                }
+                            }
 
                             for file in &mut state.job.files {
                                 if file.id == file_id {
@@ -252,10 +310,35 @@ impl QueueManager {
                         last_db_update = Instant::now();
                     }
                 }
-                ProgressUpdate::ArticleFailed { error, .. } => {
+                ProgressUpdate::ArticleFailed {
+                    error, server_id, ..
+                } => {
                     let mut jobs = self.jobs.lock();
                     if let Some(state) = jobs.get_mut(&job_id) {
                         state.job.articles_failed += 1;
+
+                        // Update per-server failed stats
+                        if let Some(ref sid) = server_id {
+                            let stats = &mut state.job.server_stats;
+                            if let Some(ss) = stats.iter_mut().find(|s| s.server_id == *sid) {
+                                ss.articles_failed += 1;
+                            } else {
+                                let sname = self
+                                    .servers
+                                    .lock()
+                                    .iter()
+                                    .find(|s| s.id == *sid)
+                                    .map(|s| s.name.clone())
+                                    .unwrap_or_else(|| sid.clone());
+                                stats.push(ServerArticleStats {
+                                    server_id: sid.clone(),
+                                    server_name: sname,
+                                    articles_downloaded: 0,
+                                    articles_failed: 1,
+                                    bytes_downloaded: 0,
+                                });
+                            }
+                        }
                     }
                     warn!(job_id = %job_id, "Article failed: {error}");
                 }
@@ -356,6 +439,8 @@ impl QueueManager {
             output_dir: state.job.output_dir.clone(),
             stages: Vec::new(),
             error_message: state.job.error_message.clone(),
+            server_stats: state.job.server_stats.clone(),
+            nzb_data: state.nzb_data.clone(),
         };
 
         let db = self.db.lock();
@@ -364,6 +449,13 @@ impl QueueManager {
         }
         if let Err(e) = db.queue_remove(&state.job.id) {
             error!(job_id = %state.job.id, "Failed to remove from queue: {e}");
+        }
+
+        // Enforce retention
+        if let Some(max) = *self.history_retention.lock() {
+            if let Err(e) = db.history_enforce_retention(max) {
+                warn!("Failed to enforce history retention: {e}");
+            }
         }
     }
 
@@ -426,7 +518,7 @@ impl QueueManager {
 
             if state.task_handle.is_none() {
                 // Need to start the download task
-                Some(state.job.clone())
+                Some((state.job.clone(), state.nzb_data.clone()))
             } else {
                 let db = self.db.lock();
                 let _ = db.queue_update_progress(
@@ -441,10 +533,10 @@ impl QueueManager {
             }
         };
 
-        if let Some(job) = needs_start {
+        if let Some((job, nzb_data)) = needs_start {
             // Remove old state and start fresh
             self.jobs.lock().remove(&job.id);
-            self.start_download(job);
+            self.start_download(job, nzb_data);
         }
 
         info!(job_id = %id, "Job resumed");
@@ -490,11 +582,45 @@ impl QueueManager {
         info!("All downloads paused");
     }
 
+    /// Pause all downloads for a specified duration.
+    pub fn pause_for(self: &Arc<Self>, duration_secs: u64) {
+        self.pause_all();
+        let until = Utc::now() + chrono::Duration::seconds(duration_secs as i64);
+        *self.pause_until.lock() = Some(until);
+
+        let qm = Arc::clone(self);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(duration_secs)).await;
+            // Only auto-resume if the pause_until hasn't been cleared
+            let should_resume = {
+                let until = qm.pause_until.lock();
+                until.is_some()
+            };
+            if should_resume {
+                *qm.pause_until.lock() = None;
+                qm.resume_all();
+                info!("Auto-resumed after timed pause");
+            }
+        });
+
+        info!(duration_secs, "Paused for duration");
+    }
+
+    /// Get remaining pause time in seconds (None if not timed).
+    pub fn pause_remaining_secs(&self) -> Option<i64> {
+        let until = self.pause_until.lock();
+        until.map(|u| {
+            let remaining = u - Utc::now();
+            remaining.num_seconds().max(0)
+        })
+    }
+
     /// Resume all downloads globally.
     pub fn resume_all(self: &Arc<Self>) {
         self.globally_paused.store(false, Ordering::Relaxed);
+        *self.pause_until.lock() = None;
 
-        let jobs_to_start: Vec<NzbJob> = {
+        let jobs_to_start: Vec<(NzbJob, Option<Vec<u8>>)> = {
             let mut jobs = self.jobs.lock();
             let mut to_start = Vec::new();
             for (_id, state) in jobs.iter_mut() {
@@ -502,19 +628,33 @@ impl QueueManager {
                     state.engine.resume();
                     state.job.status = JobStatus::Downloading;
                     if state.task_handle.is_none() {
-                        to_start.push(state.job.clone());
+                        to_start.push((state.job.clone(), state.nzb_data.clone()));
                     }
                 }
             }
             to_start
         };
 
-        for job in jobs_to_start {
+        for (job, nzb_data) in jobs_to_start {
             self.jobs.lock().remove(&job.id);
-            self.start_download(job);
+            self.start_download(job, nzb_data);
         }
 
         info!("All downloads resumed");
+    }
+
+    // -----------------------------------------------------------------------
+    // Server management
+    // -----------------------------------------------------------------------
+
+    /// Update the server list at runtime.
+    pub fn update_servers(&self, servers: Vec<ServerConfig>) {
+        *self.servers.lock() = servers;
+    }
+
+    /// Get current server configs.
+    pub fn get_servers(&self) -> Vec<ServerConfig> {
+        self.servers.lock().clone()
     }
 
     // -----------------------------------------------------------------------
@@ -528,7 +668,9 @@ impl QueueManager {
         let mut result = Vec::with_capacity(order.len());
         for id in order.iter() {
             if let Some(state) = jobs.get(id) {
-                result.push(state.job.clone());
+                let mut job = state.job.clone();
+                job.speed_bps = state.speed.bps();
+                result.push(job);
             }
         }
         result
@@ -569,6 +711,18 @@ impl QueueManager {
         db.history_list(limit).map_err(Into::into)
     }
 
+    /// Get a single history entry.
+    pub fn history_get(&self, id: &str) -> nzb_core::Result<Option<HistoryEntry>> {
+        let db = self.db.lock();
+        db.history_get(id).map_err(Into::into)
+    }
+
+    /// Get raw NZB data for retry.
+    pub fn history_get_nzb_data(&self, id: &str) -> nzb_core::Result<Option<Vec<u8>>> {
+        let db = self.db.lock();
+        db.history_get_nzb_data(id).map_err(Into::into)
+    }
+
     /// Remove a history entry.
     pub fn history_remove(&self, id: &str) -> nzb_core::Result<()> {
         let db = self.db.lock();
@@ -602,6 +756,12 @@ impl QueueManager {
             let job_id = job.id.clone();
             let engine = Arc::new(DownloadEngine::new());
 
+            // Try to load NZB data from DB
+            let nzb_data = {
+                let db = self.db.lock();
+                db.queue_get_nzb_data(&job_id).unwrap_or(None)
+            };
+
             if job.status == JobStatus::Paused {
                 engine.pause();
             }
@@ -610,6 +770,8 @@ impl QueueManager {
                 job,
                 engine,
                 task_handle: None,
+                speed: Arc::new(SpeedTracker::new()),
+                nzb_data,
             };
             self.jobs.lock().insert(job_id.clone(), state);
             self.job_order.lock().push(job_id);
@@ -630,6 +792,11 @@ impl QueueManager {
             loop {
                 interval.tick().await;
                 qm.speed.tick(1.0);
+                // Tick per-job speed trackers
+                let jobs = qm.jobs.lock();
+                for (_id, state) in jobs.iter() {
+                    state.speed.tick(1.0);
+                }
             }
         });
     }

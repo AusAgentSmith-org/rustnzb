@@ -1,0 +1,8 @@
+1) Full log visiability in GUI
+2) Log per NZB (click on NZB to see log as one component)
+3) Each NZB to store some useful information that is shown when NZB is selected (articles downloaded per each server, avg speed)
+4) NZB download panel to show speed per NZB, not just overall speed 
+5) Implement proper server editor
+6) Implement "Pause for" 5-10-30-1hr-custom
+7) From History panel, add a retry button
+8) Implement open telemetry; use .env vars for user to be able to define targets; please see /home/sprooty/MyEnv and set VPS Loki as my custom target 

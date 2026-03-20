@@ -6,10 +6,12 @@ use axum::Json;
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 
+use nzb_core::config::ServerConfig;
 use nzb_core::models::*;
 use nzb_core::nzb_parser;
 
 use crate::error::ApiError;
+use crate::log_buffer::LogEntry;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -34,6 +36,24 @@ pub struct AddNzbQuery {
     pub name: Option<String>,
 }
 
+#[derive(Deserialize, Default)]
+pub struct LogQuery {
+    pub job_id: Option<String>,
+    pub after_seq: Option<u64>,
+    pub level: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Deserialize)]
+pub struct PauseForQuery {
+    pub duration_secs: u64,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct HistoryRetentionBody {
+    pub retention: Option<usize>,
+}
+
 // ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------
@@ -48,8 +68,46 @@ pub struct QueueResponse {
 
 #[derive(Serialize)]
 pub struct HistoryResponse {
-    pub entries: Vec<HistoryEntry>,
+    pub entries: Vec<HistoryResponseEntry>,
     pub total: usize,
+}
+
+#[derive(Serialize)]
+pub struct HistoryResponseEntry {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub status: JobStatus,
+    pub total_bytes: u64,
+    pub downloaded_bytes: u64,
+    pub added_at: chrono::DateTime<chrono::Utc>,
+    pub completed_at: chrono::DateTime<chrono::Utc>,
+    pub output_dir: String,
+    pub stages: Vec<StageResult>,
+    pub error_message: Option<String>,
+    pub server_stats: Vec<ServerArticleStats>,
+    pub has_nzb_data: bool,
+}
+
+impl From<HistoryEntry> for HistoryResponseEntry {
+    fn from(e: HistoryEntry) -> Self {
+        let has_nzb = e.nzb_data.is_some();
+        Self {
+            id: e.id,
+            name: e.name,
+            category: e.category,
+            status: e.status,
+            total_bytes: e.total_bytes,
+            downloaded_bytes: e.downloaded_bytes,
+            added_at: e.added_at,
+            completed_at: e.completed_at,
+            output_dir: e.output_dir.to_string_lossy().to_string(),
+            stages: e.stages,
+            error_message: e.error_message,
+            server_stats: e.server_stats,
+            has_nzb_data: has_nzb,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -65,11 +123,18 @@ pub struct StatusResponse {
     pub speed_bps: u64,
     pub queue_size: usize,
     pub disk_space_free: u64,
+    pub pause_remaining_secs: Option<i64>,
 }
 
 #[derive(Serialize)]
 pub struct SimpleResponse {
     pub status: bool,
+}
+
+#[derive(Serialize)]
+pub struct LogResponse {
+    pub entries: Vec<LogEntry>,
+    pub latest_seq: u64,
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +190,8 @@ pub async fn h_queue_add(
                 .to_string()
         });
 
+        // Store the raw NZB data for later retry
+        let nzb_data = data.to_vec();
         let mut job = nzb_parser::parse_nzb(&name, &data).map_err(ApiError::from)?;
 
         // Apply category
@@ -162,7 +229,7 @@ pub async fn h_queue_add(
         );
 
         // Add to the queue manager (persists to DB and starts downloading)
-        qm.add_job(job).map_err(ApiError::from)?;
+        qm.add_job(job, Some(nzb_data)).map_err(ApiError::from)?;
         nzo_ids.push(id);
     }
 
@@ -224,6 +291,15 @@ pub async fn h_queue_resume_all(
     Ok(Json(SimpleResponse { status: true }))
 }
 
+/// POST /api/queue/pause-for -- Pause all downloads for a duration.
+pub async fn h_queue_pause_for(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<PauseForQuery>,
+) -> Result<Json<SimpleResponse>, ApiError> {
+    state.queue_manager.pause_for(q.duration_secs);
+    Ok(Json(SimpleResponse { status: true }))
+}
+
 // ---------------------------------------------------------------------------
 // History handlers
 // ---------------------------------------------------------------------------
@@ -239,6 +315,7 @@ pub async fn h_history_list(
         .history_list(limit)
         .map_err(ApiError::from)?;
     let total = entries.len();
+    let entries: Vec<HistoryResponseEntry> = entries.into_iter().map(Into::into).collect();
     Ok(Json(HistoryResponse { entries, total }))
 }
 
@@ -265,6 +342,57 @@ pub async fn h_history_clear(
     Ok(Json(SimpleResponse { status: true }))
 }
 
+/// POST /api/history/{id}/retry -- Re-add a failed/completed NZB from history.
+pub async fn h_history_retry(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Get the history entry to get the name/category
+    let entry = state
+        .queue_manager
+        .history_get(&id)
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::from(anyhow::anyhow!("History entry not found")))?;
+
+    // Get the raw NZB data
+    let nzb_data = state
+        .queue_manager
+        .history_get_nzb_data(&id)
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::from(anyhow::anyhow!("No NZB data stored for this entry")))?;
+
+    // Re-parse the NZB
+    let mut job = nzb_parser::parse_nzb(&entry.name, &nzb_data).map_err(ApiError::from)?;
+    job.category = entry.category.clone();
+
+    // Set working directories
+    let qm = &state.queue_manager;
+    job.work_dir = qm.incomplete_dir().join(&job.id);
+    job.output_dir = qm.complete_dir().join(&job.category);
+
+    std::fs::create_dir_all(&job.work_dir)
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
+
+    let new_id = job.id.clone();
+
+    tracing::info!(
+        name = %job.name,
+        id = %new_id,
+        original_id = %id,
+        "Retrying NZB from history"
+    );
+
+    qm.add_job(job, Some(nzb_data)).map_err(ApiError::from)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(AddNzbResponse {
+            status: true,
+            nzo_ids: vec![new_id],
+        }),
+    ))
+}
+
 // ---------------------------------------------------------------------------
 // Status handler
 // ---------------------------------------------------------------------------
@@ -274,12 +402,37 @@ pub async fn h_status(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<StatusResponse>, ApiError> {
     let qm = &state.queue_manager;
+    let config = state.config();
     Ok(Json(StatusResponse {
         version: env!("CARGO_PKG_VERSION"),
         paused: qm.is_paused(),
         speed_bps: qm.get_speed(),
         queue_size: qm.queue_size(),
-        disk_space_free: get_disk_space_free(&state.config.general.complete_dir),
+        disk_space_free: get_disk_space_free(&config.general.complete_dir),
+        pause_remaining_secs: qm.pause_remaining_secs(),
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Log handler
+// ---------------------------------------------------------------------------
+
+/// GET /api/logs -- Get log entries.
+pub async fn h_logs(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<LogQuery>,
+) -> Result<Json<LogResponse>, ApiError> {
+    let limit = q.limit.unwrap_or(200);
+    let entries = state.log_buffer.get_entries(
+        q.job_id.as_deref(),
+        q.after_seq,
+        q.level.as_deref(),
+        limit,
+    );
+    let latest_seq = state.log_buffer.latest_seq();
+    Ok(Json(LogResponse {
+        entries,
+        latest_seq,
     }))
 }
 
@@ -291,21 +444,157 @@ pub async fn h_status(
 pub async fn h_config_get(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<nzb_core::config::AppConfig>, ApiError> {
-    Ok(Json(state.config.clone()))
+    Ok(Json((*state.config()).clone()))
 }
 
 /// GET /api/config/servers -- List configured servers.
 pub async fn h_servers_list(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<nzb_core::config::ServerConfig>>, ApiError> {
-    Ok(Json(state.config.servers.clone()))
+) -> Result<Json<Vec<ServerConfig>>, ApiError> {
+    Ok(Json(state.config().servers.clone()))
+}
+
+/// POST /api/config/servers -- Add a new server.
+pub async fn h_server_add(
+    State(state): State<Arc<AppState>>,
+    Json(mut server): Json<ServerConfig>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Generate ID if empty
+    if server.id.is_empty() {
+        server.id = uuid::Uuid::new_v4().to_string();
+    }
+
+    let mut config = (*state.config()).clone();
+    config.servers.push(server);
+    state.update_config(config.clone()).map_err(ApiError::from)?;
+    state.queue_manager.update_servers(config.servers);
+
+    Ok((StatusCode::OK, Json(SimpleResponse { status: true })))
+}
+
+/// PUT /api/config/servers/{id} -- Update an existing server.
+pub async fn h_server_update(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(server): Json<ServerConfig>,
+) -> Result<Json<SimpleResponse>, ApiError> {
+    let mut config = (*state.config()).clone();
+
+    let idx = config
+        .servers
+        .iter()
+        .position(|s| s.id == id)
+        .ok_or_else(|| ApiError::from(anyhow::anyhow!("Server not found: {id}")))?;
+
+    config.servers[idx] = server;
+    state.update_config(config.clone()).map_err(ApiError::from)?;
+    state.queue_manager.update_servers(config.servers);
+
+    Ok(Json(SimpleResponse { status: true }))
+}
+
+/// DELETE /api/config/servers/{id} -- Delete a server.
+pub async fn h_server_delete(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<SimpleResponse>, ApiError> {
+    let mut config = (*state.config()).clone();
+    let before = config.servers.len();
+    config.servers.retain(|s| s.id != id);
+
+    if config.servers.len() == before {
+        return Err(ApiError::from(anyhow::anyhow!("Server not found: {id}")));
+    }
+
+    state.update_config(config.clone()).map_err(ApiError::from)?;
+    state.queue_manager.update_servers(config.servers);
+
+    Ok(Json(SimpleResponse { status: true }))
+}
+
+/// POST /api/config/servers/{id}/test -- Test a server connection.
+pub async fn h_server_test(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<ServerTestResponse>, ApiError> {
+    let config = state.config();
+    let server = config
+        .servers
+        .iter()
+        .find(|s| s.id == id)
+        .ok_or_else(|| ApiError::from(anyhow::anyhow!("Server not found: {id}")))?
+        .clone();
+
+    // Test connection in a spawned task with timeout
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        test_server_connection(server),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(msg)) => Ok(Json(ServerTestResponse {
+            success: true,
+            message: msg,
+        })),
+        Ok(Err(msg)) => Ok(Json(ServerTestResponse {
+            success: false,
+            message: msg,
+        })),
+        Err(_) => Ok(Json(ServerTestResponse {
+            success: false,
+            message: "Connection timed out after 15 seconds".into(),
+        })),
+    }
+}
+
+#[derive(Serialize)]
+pub struct ServerTestResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+async fn test_server_connection(server: ServerConfig) -> Result<String, String> {
+    use nzb_nntp::connection::NntpConnection;
+
+    let mut conn = NntpConnection::new(format!("test-{}", server.id));
+    conn.connect(&server)
+        .await
+        .map_err(|e| format!("Connection failed: {e}"))?;
+    let _ = conn.quit().await;
+    Ok(format!(
+        "Successfully connected to {}:{}",
+        server.host, server.port
+    ))
 }
 
 /// GET /api/config/categories -- List configured categories.
 pub async fn h_categories_list(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<nzb_core::config::CategoryConfig>>, ApiError> {
-    Ok(Json(state.config.categories.clone()))
+    Ok(Json(state.config().categories.clone()))
+}
+
+/// PUT /api/config/history-retention -- Update history retention setting.
+pub async fn h_history_retention_set(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<HistoryRetentionBody>,
+) -> Result<Json<SimpleResponse>, ApiError> {
+    let mut config = (*state.config()).clone();
+    config.general.history_retention = body.retention;
+    state.update_config(config).map_err(ApiError::from)?;
+    state.queue_manager.set_history_retention(body.retention);
+    Ok(Json(SimpleResponse { status: true }))
+}
+
+/// GET /api/config/history-retention -- Get history retention setting.
+pub async fn h_history_retention_get(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<HistoryRetentionBody>, ApiError> {
+    let config = state.config();
+    Ok(Json(HistoryRetentionBody {
+        retention: config.general.history_retention,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -313,7 +602,26 @@ pub async fn h_categories_list(
 // ---------------------------------------------------------------------------
 
 /// Get free disk space for a path (returns 0 on error).
-fn get_disk_space_free(_path: &std::path::Path) -> u64 {
-    // TODO: implement platform-specific disk space check
-    0
+fn get_disk_space_free(path: &std::path::Path) -> u64 {
+    #[cfg(unix)]
+    {
+        use std::ffi::CString;
+        use std::mem::MaybeUninit;
+        let c_path = match CString::new(path.to_string_lossy().as_bytes()) {
+            Ok(p) => p,
+            Err(_) => return 0,
+        };
+        unsafe {
+            let mut stat = MaybeUninit::<libc::statvfs>::uninit();
+            if libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) == 0 {
+                let stat = stat.assume_init();
+                return stat.f_bavail as u64 * stat.f_frsize as u64;
+            }
+        }
+        0
+    }
+    #[cfg(not(unix))]
+    {
+        0
+    }
 }
