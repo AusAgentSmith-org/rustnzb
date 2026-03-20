@@ -1,6 +1,7 @@
 use crate::config::{ARTICLE_SIZE, MSG_ID_DOMAIN};
 use crate::yenc;
 use anyhow::Result;
+use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -25,9 +26,18 @@ pub struct FileEntry {
     pub total_size: u64,
 }
 
+/// A memory-mapped data file. The mmap is kept alive by the Arc.
+struct MappedFile {
+    mmap: Mmap,
+    filename: String,
+    total_size: u64,
+}
+
 struct ServerState {
     index: ArticleIndex,
     prefix_map: HashMap<String, usize>,
+    /// mmap'd data files, indexed same as index.entries
+    mapped_files: Vec<Arc<MappedFile>>,
     missing: HashSet<String>,
     data_dir: PathBuf,
 }
@@ -47,20 +57,47 @@ impl ServerState {
         };
 
         let mut prefix_map = HashMap::new();
+        let mut mapped_files = Vec::new();
+        let mut total_mapped: u64 = 0;
+
         for (i, entry) in index.entries.iter().enumerate() {
             prefix_map.insert(entry.msg_prefix.clone(), i);
+
+            let file_path = Path::new(&entry.data_file);
+            if file_path.exists() {
+                let file = std::fs::File::open(file_path)?;
+                let mmap = unsafe { Mmap::map(&file)? };
+                // Advise the OS we'll read sequentially (prefetch aggressively)
+                mmap.advise(memmap2::Advice::Sequential)?;
+                total_mapped += mmap.len() as u64;
+                mapped_files.push(Arc::new(MappedFile {
+                    mmap,
+                    filename: entry.filename.clone(),
+                    total_size: entry.total_size,
+                }));
+            } else {
+                // Placeholder — file not generated yet (pre-reload state)
+                mapped_files.push(Arc::new(MappedFile {
+                    mmap: Mmap::map(&std::fs::File::open("/dev/null")?)?,
+                    filename: entry.filename.clone(),
+                    total_size: 0,
+                }));
+            }
         }
+
         let missing: HashSet<String> = index.missing.iter().cloned().collect();
 
         tracing::info!(
-            "Loaded {} file entries, {} missing articles",
+            "Loaded {} file entries, {} missing articles, {:.1} GB mmap'd",
             index.entries.len(),
-            missing.len()
+            missing.len(),
+            total_mapped as f64 / (1024.0 * 1024.0 * 1024.0),
         );
 
         Ok(Self {
             index,
             prefix_map,
+            mapped_files,
             missing,
             data_dir: data_dir.to_path_buf(),
         })
@@ -73,37 +110,32 @@ impl ServerState {
     }
 
     /// Lookup article by message-id.
-    /// Returns (file_path, offset, length, part, total_parts, filename, total_file_size).
+    /// Returns (mapped_file, offset, length, part, total_parts) — all from mmap, no I/O.
     fn lookup(
         &self,
         message_id: &str,
-    ) -> Option<(PathBuf, u64, u64, u32, u32, String, u64)> {
+    ) -> Option<(Arc<MappedFile>, u64, u64, u32, u32)> {
         let stripped = message_id.trim_matches(|c| c == '<' || c == '>');
         let without_domain = stripped.strip_suffix(&format!("@{MSG_ID_DOMAIN}"))?;
         let (prefix, part_str) = without_domain.rsplit_once("-p")?;
         let part: u32 = part_str.parse().ok()?;
 
         let entry_idx = self.prefix_map.get(prefix)?;
-        let entry = &self.index.entries[*entry_idx];
+        let mf = &self.mapped_files[*entry_idx];
+
+        if mf.total_size == 0 {
+            return None; // placeholder, file not available
+        }
 
         let article_size = self.index.article_size;
         let offset = (part as u64 - 1) * article_size;
-        if offset >= entry.total_size {
+        if offset >= mf.total_size {
             return None;
         }
-        let length = std::cmp::min(article_size, entry.total_size - offset);
-        let total_parts = ((entry.total_size + article_size - 1) / article_size) as u32;
+        let length = std::cmp::min(article_size, mf.total_size - offset);
+        let total_parts = ((mf.total_size + article_size - 1) / article_size) as u32;
 
-        let file_path = PathBuf::from(&entry.data_file);
-        Some((
-            file_path,
-            offset,
-            length,
-            part,
-            total_parts,
-            entry.filename.clone(),
-            entry.total_size,
-        ))
+        Some((mf.clone(), offset, length, part, total_parts))
     }
 
     fn is_missing(&self, message_id: &str) -> bool {
@@ -169,22 +201,11 @@ async fn handle_connection_inner(
             if st.is_missing(&msg_id) {
                 drop(st);
                 writer.write_all(b"430 No Such Article\r\n").await?;
-            } else if let Some((file_path, offset, length, part, total_parts, filename, total_size)) =
-                st.lookup(&msg_id)
-            {
+            } else if let Some((mf, offset, length, part, total_parts)) = st.lookup(&msg_id) {
                 drop(st);
 
-                // Read raw bytes from data file
-                let data =
-                    tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
-                        use std::io::{Read, Seek, SeekFrom};
-                        let mut f = std::fs::File::open(&file_path)?;
-                        f.seek(SeekFrom::Start(offset))?;
-                        let mut buf = vec![0u8; length as usize];
-                        f.read_exact(&mut buf)?;
-                        Ok(buf)
-                    })
-                    .await??;
+                // Slice directly from mmap — no file open, seek, or read syscalls
+                let data = &mf.mmap[offset as usize..(offset + length) as usize];
 
                 let code = if is_article { "220" } else { "222" };
                 writer
@@ -200,16 +221,16 @@ async fn handle_connection_inner(
                                  Message-ID: <{msg_id}>\r\n\
                                  Newsgroups: alt.binaries.test\r\n\
                                  \r\n",
-                                filename, part, total_parts
+                                mf.filename, part, total_parts
                             )
                             .as_bytes(),
                         )
                         .await?;
                 }
 
-                // yEnc encode and write (encoder already escapes '.' at line start)
+                // yEnc encode from mmap slice and write
                 let (encoded, _crc) =
-                    yenc::encode_article(&data, &filename, part, total_parts, offset, total_size);
+                    yenc::encode_article(data, &mf.filename, part, total_parts, offset, mf.total_size);
                 writer.write_all(&encoded).await?;
                 writer.write_all(b".\r\n").await?;
             } else {

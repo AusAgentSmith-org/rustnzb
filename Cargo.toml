@@ -7,6 +7,7 @@ members = [
     "crates/nzb-decode",
     "crates/nzb-postproc",
 ]
+exclude = ["benchnzb"]
 
 [workspace.package]
 version = "0.1.0"

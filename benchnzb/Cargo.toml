@@ -16,6 +16,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 bollard = { version = "0.17", default-features = false }
 anyhow = "1"
 crc32fast = "1"
+memmap2 = "0.9"
 futures-util = "0.3"
 tokio-util = "0.7"
 
