@@ -60,7 +60,7 @@ fn make_scenario(size: u64, test_type: TestType) -> Scenario {
         0.0
     };
     let redundancy_pct = if matches!(test_type, TestType::Par2 | TestType::Unpack) {
-        10.0
+        30.0
     } else {
         0.0
     };
