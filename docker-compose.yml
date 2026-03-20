@@ -1,0 +1,20 @@
+services:
+  rustnzbd:
+    image: ${DOCKERHUB_USERNAME:-ausagentsmith}/rustnzbd:latest
+    container_name: rustnzbd
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config:/config
+      - ./data:/data
+      - /mnt/data3/downloads:/downloads
+    environment:
+      - TZ=Australia/Sydney
+      - RUST_LOG=info
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9090/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

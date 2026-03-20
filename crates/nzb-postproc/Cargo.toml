@@ -1,0 +1,17 @@
+[package]
+name = "nzb-postproc"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nzb-core = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+walkdir = { workspace = true }
+zip = "2"
+
+[dev-dependencies]
+tempfile = "3"

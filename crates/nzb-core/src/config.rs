@@ -1,0 +1,174 @@
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
+/// Top-level application configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AppConfig {
+    pub general: GeneralConfig,
+    pub servers: Vec<ServerConfig>,
+    pub categories: Vec<CategoryConfig>,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            general: GeneralConfig::default(),
+            servers: Vec::new(),
+            categories: vec![CategoryConfig::default()],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GeneralConfig {
+    /// HTTP API listen address
+    pub listen_addr: String,
+    /// HTTP API port
+    pub port: u16,
+    /// API key for authentication
+    pub api_key: Option<String>,
+    /// Directory for incomplete downloads
+    pub incomplete_dir: PathBuf,
+    /// Directory for completed downloads
+    pub complete_dir: PathBuf,
+    /// Directory for application data (DB, logs)
+    pub data_dir: PathBuf,
+    /// Download speed limit in bytes/sec (0 = unlimited)
+    pub speed_limit_bps: u64,
+    /// Article cache size in bytes
+    pub cache_size: u64,
+    /// Log level
+    pub log_level: String,
+    /// Log file path (None = stdout only)
+    pub log_file: Option<PathBuf>,
+}
+
+impl Default for GeneralConfig {
+    fn default() -> Self {
+        Self {
+            listen_addr: "0.0.0.0".into(),
+            port: 9090,
+            api_key: None,
+            incomplete_dir: PathBuf::from("downloads/incomplete"),
+            complete_dir: PathBuf::from("downloads/complete"),
+            data_dir: PathBuf::from("data"),
+            speed_limit_bps: 0,
+            cache_size: 500 * 1024 * 1024, // 500 MB
+            log_level: "info".into(),
+            log_file: None,
+        }
+    }
+}
+
+/// NNTP server configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerConfig {
+    /// Unique server identifier
+    pub id: String,
+    /// Display name
+    pub name: String,
+    /// Server hostname
+    pub host: String,
+    /// Server port
+    pub port: u16,
+    /// Use SSL/TLS
+    pub ssl: bool,
+    /// Verify SSL certificates
+    pub ssl_verify: bool,
+    /// Username for authentication
+    pub username: Option<String>,
+    /// Password for authentication
+    pub password: Option<String>,
+    /// Max simultaneous connections
+    pub connections: u16,
+    /// Server priority (0 = highest)
+    pub priority: u8,
+    /// Enable this server
+    pub enabled: bool,
+    /// Article retention in days (0 = unlimited)
+    pub retention: u32,
+    /// Number of pipelined requests per connection
+    pub pipelining: u8,
+    /// Server is optional (failure is non-fatal)
+    pub optional: bool,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: String::new(),
+            host: String::new(),
+            port: 563,
+            ssl: true,
+            ssl_verify: true,
+            username: None,
+            password: None,
+            connections: 8,
+            priority: 0,
+            enabled: true,
+            retention: 0,
+            pipelining: 1,
+            optional: false,
+        }
+    }
+}
+
+/// Category configuration for organizing downloads.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryConfig {
+    /// Category name
+    pub name: String,
+    /// Output directory override (relative to complete_dir)
+    pub output_dir: Option<PathBuf>,
+    /// Post-processing level: 0=none, 1=repair, 2=unpack, 3=repair+unpack
+    pub post_processing: u8,
+}
+
+impl Default for CategoryConfig {
+    fn default() -> Self {
+        Self {
+            name: "Default".into(),
+            output_dir: None,
+            post_processing: 3,
+        }
+    }
+}
+
+impl AppConfig {
+    /// Load config from a TOML file, creating default if it doesn't exist.
+    pub fn load(path: &std::path::Path) -> anyhow::Result<Self> {
+        if path.exists() {
+            let contents = std::fs::read_to_string(path)?;
+            let config: AppConfig = toml::from_str(&contents)?;
+            Ok(config)
+        } else {
+            let config = AppConfig::default();
+            config.save(path)?;
+            Ok(config)
+        }
+    }
+
+    /// Save config to a TOML file.
+    pub fn save(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let contents = toml::to_string_pretty(self)?;
+        std::fs::write(path, contents)?;
+        Ok(())
+    }
+
+    /// Find a category by name.
+    pub fn category(&self, name: &str) -> Option<&CategoryConfig> {
+        self.categories.iter().find(|c| c.name == name)
+    }
+
+    /// Find a server by ID.
+    pub fn server(&self, id: &str) -> Option<&ServerConfig> {
+        self.servers.iter().find(|s| s.id == id)
+    }
+}
