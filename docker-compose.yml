@@ -4,7 +4,7 @@ services:
     container_name: rustnzbd
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "9095:9090"
     volumes:
       - ./config:/config
       - ./data:/data
