@@ -67,7 +67,13 @@ output_dir = "software"
 post_processing = 2
 
 # OpenTelemetry (can also be set via env vars: OTEL_ENABLED, OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME)
+# Sends logs+metrics via OTLP gRPC — requires an OTLP-compatible collector at the endpoint.
 [otel]
 enabled = false
-endpoint = "http://100.96.114.15:4317"  # OTLP gRPC endpoint (Loki via Tailscale)
+endpoint = "http://localhost:4317"  # OTLP gRPC endpoint
 service_name = "rustnzbd"
+
+# --- Loki logging (alternative to OTEL) ---
+# A Promtail sidecar is included in docker-compose.yml behind the "logging" profile.
+# To enable: set LOKI_URL and activate the profile:
+#   LOKI_URL=http://your-loki:3100 COMPOSE_PROFILES=logging docker compose up -d

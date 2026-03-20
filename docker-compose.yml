@@ -12,12 +12,23 @@ services:
     environment:
       - TZ=Australia/Sydney
       - RUST_LOG=info
-      - OTEL_ENABLED=true
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://100.96.114.15:4317
-      - OTEL_SERVICE_NAME=rustnzbd
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:9090/api/status"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    profiles: [logging]
+    network_mode: host
+    volumes:
+      - ./promtail.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    environment:
+      LOKI_URL: ${LOKI_URL}
+      HOSTNAME: ${HOSTNAME:-rustnzbd}
+    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
+    restart: unless-stopped
