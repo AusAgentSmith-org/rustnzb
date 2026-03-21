@@ -1023,6 +1023,62 @@ impl QueueManager {
     // -----------------------------------------------------------------------
 
     /// Spawn the background task that periodically updates the speed counter.
+    /// Gracefully shut down the queue manager.
+    ///
+    /// Cancels all in-flight downloads, waits for tasks to stop, and persists
+    /// final job state to the database so progress is not lost.
+    pub async fn shutdown(&self) {
+        info!("Shutting down queue manager...");
+
+        // 1. Set globally paused to prevent new downloads from starting
+        self.globally_paused.store(true, Ordering::Relaxed);
+
+        // 2. Cancel all download engines and collect task handles
+        let mut handles = Vec::new();
+        {
+            let mut jobs = self.jobs.lock();
+            for (id, state) in jobs.iter_mut() {
+                if state.job.status == JobStatus::Downloading {
+                    info!(job_id = %id, "Cancelling download for shutdown");
+                    state.engine.cancel();
+                    state.job.status = JobStatus::Queued; // Will resume on restart
+                }
+                if let Some(handle) = state.task_handle.take() {
+                    handles.push(handle);
+                }
+            }
+        }
+
+        // 3. Wait for all download tasks to finish (with timeout)
+        if !handles.is_empty() {
+            info!("Waiting for {} download tasks to stop...", handles.len());
+            let timeout = Duration::from_secs(10);
+            for handle in handles {
+                let _ = tokio::time::timeout(timeout, handle).await;
+            }
+        }
+
+        // 4. Persist final state for all jobs to DB
+        {
+            let jobs = self.jobs.lock();
+            let db = self.db.lock();
+            for (id, state) in jobs.iter() {
+                if let Err(e) = db.queue_update_progress(
+                    id,
+                    state.job.status,
+                    state.job.downloaded_bytes,
+                    state.job.articles_downloaded,
+                    state.job.articles_failed,
+                    state.job.files_completed,
+                ) {
+                    error!(job_id = %id, error = %e, "Failed to persist job state on shutdown");
+                }
+            }
+        }
+
+        info!("Queue manager shutdown complete");
+    }
+
     pub fn spawn_speed_tracker(self: &Arc<Self>) {
         let qm = Arc::clone(self);
         tokio::spawn(async move {
