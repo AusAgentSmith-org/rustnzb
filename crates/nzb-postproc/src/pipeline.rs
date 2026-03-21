@@ -1,16 +1,16 @@
 //! Post-processing pipeline orchestrator.
 //!
 //! Stages:
-//! - If articles_failed > 0: par2 repair (verifies + repairs in one pass)
-//! - If articles_failed == 0: par2 skipped entirely (files are known-good)
-//! - Extract archives (RAR, 7z, ZIP)
-//! - Cleanup temporary files
+//! - **Verify** — native PAR2 verification (MD5 hash comparison, no external binary)
+//! - **Repair** — falls back to par2cmdline-turbo only when files are actually damaged
+//! - **Extract** — unpack RAR, 7z, ZIP archives
+//! - **Cleanup** — remove archive/par2 files
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use nzb_core::models::{StageResult, StageStatus};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::detect::{find_archives, find_cleanup_files, find_par2_files, ArchiveType};
 use crate::par2::{par2_repair, parse_par2_output};
@@ -66,44 +66,107 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
     info!(dir = %job_dir.display(), "Starting post-processing pipeline");
 
     // ------------------------------------------------------------------
-    // Stage 1 + 2: Par2 verify / repair
+    // Stage 1: Native PAR2 verification
     // ------------------------------------------------------------------
-    // When articles_failed == 0, we skip par2 entirely — the download
-    // completed without errors so the files are known-good.
+    // Parse the PAR2 index file and verify all files via MD5 hashing.
+    // This is pure Rust — no process spawn, no stdout parsing.
     //
-    // When articles_failed > 0, we run `par2 repair` directly. The
-    // repair command verifies first and then repairs in a single pass,
-    // avoiding the redundant double-scan of a separate verify + repair.
+    // If all files pass → done (no par2cmdline needed).
+    // If files are damaged → fall back to par2cmdline-turbo for repair.
     let par2_files = find_par2_files(job_dir);
 
     if par2_files.is_empty() {
-        // No par2 files — skip both stages
         stages.push(StageResult {
             name: "Verify".to_string(),
             status: StageStatus::Skipped,
             message: Some("No par2 files found".to_string()),
             duration_secs: 0.0,
         });
-    } else if config.articles_failed == 0 {
-        // No failures — skip par2 verification entirely
-        info!("Download had zero article failures — skipping par2 verification");
-        stages.push(StageResult {
-            name: "Verify".to_string(),
-            status: StageStatus::Skipped,
-            message: Some("Skipped — download had zero article failures".to_string()),
-            duration_secs: 0.0,
-        });
     } else {
-        // Articles failed — run par2 repair directly (verifies + repairs in one pass)
-        info!(
-            articles_failed = config.articles_failed,
-            "Running par2 repair directly (verify + repair in single pass)"
-        );
-        let result = run_repair_stage(job_dir).await;
-        if result.status == StageStatus::Failed {
-            pipeline_ok = false;
+        let verify_start = Instant::now();
+        let index_par2 = &par2_files[0];
+
+        match par2::parse(index_par2) {
+            Ok(file_set) => {
+                let verify_result = par2::verify(&file_set, job_dir);
+                let verify_duration = verify_start.elapsed().as_secs_f64();
+
+                if verify_result.all_correct() {
+                    // All files intact — no repair needed, no par2cmdline spawn.
+                    info!(
+                        files = verify_result.intact.len(),
+                        duration_secs = verify_duration,
+                        "Native PAR2 verify: all files correct"
+                    );
+                    stages.push(StageResult {
+                        name: "Verify".to_string(),
+                        status: StageStatus::Success,
+                        message: Some(format!(
+                            "All {} files correct (native verify, {verify_duration:.3}s)",
+                            verify_result.intact.len()
+                        )),
+                        duration_secs: verify_duration,
+                    });
+                } else {
+                    // Files damaged or missing — need repair via par2cmdline.
+                    info!(
+                        intact = verify_result.intact.len(),
+                        damaged = verify_result.damaged.len(),
+                        missing = verify_result.missing.len(),
+                        blocks_needed = verify_result.blocks_needed(),
+                        "Native PAR2 verify: damage detected, falling back to par2cmdline repair"
+                    );
+                    stages.push(StageResult {
+                        name: "Verify".to_string(),
+                        status: StageStatus::Success,
+                        message: Some(format!(
+                            "{} intact, {} damaged, {} missing — {} blocks needed (native verify, {verify_duration:.3}s)",
+                            verify_result.intact.len(),
+                            verify_result.damaged.len(),
+                            verify_result.missing.len(),
+                            verify_result.blocks_needed(),
+                        )),
+                        duration_secs: verify_duration,
+                    });
+
+                    // Stage 2: Repair via par2cmdline-turbo
+                    let repair_result = run_repair_stage(job_dir).await;
+                    if repair_result.status == StageStatus::Failed {
+                        pipeline_ok = false;
+                    }
+                    stages.push(repair_result);
+                }
+            }
+            Err(e) => {
+                // Native parse failed — fall back to par2cmdline for everything.
+                debug!(error = %e, "Native PAR2 parse failed, falling back to par2cmdline");
+                let verify_duration = verify_start.elapsed().as_secs_f64();
+
+                if config.articles_failed == 0 {
+                    // No article failures, can't parse par2 — skip.
+                    stages.push(StageResult {
+                        name: "Verify".to_string(),
+                        status: StageStatus::Skipped,
+                        message: Some(format!("PAR2 parse failed ({e}), but zero article failures")),
+                        duration_secs: verify_duration,
+                    });
+                } else {
+                    // Articles failed and can't parse par2 — try par2cmdline.
+                    stages.push(StageResult {
+                        name: "Verify".to_string(),
+                        status: StageStatus::Skipped,
+                        message: Some(format!("PAR2 parse failed ({e}), using par2cmdline")),
+                        duration_secs: verify_duration,
+                    });
+
+                    let repair_result = run_repair_stage(job_dir).await;
+                    if repair_result.status == StageStatus::Failed {
+                        pipeline_ok = false;
+                    }
+                    stages.push(repair_result);
+                }
+            }
         }
-        stages.push(result);
     }
 
     // ------------------------------------------------------------------
@@ -426,8 +489,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_skips_par2_when_zero_failures() {
-        // With par2 files present but articles_failed == 0, verify should be skipped
+    async fn test_pipeline_verifies_even_with_zero_failures() {
+        // With par2 files present and articles_failed == 0, native verify
+        // still runs (it's cheap). Since these are dummy empty par2 files,
+        // the native parse will fail and verify will be skipped gracefully.
         let dir = make_test_dir(&[
             "movie.par2",
             "movie.vol00+01.par2",
@@ -442,18 +507,11 @@ mod tests {
         assert!(result.success);
 
         let verify_stage = result.stages.iter().find(|s| s.name == "Verify").unwrap();
+        // With dummy par2 files, native parse fails → skipped with fallback message
         assert_eq!(
             verify_stage.status,
             StageStatus::Skipped,
-            "Verify should be skipped when articles_failed == 0"
-        );
-        assert!(
-            verify_stage
-                .message
-                .as_deref()
-                .unwrap_or("")
-                .contains("zero article failures"),
-            "Skip message should indicate zero failures"
+            "Verify should be skipped when par2 parse fails and zero failures"
         );
     }
 
@@ -486,9 +544,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_runs_repair_when_failures() {
-        // With par2 files and articles_failed > 0, should attempt repair
-        // (which will fail since these are dummy files, but the stage should be attempted)
+    async fn test_pipeline_runs_verify_then_repair_when_failures() {
+        // With par2 files and articles_failed > 0, native verify should run first.
+        // Since these are dummy empty par2 files, native parse will fail and
+        // the pipeline should fall back to par2cmdline for repair.
         let dir = make_test_dir(&[
             "movie.par2",
             "movie.vol00+01.par2",
@@ -501,15 +560,17 @@ mod tests {
         };
         let result = run_pipeline(dir.path(), &config).await;
 
-        // Should have a Repair stage (not Verify) since we go straight to repair
+        // Should always have a Verify stage now (native par2 verify runs first)
         let stage_names: Vec<&str> = result.stages.iter().map(|s| s.name.as_str()).collect();
+        assert!(
+            stage_names.contains(&"Verify"),
+            "Should have Verify stage (native par2), got: {stage_names:?}"
+        );
+        // Repair stage should also be present since dummy par2 files
+        // will either fail to parse or report damage
         assert!(
             stage_names.contains(&"Repair"),
             "Should have Repair stage when articles_failed > 0, got: {stage_names:?}"
-        );
-        assert!(
-            !stage_names.contains(&"Verify"),
-            "Should NOT have Verify stage when going direct to repair"
         );
     }
 }
