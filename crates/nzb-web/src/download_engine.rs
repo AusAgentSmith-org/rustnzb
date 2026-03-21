@@ -182,6 +182,15 @@ impl DownloadEngine {
         let work_queue = Arc::new(Mutex::new(VecDeque::from(work_items)));
         let articles_failed = Arc::new(AtomicUsize::new(0));
 
+        // Track yEnc-derived real filenames for deobfuscation.
+        // NZB subjects may be obfuscated (random hashes), but yEnc headers
+        // contain the actual filename. We capture these during download and
+        // rename files before post-processing runs.
+        let nzb_filenames: HashMap<String, String> = job.files.iter()
+            .map(|f| (f.id.clone(), f.filename.clone()))
+            .collect();
+        let yenc_names: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
+
         // Sort servers by priority, filter enabled
         let mut sorted_servers: Vec<ServerConfig> = servers
             .iter()
@@ -215,6 +224,7 @@ impl DownloadEngine {
                     let paused = Arc::clone(&self.paused);
                     let articles_failed = Arc::clone(&articles_failed);
                     let all_servers = sorted_servers.clone();
+                    let yenc_names = Arc::clone(&yenc_names);
 
                     async move {
                         download_worker(
@@ -227,6 +237,7 @@ impl DownloadEngine {
                             paused,
                             articles_failed,
                             all_servers,
+                            yenc_names,
                         )
                         .await;
                     }
@@ -272,6 +283,46 @@ impl DownloadEngine {
             });
         }
 
+        // Deobfuscate: rename files from NZB subject names to yEnc real names.
+        // This ensures the post-processor can find par2/rar/7z/zip files by extension.
+        {
+            let renames = yenc_names.lock();
+            for (file_id, yenc_name) in renames.iter() {
+                if let Some(nzb_name) = nzb_filenames.get(file_id) {
+                    if nzb_name == yenc_name {
+                        continue;
+                    }
+                    // Sanitize: strip any path components from yEnc name
+                    let clean_name = std::path::Path::new(yenc_name.as_str())
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(yenc_name);
+                    if clean_name.is_empty() || nzb_name == clean_name {
+                        continue;
+                    }
+                    let old_path = job.work_dir.join(nzb_name);
+                    let new_path = job.work_dir.join(clean_name);
+                    if old_path.exists() && !new_path.exists() {
+                        if let Err(e) = std::fs::rename(&old_path, &new_path) {
+                            warn!(
+                                job_id = %job_id,
+                                from = %nzb_name,
+                                to = %clean_name,
+                                "Failed to deobfuscate file: {e}"
+                            );
+                        } else {
+                            info!(
+                                job_id = %job_id,
+                                from = %nzb_name,
+                                to = %clean_name,
+                                "Deobfuscated file"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         let failed_count = articles_failed.load(Ordering::Relaxed);
         let _ = progress_tx.send(ProgressUpdate::JobFinished {
             job_id,
@@ -295,6 +346,7 @@ async fn download_worker(
     paused: Arc<AtomicBool>,
     articles_failed: Arc<AtomicUsize>,
     all_servers: Vec<ServerConfig>,
+    yenc_names: Arc<Mutex<HashMap<String, String>>>,
 ) {
     let worker_id = format!("{}#{}", primary_server.id, conn_idx);
 
@@ -326,6 +378,7 @@ async fn download_worker(
             &paused,
             &articles_failed,
             &all_servers,
+            &yenc_names,
         )
         .await;
     } else {
@@ -341,6 +394,7 @@ async fn download_worker(
             &paused,
             &articles_failed,
             &all_servers,
+            &yenc_names,
         )
         .await;
     }
@@ -362,6 +416,7 @@ async fn download_worker_pipelined(
     paused: &Arc<AtomicBool>,
     articles_failed: &Arc<AtomicUsize>,
     all_servers: &[ServerConfig],
+    yenc_names: &Arc<Mutex<HashMap<String, String>>>,
 ) {
     let mut pipeline = Pipeline::new(pipe_depth);
     // In-flight items indexed by pipeline tag
@@ -442,6 +497,10 @@ async fn download_worker_pipelined(
                         let raw_data = response.data.unwrap_or_default();
                         match decode_and_assemble(&item, &raw_data, assembler) {
                             Ok(process_result) => {
+                                if let Some(ref yname) = process_result.yenc_filename {
+                                    yenc_names.lock().entry(item.file_id.clone())
+                                        .or_insert_with(|| yname.clone());
+                                }
                                 let _ = progress_tx.send(ProgressUpdate::ArticleComplete {
                                     job_id: item.job_id.clone(),
                                     file_id: item.file_id.clone(),
@@ -600,6 +659,7 @@ async fn download_worker_serial(
     paused: &Arc<AtomicBool>,
     articles_failed: &Arc<AtomicUsize>,
     all_servers: &[ServerConfig],
+    yenc_names: &Arc<Mutex<HashMap<String, String>>>,
 ) {
     let mut consecutive_errors: u32 = 0;
     let mut consecutive_skips: usize = 0;
@@ -660,6 +720,10 @@ async fn download_worker_serial(
         match result {
             Ok(process_result) => {
                 consecutive_errors = 0;
+                if let Some(ref yname) = process_result.yenc_filename {
+                    yenc_names.lock().entry(item.file_id.clone())
+                        .or_insert_with(|| yname.clone());
+                }
                 let _ = progress_tx.send(ProgressUpdate::ArticleComplete {
                     job_id: item.job_id.clone(),
                     file_id: item.file_id.clone(),
@@ -834,6 +898,8 @@ async fn fetch_article_with_retry(
 struct ProcessResult {
     decoded_bytes: u64,
     file_complete: bool,
+    /// Real filename from yEnc =ybegin header (may differ from NZB subject name).
+    yenc_filename: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -862,6 +928,7 @@ fn decode_and_assemble(
     })?;
     let decode_us = decode_start.elapsed().as_micros();
 
+    let yenc_filename = decoded.filename;
     let data_begin = decoded.part_begin.unwrap_or(0);
     let decoded_len = decoded.data.len() as u64;
 
@@ -895,5 +962,6 @@ fn decode_and_assemble(
     Ok(ProcessResult {
         decoded_bytes: decoded_len,
         file_complete,
+        yenc_filename,
     })
 }
