@@ -11,6 +11,8 @@ pub struct AppConfig {
     pub categories: Vec<CategoryConfig>,
     #[serde(default)]
     pub otel: OtelConfig,
+    #[serde(default)]
+    pub rss_feeds: Vec<RssFeedConfig>,
 }
 
 impl Default for AppConfig {
@@ -20,6 +22,7 @@ impl Default for AppConfig {
             servers: Vec::new(),
             categories: vec![CategoryConfig::default()],
             otel: OtelConfig::default(),
+            rss_feeds: Vec::new(),
         }
     }
 }
@@ -175,6 +178,35 @@ impl Default for CategoryConfig {
             post_processing: 3,
         }
     }
+}
+
+/// RSS feed configuration for automatic NZB downloading.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RssFeedConfig {
+    /// Display name for the feed
+    pub name: String,
+    /// Feed URL (RSS 2.0 or Atom)
+    pub url: String,
+    /// How often to poll, in seconds (default 900 = 15 minutes)
+    #[serde(default = "default_poll_interval")]
+    pub poll_interval_secs: u64,
+    /// Category to assign to downloaded NZBs
+    #[serde(default)]
+    pub category: Option<String>,
+    /// Regex pattern to filter feed entries by title
+    #[serde(default)]
+    pub filter_regex: Option<String>,
+    /// Whether this feed is active
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_poll_interval() -> u64 {
+    900
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl AppConfig {

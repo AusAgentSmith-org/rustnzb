@@ -5,6 +5,7 @@ pub mod error;
 pub mod handlers;
 pub mod log_buffer;
 pub mod queue_manager;
+pub mod rss_monitor;
 pub mod sabnzbd_compat;
 pub mod server;
 pub mod state;
