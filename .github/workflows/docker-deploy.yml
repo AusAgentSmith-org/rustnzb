@@ -61,7 +61,17 @@ jobs:
     runs-on: [self-hosted, node-b]
     needs: build-and-publish
 
+    permissions:
+      packages: read
+
     steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Smoke test - external tools work in runtime image
         run: |
           set -e
