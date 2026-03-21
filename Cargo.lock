@@ -1627,6 +1627,7 @@ dependencies = [
  "nzb-postproc",
  "parking_lot",
  "rand 0.9.2",
+ "reqwest",
  "rust-embed",
  "serde",
  "serde_json",
