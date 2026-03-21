@@ -99,25 +99,70 @@ pub fn find_par2() -> Option<String> {
     None
 }
 
-/// Number of threads to use for par2 operations.
-/// Uses all available CPUs for maximum throughput.
-fn par2_thread_count() -> String {
-    std::thread::available_parallelism()
-        .map(|n| n.get().to_string())
-        .unwrap_or_else(|_| "0".to_string()) // 0 = auto-detect in par2cmdline-turbo
+/// Detect whether the installed par2 binary supports the `-t` (threads) flag.
+/// par2cmdline-turbo supports it; vanilla par2cmdline does not.
+/// Result is cached after first probe.
+fn supports_threads() -> bool {
+    use std::sync::OnceLock;
+    static SUPPORTS: OnceLock<bool> = OnceLock::new();
+    *SUPPORTS.get_or_init(|| {
+        let Some(bin) = find_par2() else {
+            return false;
+        };
+        // Run `par2 --help` and check for thread-related flags
+        let output = std::process::Command::new(&bin)
+            .arg("--help")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output();
+        match output {
+            Ok(out) => {
+                let combined = format!(
+                    "{}{}",
+                    String::from_utf8_lossy(&out.stdout),
+                    String::from_utf8_lossy(&out.stderr),
+                );
+                let supported = combined.contains("-t<n>")
+                    || combined.contains("-t <")
+                    || combined.contains("number of threads")
+                    || combined.contains("par2cmdline-turbo");
+                if supported {
+                    tracing::info!("par2 binary supports -t (multi-threaded)");
+                } else {
+                    tracing::info!("par2 binary does not support -t (vanilla par2cmdline)");
+                }
+                supported
+            }
+            Err(_) => false,
+        }
+    })
+}
+
+/// Build the thread arguments for par2, if supported.
+fn thread_args() -> Vec<String> {
+    if supports_threads() {
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get().to_string())
+            .unwrap_or_else(|_| "0".to_string());
+        vec!["-t".to_string(), threads]
+    } else {
+        vec![]
+    }
 }
 
 /// Verify par2 integrity of files in a directory.
 pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
     let par2_bin = find_par2().ok_or_else(|| anyhow::anyhow!("par2 binary not found on PATH"))?;
-    let threads = par2_thread_count();
+    let t_args = thread_args();
 
-    info!(file = %par2_file.display(), threads = %threads, "Running par2 verify");
+    info!(file = %par2_file.display(), threads = ?t_args, "Running par2 verify");
 
-    let output = Command::new(&par2_bin)
-        .arg("verify")
-        .arg("-t")
-        .arg(&threads)
+    let mut cmd = Command::new(&par2_bin);
+    cmd.arg("verify");
+    for arg in &t_args {
+        cmd.arg(arg);
+    }
+    let output = cmd
         .arg(par2_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -152,14 +197,16 @@ pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
 /// is a single-pass alternative to calling verify + repair separately.
 pub async fn par2_repair(par2_file: &Path) -> anyhow::Result<Par2Result> {
     let par2_bin = find_par2().ok_or_else(|| anyhow::anyhow!("par2 binary not found on PATH"))?;
-    let threads = par2_thread_count();
+    let t_args = thread_args();
 
-    info!(file = %par2_file.display(), threads = %threads, "Running par2 repair");
+    info!(file = %par2_file.display(), threads = ?t_args, "Running par2 repair");
 
-    let output = Command::new(&par2_bin)
-        .arg("repair")
-        .arg("-t")
-        .arg(&threads)
+    let mut cmd = Command::new(&par2_bin);
+    cmd.arg("repair");
+    for arg in &t_args {
+        cmd.arg(arg);
+    }
+    let output = cmd
         .arg(par2_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -252,10 +299,23 @@ mod tests {
     }
 
     #[test]
-    fn test_par2_thread_count_returns_valid_number() {
-        let threads = par2_thread_count();
-        let n: u32 = threads.parse().expect("thread count should be a valid number");
-        // Should be at least 1 on any system (or 0 for auto-detect)
-        assert!(n >= 1, "Expected at least 1 thread, got {n}");
+    fn test_thread_args_returns_valid_or_empty() {
+        let args = thread_args();
+        // Either empty (vanilla par2) or ["-t", "<number>"]
+        if args.len() == 2 {
+            assert_eq!(args[0], "-t");
+            let n: u32 = args[1].parse().expect("thread count should be a valid number");
+            assert!(n >= 1, "Expected at least 1 thread, got {n}");
+        } else {
+            assert!(args.is_empty(), "Expected empty or 2-element vec, got {args:?}");
+        }
+    }
+
+    #[test]
+    fn test_supports_threads_is_deterministic() {
+        // Calling twice should return the same result (cached)
+        let first = supports_threads();
+        let second = supports_threads();
+        assert_eq!(first, second);
     }
 }
