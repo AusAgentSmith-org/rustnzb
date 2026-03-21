@@ -1,0 +1,110 @@
+
+==================================================================================
+  BENCHMARK RESULTS: SABnzbd vs rustnzbd
+==================================================================================
+
+  Scenario: sz5gb_raw — 5 GB raw download [raw]
+----------------------------------------------------------------------------------
+  Metric                           SABnzbd        rustnzbd        Delta
+----------------------------------------------------------------------------------
+  Total Time                          7.1s            4.3s       +38.5%
+  Download Time                       5.0s            3.0s       +40.0%
+  Par2 Time                           0.0s            0.0s            —
+  Unpack Time                         0.0s            0.0s            —
+  Avg Speed                    6085.9 Mbps     9889.3 Mbps       +62.5%
+  Peak Speed                   7730.0 Mbps    12282.0 Mbps       +58.9%
+  CPU Avg                           122.6%          543.7%      -343.6%
+  CPU Peak                          149.2%          640.2%      -329.0%
+  Memory Avg                      196.1 MB        156.6 MB       +20.1%
+  Memory Peak                     236.4 MB        201.2 MB       +14.9%
+  Disk Write Avg                333.4 MB/s      480.4 MB/s       +44.1%
+----------------------------------------------------------------------------------
+
+  Scenario: sz5gb_par2 — 5 GB download + par2 repair (3% missing) [par2]
+----------------------------------------------------------------------------------
+  Metric                           SABnzbd        rustnzbd        Delta
+----------------------------------------------------------------------------------
+  Total Time                         31.2s            4.5s       +85.7%
+  Download Time                       5.0s            4.0s       +20.0%
+  Par2 Time                          20.0s            0.0s      +100.0%
+  Unpack Time                         0.0s            0.0s            —
+  Avg Speed                    1375.9 Mbps     9610.6 Mbps      +598.5%
+  Peak Speed                   9172.9 Mbps    12851.7 Mbps       +40.1%
+  CPU Avg                            94.4%          508.5%      -438.7%
+  CPU Peak                          108.7%          608.3%      -459.8%
+  Memory Avg                      390.4 MB        167.0 MB       +57.2%
+  Memory Peak                    1249.9 MB        226.8 MB       +81.9%
+  Disk Write Avg                230.1 MB/s      401.1 MB/s       +74.3%
+----------------------------------------------------------------------------------
+
+  Scenario: sz5gb_unpack — 5 GB download + 7z extraction [unpack]
+----------------------------------------------------------------------------------
+  Metric                           SABnzbd        rustnzbd        Delta
+----------------------------------------------------------------------------------
+  Total Time                         10.3s            5.4s       +47.1%
+  Download Time                       4.0s            4.0s        +0.0%
+  Par2 Time                           0.0s            0.0s            —
+  Unpack Time                         3.0s            0.0s      +100.0%
+  Avg Speed                    4171.5 Mbps     7886.3 Mbps       +89.0%
+  Peak Speed                   9923.1 Mbps    18360.0 Mbps       +85.0%
+  CPU Avg                           105.7%          398.9%      -277.4%
+  CPU Peak                          148.6%          569.1%      -282.9%
+  Memory Avg                      243.4 MB        185.9 MB       +23.6%
+  Memory Peak                     343.4 MB        223.4 MB       +34.9%
+  Disk Write Avg                634.6 MB/s     1102.3 MB/s       +73.7%
+----------------------------------------------------------------------------------
+
+  Scenario: sz10gb_raw — 10 GB raw download [raw]
+----------------------------------------------------------------------------------
+  Metric                           SABnzbd        rustnzbd        Delta
+----------------------------------------------------------------------------------
+  Total Time                         11.1s            8.6s       +22.6%
+  Download Time                      10.0s            8.0s       +20.0%
+  Par2 Time                           0.0s            0.0s            —
+  Unpack Time                         0.0s            0.0s            —
+  Avg Speed                    7759.5 Mbps    10029.7 Mbps       +29.3%
+  Peak Speed                   9465.2 Mbps    11964.0 Mbps       +26.4%
+  CPU Avg                           133.1%          427.7%      -221.3%
+  CPU Peak                          150.6%          534.9%      -255.2%
+  Memory Avg                      275.7 MB        263.5 MB        +4.4%
+  Memory Peak                     380.9 MB        386.4 MB        -1.4%
+  Disk Write Avg                601.3 MB/s      829.1 MB/s       +37.9%
+----------------------------------------------------------------------------------
+
+  Scenario: sz10gb_par2 — 10 GB download + par2 repair (3% missing) [par2]
+----------------------------------------------------------------------------------
+  Metric                           SABnzbd        rustnzbd        Delta
+----------------------------------------------------------------------------------
+  Total Time                         83.6s           10.1s       +88.0%
+  Download Time                      12.0s            9.0s       +25.0%
+  Par2 Time                          63.0s            0.0s      +100.0%
+  Unpack Time                         0.0s            0.0s            —
+  Avg Speed                    1027.3 Mbps     8540.9 Mbps      +731.4%
+  Peak Speed                   7872.4 Mbps    11688.0 Mbps       +48.5%
+  CPU Avg                            99.5%          351.4%      -253.0%
+  CPU Peak                          113.5%          473.5%      -317.0%
+  Memory Avg                      537.8 MB        304.9 MB       +43.3%
+  Memory Peak                    1430.2 MB        414.2 MB       +71.0%
+  Disk Write Avg                236.8 MB/s      741.5 MB/s      +213.1%
+----------------------------------------------------------------------------------
+
+  Scenario: sz10gb_unpack — 10 GB download + 7z extraction [unpack]
+----------------------------------------------------------------------------------
+  Metric                           SABnzbd        rustnzbd        Delta
+----------------------------------------------------------------------------------
+  Total Time                         20.2s           13.6s       +32.6%
+  Download Time                      11.0s           12.0s        -9.1%
+  Par2 Time                           0.0s            0.0s            —
+  Unpack Time                         6.0s            0.0s      +100.0%
+  Avg Speed                    4262.2 Mbps     6324.8 Mbps       +48.4%
+  Peak Speed                   8814.9 Mbps    14532.0 Mbps       +64.9%
+  CPU Avg                           107.2%          261.8%      -144.3%
+  CPU Peak                          152.5%          388.9%      -155.1%
+  Memory Avg                      362.3 MB        319.7 MB       +11.8%
+  Memory Peak                     652.3 MB        447.2 MB       +31.4%
+  Disk Write Avg                882.1 MB/s      635.5 MB/s       -28.0%
+----------------------------------------------------------------------------------
+
+  Lower-is-better: Time, CPU, Memory
+  Higher-is-better: Speed, Disk Write
+  Delta shows rustnzbd advantage: positive = rustnzbd wins

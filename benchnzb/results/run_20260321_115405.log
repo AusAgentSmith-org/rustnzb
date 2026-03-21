@@ -1,0 +1,1999 @@
+ Image benchnzb-mock-nntp Building 
+ Image benchnzb-rustnzbd Building 
+ Image benchnzb-orchestrator Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.48kB done
+#1 DONE 0.0s
+
+#2 [mock-nntp internal] load build definition from Dockerfile
+#2 transferring dockerfile:
+#2 transferring dockerfile: 981B done
+#2 DONE 0.1s
+
+#3 [rustnzbd internal] load build definition from Dockerfile
+#3 transferring dockerfile: 847B done
+#3 DONE 0.1s
+
+#4 [rustnzbd internal] load metadata for docker.io/library/debian:bookworm-slim
+#4 DONE 1.2s
+
+#5 [orchestrator internal] load metadata for docker.io/library/rust:1-bookworm
+#5 DONE 1.2s
+
+#6 [rustnzbd internal] load metadata for docker.io/library/rust:1.88-bookworm
+#6 DONE 1.2s
+
+#7 [rustnzbd internal] load .dockerignore
+#7 transferring context: 116B done
+#7 DONE 0.1s
+
+#8 [rustnzbd builder 1/6] FROM docker.io/library/rust:1.88-bookworm@sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0
+#8 DONE 0.0s
+
+#9 [mock-nntp stage-1 1/5] FROM docker.io/library/debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
+#9 DONE 0.0s
+
+#10 [mock-nntp internal] load .dockerignore
+#10 transferring context: 2B done
+#10 DONE 0.1s
+
+#11 [rustnzbd internal] load build context
+#11 ...
+
+#9 [rustnzbd stage-1 1/5] FROM docker.io/library/debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
+#9 CACHED
+
+#12 [mock-nntp builder 1/7] FROM docker.io/library/rust:1-bookworm@sha256:365468470075493dc4583f47387001854321c5a8583ea9604b297e67f01c5a4f
+#12 CACHED
+
+#11 [rustnzbd internal] load build context
+#11 transferring context: 511.67kB done
+#11 DONE 0.1s
+
+#13 [mock-nntp internal] load build context
+#13 transferring context: 163.82kB done
+#13 DONE 0.1s
+
+#14 [rustnzbd builder 2/6] WORKDIR /build
+#14 CACHED
+
+#15 [rustnzbd builder 3/6] COPY Cargo.toml Cargo.lock ./
+#15 CACHED
+
+#16 [rustnzbd builder 4/6] COPY crates crates
+#16 DONE 0.1s
+
+#17 [mock-nntp builder 2/7] RUN apt-get update && apt-get install -y --no-install-recommends         pkg-config libssl-dev automake autoconf
+#17 ...
+
+#18 [rustnzbd builder 5/6] COPY src src
+#18 DONE 0.1s
+
+#19 [rustnzbd builder 6/6] RUN cargo build --release
+#19 0.371     Updating crates.io index
+#19 ...
+
+#17 [orchestrator builder 2/7] RUN apt-get update && apt-get install -y --no-install-recommends         pkg-config libssl-dev automake autoconf
+#17 0.534 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#17 0.560 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#17 0.570 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+#17 0.621 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8792 kB]
+#17 0.798 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+#17 0.799 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [293 kB]
+#17 1.388 Fetched 9346 kB in 1s (10.4 MB/s)
+#17 1.388 Reading package lists...
+#17 1.737 Reading package lists...
+#17 2.066 Building dependency tree...
+#17 2.164 Reading state information...
+#17 2.296 pkg-config is already the newest version (1.8.1-1).
+#17 2.296 pkg-config set to manually installed.
+#17 2.296 libssl-dev is already the newest version (3.0.18-1~deb12u2).
+#17 2.296 automake is already the newest version (1:1.16.5-1.3).
+#17 2.296 autoconf is already the newest version (2.71-3).
+#17 2.296 0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+#17 DONE 2.3s
+
+#20 [orchestrator builder 3/7] WORKDIR /app
+#20 DONE 0.1s
+
+#21 [mock-nntp builder 4/7] COPY Cargo.toml Cargo.lock ./
+#21 DONE 0.1s
+
+#22 [mock-nntp builder 5/7] COPY src/ src/
+#22 DONE 0.1s
+
+#23 [mock-nntp builder 6/7] RUN cargo build --release &&     ./target/release/benchnzb --help > /dev/null
+#23 0.389     Updating crates.io index
+#23 3.100  Downloading crates ...
+#23 3.168   Downloaded anstyle-query v1.1.5
+#23 3.171   Downloaded anstyle v1.0.14
+#23 3.175   Downloaded autocfg v1.5.0
+#23 3.176   Downloaded atomic-waker v1.1.2
+#23 3.188   Downloaded anstyle-parse v1.0.0
+#23 3.190   Downloaded is_terminal_polyfill v1.70.2
+#23 3.191   Downloaded anstream v1.0.0
+#23 3.192   Downloaded idna_adapter v1.2.1
+#23 3.193   Downloaded cfg_aliases v0.2.1
+#23 3.195   Downloaded ref-cast-impl v1.0.25
+#23 3.198   Downloaded rand_chacha v0.9.0
+#23 3.199   Downloaded quinn-udp v0.5.14
+#23 3.201   Downloaded clap_lex v1.1.0
+#23 3.202   Downloaded anyhow v1.0.102
+#23 3.206   Downloaded hyperlocal v0.9.1
+#23 3.208   Downloaded powerfmt v0.2.0
+#23 3.214   Downloaded ref-cast v1.0.25
+#23 3.216   Downloaded rand_core v0.9.5
+#23 3.217   Downloaded nu-ansi-term v0.50.3
+#23 3.218   Downloaded cfg-if v1.0.4
+#23 3.219   Downloaded pin-utils v0.1.0
+#23 3.220   Downloaded parking_lot_core v0.9.12
+#23 3.221   Downloaded http-body v1.0.1
+#23 3.222   Downloaded heck v0.5.0
+#23 3.223   Downloaded futures-core v0.3.32
+#23 3.223   Downloaded hex v0.4.3
+#23 3.224   Downloaded strsim v0.11.1
+#23 3.227   Downloaded form_urlencoded v1.2.2
+#23 3.229   Downloaded potential_utf v0.1.4
+#23 3.229   Downloaded num-conv v0.2.0
+#23 3.230   Downloaded matchers v0.2.0
+#23 3.231   Downloaded tower-service v0.3.3
+#23 3.232   Downloaded tower-layer v0.3.3
+#23 3.233   Downloaded equivalent v1.0.2
+#23 3.233   Downloaded tinyvec_macros v0.1.1
+#23 3.234   Downloaded futures-sink v0.3.32
+#23 3.234   Downloaded serde_urlencoded v0.7.1
+#23 3.236   Downloaded cookie v0.18.1
+#23 3.237   Downloaded futures-task v0.3.32
+#23 3.238   Downloaded futures-macro v0.3.32
+#23 3.239   Downloaded rustc-hash v2.1.1
+#23 3.239   Downloaded time-core v0.1.8
+#23 3.241   Downloaded httpdate v1.0.3
+#23 3.242   Downloaded errno v0.3.14
+#23 3.243   Downloaded dyn-clone v1.0.20
+#23 3.244   Downloaded zerofrom-derive v0.1.6
+#23 3.245   Downloaded percent-encoding v2.3.2
+#23 3.245   Downloaded scopeguard v1.2.0
+#23 3.246   Downloaded mime v0.3.17
+#23 3.247   Downloaded utf8parse v0.2.2
+#23 3.247   Downloaded lazy_static v1.5.0
+#23 3.248   Downloaded untrusted v0.9.0
+#23 3.249   Downloaded yoke-derive v0.8.1
+#23 3.250   Downloaded http-body-util v0.1.3
+#23 3.251   Downloaded base64 v0.22.1
+#23 3.254   Downloaded zerofrom v0.1.6
+#23 3.255   Downloaded utf8_iter v1.0.4
+#23 3.256   Downloaded tokio-macros v2.6.1
+#23 3.257   Downloaded tinystr v0.8.2
+#23 3.258   Downloaded thiserror v1.0.69
+#23 3.261   Downloaded zmij v1.0.21
+#23 3.262   Downloaded zerovec-derive v0.11.2
+#23 3.263   Downloaded zeroize v1.8.2
+#23 3.264   Downloaded yoke v0.8.1
+#23 3.266   Downloaded once_cell v1.21.4
+#23 3.267   Downloaded memmap2 v0.9.10
+#23 3.268   Downloaded litemap v0.8.1
+#23 3.270   Downloaded tracing-attributes v0.1.31
+#23 3.272   Downloaded writeable v0.6.2
+#23 3.273   Downloaded icu_provider v2.1.1
+#23 3.275   Downloaded sharded-slab v0.1.7
+#23 3.277   Downloaded unicode-ident v1.0.24
+#23 3.279   Downloaded proc-macro2 v1.0.106
+#23 3.281   Downloaded serde_core v1.0.228
+#23 3.283   Downloaded schemars v0.9.0
+#23 3.290   Downloaded zerotrie v0.2.3
+#23 3.293   Downloaded url v2.5.8
+#23 3.295   Downloaded rustls-webpki v0.103.10
+#23 3.297   Downloaded indexmap v2.13.0
+#23 3.299   Downloaded iri-string v0.7.10
+#23 3.303   Downloaded hyper v1.8.1
+#23 3.307   Downloaded futures-util v0.3.32
+#23 3.314   Downloaded zerovec v0.11.5
+#23 3.317   Downloaded serde_json v1.0.149
+#23 3.321   Downloaded quinn-proto v0.11.14
+#23 3.325   Downloaded chrono v0.4.44
+#23 3.329   Downloaded tracing-subscriber v0.3.23
+#23 3.334   Downloaded time v0.3.47
+#23 3.340   Downloaded webpki-roots v1.0.6
+#23 3.343   Downloaded serde_with v3.18.0
+#23 3.349   Downloaded zerocopy v0.8.47
+#23 3.359   Downloaded syn v2.0.117
+#23 3.364   Downloaded regex-syntax v0.8.10
+#23 3.369   Downloaded rustls v0.23.37
+#23 3.375   Downloaded tower-http v0.6.8
+#23 3.379   Downloaded tower v0.5.3
+#23 3.383   Downloaded tokio-util v0.7.18
+#23 3.387   Downloaded clap_builder v4.6.0
+#23 3.391   Downloaded bollard v0.17.1
+#23 3.395   Downloaded tracing v0.1.44
+#23 3.403   Downloaded idna v1.1.0
+#23 3.405   Downloaded icu_properties_data v2.1.2
+#23 3.410   Downloaded hashbrown v0.16.1
+#23 3.413   Downloaded http v1.4.0
+#23 3.415   Downloaded aho-corasick v1.1.4
+#23 3.418   Downloaded regex-automata v0.4.14
+#23 3.425   Downloaded rand v0.9.2
+#23 3.427   Downloaded publicsuffix v2.3.0
+#23 3.429   Downloaded mio v1.1.1
+#23 3.431   Downloaded hyper-util v0.1.20
+#23 3.434   Downloaded hashbrown v0.12.3
+#23 3.436   Downloaded cc v1.2.57
+#23 3.438   Downloaded serde v1.0.228
+#23 3.440   Downloaded schemars v1.2.1
+#23 3.447   Downloaded reqwest v0.12.28
+#23 3.450   Downloaded memchr v2.8.0
+#23 3.453   Downloaded tracing-core v0.1.36
+#23 3.455   Downloaded tinyvec v1.11.0
+#23 3.456   Downloaded libc v0.2.183
+#23 3.475   Downloaded quinn v0.11.9
+#23 3.477   Downloaded icu_normalizer v2.1.1
+#23 3.479   Downloaded icu_collections v2.1.1
+#23 3.482   Downloaded ryu v1.0.23
+#23 3.484   Downloaded icu_properties v2.1.2
+#23 3.486   Downloaded tokio v1.50.0
+#23 3.507   Downloaded indexmap v1.9.3
+#23 3.509   Downloaded icu_locale_core v2.1.1
+#23 3.513   Downloaded parking_lot v0.12.5
+#23 3.514   Downloaded log v0.4.29
+#23 3.516   Downloaded socket2 v0.6.3
+#23 3.517   Downloaded serde_derive v1.0.228
+#23 3.518   Downloaded rustls-pki-types v1.14.0
+#23 3.520   Downloaded clap v4.6.0
+#23 3.524   Downloaded ppv-lite86 v0.2.21
+#23 3.525   Downloaded num-traits v0.2.19
+#23 3.526   Downloaded hyper-rustls v0.27.7
+#23 3.527   Downloaded getrandom v0.3.4
+#23 3.529   Downloaded litrs v1.0.0
+#23 3.531   Downloaded futures-channel v0.3.32
+#23 3.532   Downloaded icu_normalizer_data v2.1.1
+#23 3.534   Downloaded iana-time-zone v0.1.65
+#23 3.535   Downloaded bytes v1.11.1
+#23 3.537   Downloaded bitflags v2.11.0
+#23 3.539   Downloaded crc32fast v1.5.0
+#23 3.540   Downloaded cookie_store v0.22.1
+#23 3.541   Downloaded lock_api v0.4.14
+#23 3.542   Downloaded ipnet v2.12.0
+#23 3.543   Downloaded getrandom v0.2.17
+#23 3.544   Downloaded unicase v2.9.0
+#23 3.545   Downloaded tracing-log v0.2.0
+#23 3.546   Downloaded tokio-rustls v0.26.4
+#23 3.547   Downloaded time-macros v0.2.27
+#23 3.548   Downloaded smallvec v1.15.1
+#23 3.549   Downloaded ring v0.17.14
+#23 3.572   Downloaded slab v0.4.12
+#23 3.572   Downloaded thiserror v2.0.18
+#23 3.575   Downloaded quote v1.0.45
+#23 3.576   Downloaded pin-project-lite v0.2.17
+#23 3.579   Downloaded bollard-stubs v1.45.0-rc.26.0.1
+#23 3.580   Downloaded thread_local v1.1.9
+#23 3.581   Downloaded thiserror-impl v2.0.18
+#23 3.582   Downloaded synstructure v0.13.2
+#23 3.582   Downloaded thiserror-impl v1.0.69
+#23 3.583   Downloaded signal-hook-registry v1.4.8
+#23 3.583   Downloaded want v0.3.1
+#23 3.584   Downloaded subtle v2.6.1
+#23 3.584   Downloaded stable_deref_trait v1.2.1
+#23 3.585   Downloaded shlex v1.3.0
+#23 3.585   Downloaded serde_repr v0.1.20
+#23 3.586   Downloaded mime_guess v2.0.5
+#23 3.587   Downloaded httparse v1.10.1
+#23 3.589   Downloaded find-msvc-tools v0.1.9
+#23 3.589   Downloaded displaydoc v0.2.5
+#23 3.591   Downloaded deranged v0.5.8
+#23 3.592   Downloaded clap_derive v4.6.0
+#23 3.593   Downloaded sync_wrapper v1.0.2
+#23 3.593   Downloaded itoa v1.0.18
+#23 3.594   Downloaded try-lock v0.2.5
+#23 3.594   Downloaded version_check v0.9.5
+#23 3.595   Downloaded psl-types v2.0.11
+#23 3.595   Downloaded lru-slab v0.1.2
+#23 3.596   Downloaded document-features v0.2.12
+#23 3.596   Downloaded colorchoice v1.0.5
+#23 3.654    Compiling proc-macro2 v1.0.106
+#23 3.654    Compiling quote v1.0.45
+#23 3.655    Compiling unicode-ident v1.0.24
+#23 3.655    Compiling libc v0.2.183
+#23 3.655    Compiling cfg-if v1.0.4
+#23 3.655    Compiling smallvec v1.15.1
+#23 3.655    Compiling stable_deref_trait v1.2.1
+#23 3.657    Compiling pin-project-lite v0.2.17
+#23 3.663    Compiling itoa v1.0.18
+#23 3.664    Compiling bytes v1.11.1
+#23 3.664    Compiling parking_lot_core v0.9.12
+#23 3.664    Compiling futures-core v0.3.32
+#23 3.664    Compiling scopeguard v1.2.0
+#23 3.674    Compiling once_cell v1.21.4
+#23 3.682    Compiling writeable v0.6.2
+#23 3.686    Compiling serde_core v1.0.228
+#23 3.691    Compiling litemap v0.8.1
+#23 3.691    Compiling find-msvc-tools v0.1.9
+#23 3.692    Compiling icu_normalizer_data v2.1.1
+#23 3.698    Compiling percent-encoding v2.3.2
+#23 3.741    Compiling lock_api v0.4.14
+#23 3.741    Compiling shlex v1.3.0
+#23 3.742    Compiling icu_properties_data v2.1.2
+#23 3.751    Compiling futures-task v0.3.32
+#23 3.788    Compiling slab v0.4.12
+#23 3.811    Compiling serde v1.0.228
+#23 3.867    Compiling tracing-core v0.1.36
+#23 3.898    Compiling cc v1.2.57
+#23 3.908    Compiling httparse v1.10.1
+#23 3.921    Compiling zeroize v1.8.2
+#23 3.932    Compiling tower-service v0.3.3
+#23 3.952    Compiling try-lock v0.2.5
+#23 3.952    Compiling futures-channel v0.3.32
+#23 3.967    Compiling atomic-waker v1.1.2
+#23 3.967    Compiling pin-utils v0.1.0
+#23 3.967    Compiling zmij v1.0.21
+#23 4.006    Compiling untrusted v0.9.0
+#23 4.006    Compiling httpdate v1.0.3
+#23 4.036    Compiling want v0.3.1
+#23 4.036    Compiling utf8_iter v1.0.4
+#23 4.050    Compiling form_urlencoded v1.2.2
+#23 4.052    Compiling serde_json v1.0.149
+#23 4.065    Compiling base64 v0.22.1
+#23 4.067    Compiling rustls v0.23.37
+#23 4.090    Compiling rustls-pki-types v1.14.0
+#23 4.107    Compiling time-core v0.1.8
+#23 4.124    Compiling getrandom v0.3.4
+#23 4.132    Compiling ipnet v2.12.0
+#23 4.208    Compiling log v0.4.29
+#23 4.217    Compiling num-conv v0.2.0
+#23 4.241    Compiling version_check v0.9.5
+#23 4.270    Compiling powerfmt v0.2.0
+#23 4.271    Compiling zerocopy v0.8.47
+#23 4.329    Compiling unicase v2.9.0
+#23 4.339    Compiling http v1.4.0
+#23 4.363    Compiling memchr v2.8.0
+#23 4.392    Compiling time-macros v0.2.27
+#23 4.435    Compiling deranged v0.5.8
+#23 4.477    Compiling subtle v2.6.1
+#23 4.492    Compiling utf8parse v0.2.2
+#23 4.528    Compiling autocfg v1.5.0
+#23 4.609    Compiling cookie v0.18.1
+#23 4.653    Compiling anstyle-parse v1.0.0
+#23 4.666    Compiling mime_guess v2.0.5
+#23 4.688    Compiling sync_wrapper v1.0.2
+#23 4.704    Compiling ryu v1.0.23
+#23 4.740    Compiling colorchoice v1.0.5
+#23 4.753    Compiling anstyle-query v1.1.5
+#23 4.790    Compiling litrs v1.0.0
+#23 4.791    Compiling psl-types v2.0.11
+#23 4.851    Compiling syn v2.0.117
+#23 4.866    Compiling tower-layer v0.3.3
+#23 4.884    Compiling thiserror v1.0.69
+#23 4.931    Compiling is_terminal_polyfill v1.70.2
+#23 4.932    Compiling anstyle v1.0.14
+#23 4.971    Compiling regex-syntax v0.8.10
+#23 4.983    Compiling webpki-roots v1.0.6
+#23 5.008    Compiling mime v0.3.17
+#23 5.021    Compiling hex v0.4.3
+#23 5.068    Compiling num-traits v0.2.19
+#23 5.087    Compiling strsim v0.11.1
+#23 5.108    Compiling iri-string v0.7.10
+#23 5.129    Compiling lazy_static v1.5.0
+#23 5.202    Compiling errno v0.3.14
+#23 5.212    Compiling socket2 v0.6.3
+#23 5.243    Compiling mio v1.1.1
+#23 5.252    Compiling getrandom v0.2.17
+#23 5.359    Compiling signal-hook-registry v1.4.8
+#23 5.480    Compiling parking_lot v0.12.5
+#23 5.490    Compiling rand_core v0.9.5
+#23 5.514    Compiling document-features v0.2.12
+#23 5.517    Compiling anstream v1.0.0
+#23 ...
+
+#24 [orchestrator stage-1 2/4] RUN apt-get update && apt-get install -y --no-install-recommends         ca-certificates curl p7zip-full libgomp1     && rm -rf /var/lib/apt/lists/*
+#24 0.503 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#24 0.528 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#24 0.538 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+#24 0.585 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8792 kB]
+#24 0.708 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+#24 0.709 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [293 kB]
+#24 1.303 Fetched 9346 kB in 1s (11.3 MB/s)
+#24 1.303 Reading package lists...
+#24 1.649 Reading package lists...
+#24 1.982 Building dependency tree...
+#24 2.064 Reading state information...
+#24 2.148 The following additional packages will be installed:
+#24 2.148   libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3 libkeyutils1 libkrb5-3
+#24 2.148   libkrb5support0 libldap-2.5-0 libnghttp2-14 libpsl5 librtmp1 libsasl2-2
+#24 2.148   libsasl2-modules-db libssh2-1 libssl3 openssl p7zip
+#24 2.149 Suggested packages:
+#24 2.149   krb5-doc krb5-user p7zip-rar
+#24 2.149 Recommended packages:
+#24 2.149   krb5-locales libldap-common publicsuffix libsasl2-modules
+#24 2.249 The following NEW packages will be installed:
+#24 2.249   ca-certificates curl libbrotli1 libcurl4 libgomp1 libgssapi-krb5-2
+#24 2.249   libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap-2.5-0
+#24 2.250   libnghttp2-14 libpsl5 librtmp1 libsasl2-2 libsasl2-modules-db libssh2-1
+#24 2.250   libssl3 openssl p7zip p7zip-full
+#24 2.290 0 upgraded, 21 newly installed, 0 to remove and 0 not upgraded.
+#24 2.290 Need to get 7505 kB of archives.
+#24 2.290 After this operation, 20.8 MB of additional disk space will be used.
+#24 2.290 Get:1 http://deb.debian.org/debian-security bookworm-security/main amd64 libssl3 amd64 3.0.18-1~deb12u2 [2030 kB]
+#24 2.381 Get:2 http://deb.debian.org/debian-security bookworm-security/main amd64 openssl amd64 3.0.18-1~deb12u2 [1433 kB]
+#24 2.401 Get:3 http://deb.debian.org/debian bookworm/main amd64 ca-certificates all 20230311+deb12u1 [155 kB]
+#24 2.402 Get:4 http://deb.debian.org/debian bookworm/main amd64 libbrotli1 amd64 1.0.9-2+b6 [275 kB]
+#24 2.404 Get:5 http://deb.debian.org/debian bookworm/main amd64 libkrb5support0 amd64 1.20.1-2+deb12u4 [33.2 kB]
+#24 2.404 Get:6 http://deb.debian.org/debian bookworm/main amd64 libk5crypto3 amd64 1.20.1-2+deb12u4 [79.8 kB]
+#24 2.404 Get:7 http://deb.debian.org/debian bookworm/main amd64 libkeyutils1 amd64 1.6.3-2 [8808 B]
+#24 2.404 Get:8 http://deb.debian.org/debian bookworm/main amd64 libkrb5-3 amd64 1.20.1-2+deb12u4 [334 kB]
+#24 2.416 Get:9 http://deb.debian.org/debian bookworm/main amd64 libgssapi-krb5-2 amd64 1.20.1-2+deb12u4 [135 kB]
+#24 2.417 Get:10 http://deb.debian.org/debian bookworm/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg-10 [20.3 kB]
+#24 2.417 Get:11 http://deb.debian.org/debian bookworm/main amd64 libsasl2-2 amd64 2.1.28+dfsg-10 [59.7 kB]
+#24 2.418 Get:12 http://deb.debian.org/debian bookworm/main amd64 libldap-2.5-0 amd64 2.5.13+dfsg-5 [183 kB]
+#24 2.421 Get:13 http://deb.debian.org/debian bookworm/main amd64 libnghttp2-14 amd64 1.52.0-1+deb12u2 [73.0 kB]
+#24 2.426 Get:14 http://deb.debian.org/debian bookworm/main amd64 libpsl5 amd64 0.21.2-1 [58.7 kB]
+#24 2.426 Get:15 http://deb.debian.org/debian bookworm/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2+b2 [60.8 kB]
+#24 2.436 Get:16 http://deb.debian.org/debian bookworm/main amd64 libssh2-1 amd64 1.10.0-3+b1 [179 kB]
+#24 2.437 Get:17 http://deb.debian.org/debian bookworm/main amd64 libcurl4 amd64 7.88.1-10+deb12u14 [392 kB]
+#24 2.438 Get:18 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10+deb12u14 [316 kB]
+#24 2.449 Get:19 http://deb.debian.org/debian bookworm/main amd64 libgomp1 amd64 12.2.0-14+deb12u1 [116 kB]
+#24 2.459 Get:20 http://deb.debian.org/debian bookworm/main amd64 p7zip amd64 16.02+dfsg-8 [381 kB]
+#24 2.511 Get:21 http://deb.debian.org/debian bookworm/main amd64 p7zip-full amd64 16.02+dfsg-8 [1183 kB]
+#24 2.649 debconf: delaying package configuration, since apt-utils is not installed
+#24 2.666 Fetched 7505 kB in 0s (28.8 MB/s)
+#24 2.756 Selecting previously unselected package libssl3:amd64.
+#24 2.756 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6096 files and directories currently installed.)
+#24 2.768 Preparing to unpack .../00-libssl3_3.0.18-1~deb12u2_amd64.deb ...
+#24 2.797 Unpacking libssl3:amd64 (3.0.18-1~deb12u2) ...
+#24 2.983 Selecting previously unselected package openssl.
+#24 2.984 Preparing to unpack .../01-openssl_3.0.18-1~deb12u2_amd64.deb ...
+#24 2.996 Unpacking openssl (3.0.18-1~deb12u2) ...
+#24 3.153 Selecting previously unselected package ca-certificates.
+#24 3.154 Preparing to unpack .../02-ca-certificates_20230311+deb12u1_all.deb ...
+#24 3.178 Unpacking ca-certificates (20230311+deb12u1) ...
+#24 3.304 Selecting previously unselected package libbrotli1:amd64.
+#24 3.304 Preparing to unpack .../03-libbrotli1_1.0.9-2+b6_amd64.deb ...
+#24 3.317 Unpacking libbrotli1:amd64 (1.0.9-2+b6) ...
+#24 3.415 Selecting previously unselected package libkrb5support0:amd64.
+#24 3.415 Preparing to unpack .../04-libkrb5support0_1.20.1-2+deb12u4_amd64.deb ...
+#24 3.428 Unpacking libkrb5support0:amd64 (1.20.1-2+deb12u4) ...
+#24 3.541 Selecting previously unselected package libk5crypto3:amd64.
+#24 3.542 Preparing to unpack .../05-libk5crypto3_1.20.1-2+deb12u4_amd64.deb ...
+#24 3.557 Unpacking libk5crypto3:amd64 (1.20.1-2+deb12u4) ...
+#24 3.645 Selecting previously unselected package libkeyutils1:amd64.
+#24 3.646 Preparing to unpack .../06-libkeyutils1_1.6.3-2_amd64.deb ...
+#24 3.658 Unpacking libkeyutils1:amd64 (1.6.3-2) ...
+#24 3.750 Selecting previously unselected package libkrb5-3:amd64.
+#24 3.751 Preparing to unpack .../07-libkrb5-3_1.20.1-2+deb12u4_amd64.deb ...
+#24 3.769 Unpacking libkrb5-3:amd64 (1.20.1-2+deb12u4) ...
+#24 3.884 Selecting previously unselected package libgssapi-krb5-2:amd64.
+#24 3.884 Preparing to unpack .../08-libgssapi-krb5-2_1.20.1-2+deb12u4_amd64.deb ...
+#24 3.897 Unpacking libgssapi-krb5-2:amd64 (1.20.1-2+deb12u4) ...
+#24 3.971 Selecting previously unselected package libsasl2-modules-db:amd64.
+#24 3.972 Preparing to unpack .../09-libsasl2-modules-db_2.1.28+dfsg-10_amd64.deb ...
+#24 3.984 Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...
+#24 4.079 Selecting previously unselected package libsasl2-2:amd64.
+#24 4.080 Preparing to unpack .../10-libsasl2-2_2.1.28+dfsg-10_amd64.deb ...
+#24 4.092 Unpacking libsasl2-2:amd64 (2.1.28+dfsg-10) ...
+#24 4.178 Selecting previously unselected package libldap-2.5-0:amd64.
+#24 4.179 Preparing to unpack .../11-libldap-2.5-0_2.5.13+dfsg-5_amd64.deb ...
+#24 4.191 Unpacking libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...
+#24 4.285 Selecting previously unselected package libnghttp2-14:amd64.
+#24 4.285 Preparing to unpack .../12-libnghttp2-14_1.52.0-1+deb12u2_amd64.deb ...
+#24 4.298 Unpacking libnghttp2-14:amd64 (1.52.0-1+deb12u2) ...
+#24 4.406 Selecting previously unselected package libpsl5:amd64.
+#24 4.407 Preparing to unpack .../13-libpsl5_0.21.2-1_amd64.deb ...
+#24 4.419 Unpacking libpsl5:amd64 (0.21.2-1) ...
+#24 4.508 Selecting previously unselected package librtmp1:amd64.
+#24 4.509 Preparing to unpack .../14-librtmp1_2.4+20151223.gitfa8646d.1-2+b2_amd64.deb ...
+#24 4.522 Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+#24 4.618 Selecting previously unselected package libssh2-1:amd64.
+#24 4.619 Preparing to unpack .../15-libssh2-1_1.10.0-3+b1_amd64.deb ...
+#24 4.637 Unpacking libssh2-1:amd64 (1.10.0-3+b1) ...
+#24 4.731 Selecting previously unselected package libcurl4:amd64.
+#24 4.732 Preparing to unpack .../16-libcurl4_7.88.1-10+deb12u14_amd64.deb ...
+#24 4.744 Unpacking libcurl4:amd64 (7.88.1-10+deb12u14) ...
+#24 4.832 Selecting previously unselected package curl.
+#24 4.833 Preparing to unpack .../17-curl_7.88.1-10+deb12u14_amd64.deb ...
+#24 4.845 Unpacking curl (7.88.1-10+deb12u14) ...
+#24 4.964 Selecting previously unselected package libgomp1:amd64.
+#24 4.965 Preparing to unpack .../18-libgomp1_12.2.0-14+deb12u1_amd64.deb ...
+#24 4.978 Unpacking libgomp1:amd64 (12.2.0-14+deb12u1) ...
+#24 5.053 Selecting previously unselected package p7zip.
+#24 5.054 Preparing to unpack .../19-p7zip_16.02+dfsg-8_amd64.deb ...
+#24 5.067 Unpacking p7zip (16.02+dfsg-8) ...
+#24 5.177 Selecting previously unselected package p7zip-full.
+#24 5.177 Preparing to unpack .../20-p7zip-full_16.02+dfsg-8_amd64.deb ...
+#24 5.194 Unpacking p7zip-full (16.02+dfsg-8) ...
+#24 5.333 Setting up libkeyutils1:amd64 (1.6.3-2) ...
+#24 5.369 Setting up libpsl5:amd64 (0.21.2-1) ...
+#24 5.406 Setting up libbrotli1:amd64 (1.0.9-2+b6) ...
+#24 5.443 Setting up libssl3:amd64 (3.0.18-1~deb12u2) ...
+#24 5.498 Setting up libnghttp2-14:amd64 (1.52.0-1+deb12u2) ...
+#24 5.541 Setting up libgomp1:amd64 (12.2.0-14+deb12u1) ...
+#24 5.582 Setting up libkrb5support0:amd64 (1.20.1-2+deb12u4) ...
+#24 5.617 Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...
+#24 5.653 Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+#24 5.696 Setting up libk5crypto3:amd64 (1.20.1-2+deb12u4) ...
+#24 5.762 Setting up libsasl2-2:amd64 (2.1.28+dfsg-10) ...
+#24 5.810 Setting up libssh2-1:amd64 (1.10.0-3+b1) ...
+#24 5.847 Setting up libkrb5-3:amd64 (1.20.1-2+deb12u4) ...
+#24 5.883 Setting up openssl (3.0.18-1~deb12u2) ...
+#24 5.934 Setting up p7zip (16.02+dfsg-8) ...
+#24 5.971 Setting up p7zip-full (16.02+dfsg-8) ...
+#24 6.010 Setting up libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...
+#24 6.047 Setting up ca-certificates (20230311+deb12u1) ...
+#24 6.143 debconf: unable to initialize frontend: Dialog
+#24 6.143 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#24 6.143 debconf: falling back to frontend: Readline
+#24 6.144 debconf: unable to initialize frontend: Readline
+#24 6.144 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/x86_64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+#24 6.144 debconf: falling back to frontend: Teletype
+#24 6.437 Updating certificates in /etc/ssl/certs...
+#24 7.085 142 added, 0 removed; done.
+#24 7.159 Setting up libgssapi-krb5-2:amd64 (1.20.1-2+deb12u4) ...
+#24 7.208 Setting up libcurl4:amd64 (7.88.1-10+deb12u14) ...
+#24 7.247 Setting up curl (7.88.1-10+deb12u14) ...
+#24 7.294 Processing triggers for libc-bin (2.36-9+deb12u13) ...
+#24 7.369 Processing triggers for ca-certificates (20230311+deb12u1) ...
+#24 7.388 Updating certificates in /etc/ssl/certs...
+#24 7.990 0 added, 0 removed; done.
+#24 7.990 Running hooks in /etc/ca-certificates/update.d...
+#24 7.993 done.
+#24 DONE 8.4s
+
+#23 [mock-nntp builder 6/7] RUN cargo build --release &&     ./target/release/benchnzb --help > /dev/null
+#23 5.624    Compiling anyhow v1.0.102
+#23 5.656    Compiling http-body v1.0.1
+#23 ...
+
+#19 [rustnzbd builder 6/6] RUN cargo build --release
+#19 6.451  Downloading crates ...
+#19 6.544   Downloaded anstyle-query v1.1.5
+#19 6.553   Downloaded adler2 v2.0.1
+#19 6.574   Downloaded async-stream v0.3.6
+#19 6.574   Downloaded cfg-if v1.0.4
+#19 6.577   Downloaded block-buffer v0.10.4
+#19 6.580   Downloaded async-stream-impl v0.3.6
+#19 6.584   Downloaded shlex v1.3.0
+#19 6.588   Downloaded hyper-tls v0.6.0
+#19 6.591   Downloaded foreign-types v0.3.2
+#19 6.598   Downloaded socket2 v0.5.10
+#19 6.602   Downloaded smallvec v1.15.1
+#19 6.608   Downloaded subtle v2.6.1
+#19 6.611   Downloaded httpdate v1.0.3
+#19 6.616   Downloaded tinyvec_macros v0.1.1
+#19 6.619   Downloaded futures-timer v3.0.3
+#19 6.629   Downloaded num-conv v0.2.0
+#19 6.633   Downloaded lzma-rs v0.3.0
+#19 6.644   Downloaded powerfmt v0.2.0
+#19 6.649   Downloaded mime v0.3.17
+#19 6.654   Downloaded percent-encoding v2.3.2
+#19 6.657   Downloaded tracing-serde v0.2.0
+#19 6.661   Downloaded opentelemetry-otlp v0.28.0
+#19 6.666   Downloaded rand_core v0.9.5
+#19 6.670   Downloaded chrono v0.4.44
+#19 6.680   Downloaded zerofrom-derive v0.1.6
+#19 6.684   Downloaded openssl-macros v0.1.1
+#19 6.687   Downloaded pkg-config v0.3.32
+#19 6.691   Downloaded pin-project-lite v0.2.17
+#19 6.700   Downloaded rand_chacha v0.3.1
+#19 6.703   Downloaded serde_spanned v0.6.9
+#19 6.706   Downloaded serde_core v1.0.228
+#19 6.710   Downloaded rustls-webpki v0.103.9
+#19 6.717   Downloaded rustls v0.23.37
+#19 6.731   Downloaded idna_adapter v1.2.1
+#19 6.734   Downloaded mio v1.1.1
+#19 6.743   Downloaded zeroize_derive v1.4.3
+#19 6.746   Downloaded lazy_static v1.5.0
+#19 6.749   Downloaded jobserver v0.1.34
+#19 6.753   Downloaded sharded-slab v0.1.7
+#19 6.758   Downloaded opentelemetry_sdk v0.28.0
+#19 6.768   Downloaded sha1 v0.10.6
+#19 6.772   Downloaded reqwest v0.12.28
+#19 6.780   Downloaded zstd v0.13.3
+#19 6.786   Downloaded zstd-safe v7.2.4
+#19 6.789   Downloaded prost-derive v0.13.5
+#19 6.792   Downloaded regex-syntax v0.8.10
+#19 6.801   Downloaded iana-time-zone v0.1.65
+#19 6.806   Downloaded quinn-udp v0.5.14
+#19 6.809   Downloaded zopfli v0.8.3
+#19 6.814   Downloaded memchr v2.8.0
+#19 6.822   Downloaded pin-project v1.1.11
+#19 6.836   Downloaded opentelemetry v0.28.0
+#19 6.842   Downloaded quinn v0.11.9
+#19 6.847   Downloaded portable-atomic v1.13.1
+#19 6.857   Downloaded idna v1.1.0
+#19 6.862   Downloaded icu_properties_data v2.1.2
+#19 6.873   Downloaded utoipa-gen v5.4.0
+#19 6.880   Downloaded zerovec v0.11.5
+#19 6.886   Downloaded rusqlite v0.32.1
+#19 6.893   Downloaded webpki-roots v1.0.6
+#19 6.898   Downloaded vcpkg v0.2.15
+#19 6.946   Downloaded quinn-proto v0.11.14
+#19 6.953   Downloaded serde v1.0.228
+#19 6.957   Downloaded zerocopy v0.8.47
+#19 6.976   Downloaded ring v0.17.14
+#19 7.015   Downloaded syn v2.0.117
+#19 7.025   Downloaded openssl v0.10.76
+#19 7.035   Downloaded tracing-subscriber v0.3.23
+#19 7.044   Downloaded time v0.3.47
+#19 7.056   Downloaded rand v0.9.2
+#19 7.060   Downloaded rand v0.8.5
+#19 7.065   Downloaded quick-xml v0.37.5
+#19 7.071   Downloaded tracing v0.1.44
+#19 7.087   Downloaded winnow v0.7.15
+#19 7.097   Downloaded tracing-opentelemetry v0.29.0
+#19 7.101   Downloaded tower-http v0.6.8
+#19 7.109   Downloaded tower v0.4.13
+#19 7.119   Downloaded tokio-util v0.7.18
+#19 7.128   Downloaded zip v2.4.2
+#19 7.133   Downloaded tonic v0.12.3
+#19 7.140   Downloaded indexmap v2.13.0
+#19 7.146   Downloaded hyper-util v0.1.20
+#19 7.152   Downloaded tower v0.5.3
+#19 7.161   Downloaded toml_edit v0.22.27
+#19 7.166   Downloaded rust-embed v8.11.0
+#19 7.175   Downloaded openssl-sys v0.9.112
+#19 7.180   Downloaded icu_properties v2.1.2
+#19 7.183   Downloaded icu_collections v2.1.1
+#19 7.190   Downloaded zstd-sys v2.0.16+zstd.1.5.7
+#19 7.208   Downloaded utoipa v5.4.0
+#19 7.212   Downloaded url v2.5.8
+#19 7.215   Downloaded typenum v1.19.0
+#19 7.218   Downloaded tokio v1.50.0
+#19 7.256   Downloaded tracing-core v0.1.36
+#19 7.259   Downloaded icu_normalizer_data v2.1.1
+#19 7.262   Downloaded icu_normalizer v2.1.1
+#19 7.266   Downloaded icu_locale_core v2.1.1
+#19 7.273   Downloaded zerotrie v0.2.3
+#19 7.277   Downloaded uuid v1.22.0
+#19 7.280   Downloaded unicode-ident v1.0.24
+#19 7.283   Downloaded spinning_top v0.3.0
+#19 7.285   Downloaded indexmap v1.9.3
+#19 7.289   Downloaded icu_provider v2.1.1
+#19 7.292   Downloaded zerovec-derive v0.11.2
+#19 7.294   Downloaded regex-automata v0.4.14
+#19 7.310   Downloaded pin-project-internal v1.1.11
+#19 7.312   Downloaded quanta v0.12.6
+#19 7.315   Downloaded tinyvec v1.11.0
+#19 7.318   Downloaded zmij v1.0.21
+#19 7.320   Downloaded tracing-attributes v0.1.31
+#19 7.324   Downloaded multer v3.1.0
+#19 7.327   Downloaded webpki-roots v0.26.11
+#19 7.328   Downloaded utoipa-swagger-ui v8.1.0
+#19 7.330   Downloaded thiserror-impl v2.0.18
+#19 7.332   Downloaded thiserror v2.0.18
+#19 7.338   Downloaded yoke v0.8.1
+#19 7.341   Downloaded xz2 v0.1.7
+#19 7.344   Downloaded itertools v0.14.0
+#19 7.351   Downloaded writeable v0.6.2
+#19 7.353   Downloaded web-time v1.1.0
+#19 7.355   Downloaded walkdir v2.5.0
+#19 7.357   Downloaded tracing-appender v0.2.4
+#19 7.359   Downloaded thread_local v1.1.9
+#19 7.361   Downloaded regex v1.12.3
+#19 7.367   Downloaded raw-cpuid v11.6.0
+#19 7.371   Downloaded unicase v2.9.0
+#19 7.372   Downloaded tracing-log v0.2.0
+#19 7.374   Downloaded serde_urlencoded v0.7.1
+#19 7.376   Downloaded zeroize v1.8.2
+#19 7.377   Downloaded opentelemetry-proto v0.28.0
+#19 7.387   Downloaded scopeguard v1.2.0
+#19 7.389   Downloaded sha2 v0.10.9
+#19 7.391   Downloaded socket2 v0.6.3
+#19 7.394   Downloaded itoa v1.0.18
+#19 7.395   Downloaded tokio-native-tls v0.3.1
+#19 7.397   Downloaded sync_wrapper v1.0.2
+#19 7.398   Downloaded yoke-derive v0.8.1
+#19 7.399   Downloaded miniz_oxide v0.8.9
+#19 7.402   Downloaded stable_deref_trait v1.2.1
+#19 7.403   Downloaded try-lock v0.2.5
+#19 7.404   Downloaded encoding_rs v0.8.35
+#19 7.435   Downloaded serde_path_to_error v0.1.20
+#19 7.435   Downloaded rand_core v0.6.4
+#19 7.435   Downloaded rand_chacha v0.9.0
+#19 7.435   Downloaded zerofrom v0.1.6
+#19 7.435   Downloaded strsim v0.11.1
+#19 7.435   Downloaded quote v1.0.45
+#19 7.435   Downloaded want v0.3.1
+#19 7.435   Downloaded utf8parse v0.2.2
+#19 7.435   Downloaded toml_write v0.1.2
+#19 7.435   Downloaded opentelemetry-http v0.28.0
+#19 7.436   Downloaded opentelemetry-appender-tracing v0.28.1
+#19 7.438   Downloaded log v0.4.29
+#19 7.441   Downloaded litemap v0.8.1
+#19 7.444   Downloaded lzma-sys v0.1.20
+#19 7.470   Downloaded pin-utils v0.1.0
+#19 7.472   Downloaded openssl-probe v0.2.1
+#19 7.474   Downloaded nu-ansi-term v0.50.3
+#19 7.477   Downloaded nonzero_ext v0.3.0
+#19 7.481   Downloaded native-tls v0.2.18
+#19 7.483   Downloaded libc v0.2.183
+#19 7.518   Downloaded matchit v0.7.3
+#19 7.520   Downloaded lru-slab v0.1.2
+#19 7.521   Downloaded lock_api v0.4.14
+#19 7.523   Downloaded bzip2-sys v0.1.13+1.0.8
+#19 7.534   Downloaded matchit v0.8.4
+#19 7.537   Downloaded utf8_iter v1.0.4
+#19 7.539   Downloaded aws-lc-rs v1.16.2
+#19 7.549   Downloaded h2 v0.4.13
+#19 7.555   Downloaded futures-util v0.3.32
+#19 7.567   Downloaded iri-string v0.7.10
+#19 7.575   Downloaded serde_json v1.0.149
+#19 7.582   Downloaded governor v0.10.4
+#19 7.587   Downloaded clap_builder v4.6.0
+#19 7.594   Downloaded axum v0.8.8
+#19 7.603   Downloaded aho-corasick v1.1.4
+#19 7.608   Downloaded tower-layer v0.3.3
+#19 7.609   Downloaded toml_datetime v0.6.11
+#19 7.611   Downloaded hyper v1.8.1
+#19 7.617   Downloaded hashbrown v0.16.1
+#19 7.623   Downloaded hashbrown v0.14.5
+#19 7.628   Downloaded axum v0.7.9
+#19 7.636   Downloaded mime_guess v2.0.5
+#19 7.638   Downloaded ryu v1.0.23
+#19 7.642   Downloaded version_check v0.9.5
+#19 7.643   Downloaded tower-service v0.3.3
+#19 7.644   Downloaded same-file v1.0.6
+#19 7.646   Downloaded rustversion v1.0.22
+#19 7.649   Downloaded rustls-pki-types v1.14.0
+#19 7.651   Downloaded rustc-hash v2.1.1
+#19 7.653   Downloaded rust-embed-utils v8.11.0
+#19 7.654   Downloaded rust-embed-impl v8.11.0
+#19 7.655   Downloaded prost v0.13.5
+#19 7.656   Downloaded proc-macro2 v1.0.106
+#19 7.660   Downloaded ppv-lite86 v0.2.21
+#19 7.662   Downloaded aws-lc-sys v0.39.0
+#19 7.918   Downloaded parking_lot_core v0.9.12
+#19 7.918   Downloaded parking_lot v0.12.5
+#19 7.918   Downloaded num-traits v0.2.19
+#19 7.918   Downloaded serde_derive v1.0.228
+#19 7.918   Downloaded http v1.4.0
+#19 7.922   Downloaded hashbrown v0.12.3
+#19 7.926   Downloaded getrandom v0.3.4
+#19 7.930   Downloaded flate2 v1.1.9
+#19 7.935   Downloaded crossbeam-channel v0.5.15
+#19 7.939   Downloaded cc v1.2.57
+#19 7.943   Downloaded bytes v1.11.1
+#19 7.948   Downloaded bumpalo v3.20.2
+#19 7.951   Downloaded base64 v0.22.1
+#19 7.955   Downloaded arc-swap v1.8.2
+#19 7.960   Downloaded potential_utf v0.1.4
+#19 7.962   Downloaded pbkdf2 v0.12.2
+#19 7.963   Downloaded once_cell v1.21.4
+#19 7.966   Downloaded untrusted v0.9.0
+#19 7.968   Downloaded toml v0.8.23
+#19 7.971   Downloaded tokio-stream v0.1.18
+#19 7.976   Downloaded tokio-rustls v0.26.4
+#19 7.979   Downloaded tokio-macros v2.6.1
+#19 7.980   Downloaded tinystr v0.8.2
+#19 7.982   Downloaded httparse v1.10.1
+#19 7.985   Downloaded getrandom v0.4.2
+#19 7.991   Downloaded crossbeam-utils v0.8.21
+#19 7.994   Downloaded clap v4.6.0
+#19 8.003   Downloaded spin v0.9.8
+#19 8.005   Downloaded slab v0.4.12
+#19 8.007   Downloaded hyper-rustls v0.27.7
+#19 8.010   Downloaded getrandom v0.2.17
+#19 8.016   Downloaded futures-executor v0.3.32
+#19 8.018   Downloaded futures-channel v0.3.32
+#19 8.020   Downloaded digest v0.10.7
+#19 8.022   Downloaded crc32fast v1.5.0
+#19 8.027   Downloaded clap_derive v4.6.0
+#19 8.030   Downloaded byteorder v1.5.0
+#19 8.032   Downloaded allocator-api2 v0.2.21
+#19 8.035   Downloaded ahash v0.8.12
+#19 8.038   Downloaded aes v0.8.4
+#19 8.042   Downloaded matchers v0.2.0
+#19 8.044   Downloaded is_terminal_polyfill v1.70.2
+#19 8.045   Downloaded ipnet v2.12.0
+#19 8.048   Downloaded inout v0.1.4
+#19 8.049   Downloaded time-macros v0.2.27
+#19 8.052   Downloaded synstructure v0.13.2
+#19 8.053   Downloaded simd-adler32 v0.3.8
+#19 8.055   Downloaded hyper-timeout v0.5.2
+#19 8.057   Downloaded http-body-util v0.1.3
+#19 8.059   Downloaded hmac v0.12.1
+#19 8.061   Downloaded hashlink v0.9.1
+#19 8.063   Downloaded glob v0.3.3
+#19 8.065   Downloaded futures-task v0.3.32
+#19 8.067   Downloaded futures-core v0.3.32
+#19 8.068   Downloaded fs_extra v1.3.0
+#19 8.070   Downloaded foldhash v0.2.0
+#19 8.073   Downloaded find-msvc-tools v0.1.9
+#19 8.075   Downloaded fallible-iterator v0.3.0
+#19 8.077   Downloaded displaydoc v0.2.5
+#19 8.080   Downloaded deflate64 v0.1.11
+#19 8.082   Downloaded dashmap v6.1.0
+#19 8.089   Downloaded cmake v0.1.57
+#19 8.089   Downloaded bitflags v2.11.0
+#19 8.092   Downloaded either v1.15.0
+#19 8.092   Downloaded deranged v0.5.8
+#19 8.094   Downloaded cipher v0.4.4
+#19 8.095   Downloaded bzip2 v0.5.2
+#19 8.097   Downloaded async-trait v0.1.89
+#19 8.102   Downloaded anyhow v1.0.102
+#19 8.106   Downloaded time-core v0.1.8
+#19 8.108   Downloaded heck v0.5.0
+#19 8.109   Downloaded futures-io v0.3.32
+#19 8.111   Downloaded axum-core v0.5.6
+#19 8.114   Downloaded autocfg v1.5.0
+#19 8.116   Downloaded http-body v1.0.1
+#19 8.117   Downloaded generic-array v0.14.7
+#19 8.118   Downloaded libsqlite3-sys v0.30.1
+#19 8.175   Downloaded errno v0.3.14
+#19 8.177   Downloaded hex v0.4.3
+#19 8.178   Downloaded form_urlencoded v1.2.2
+#19 8.179   Downloaded foreign-types-shared v0.1.1
+#19 8.180   Downloaded fnv v1.0.7
+#19 8.181   Downloaded equivalent v1.0.2
+#19 8.182   Downloaded dunce v1.0.5
+#19 8.183   Downloaded crypto-common v0.1.7
+#19 8.184   Downloaded cpufeatures v0.2.17
+#19 8.185   Downloaded constant_time_eq v0.3.1
+#19 8.186   Downloaded signal-hook-registry v1.4.8
+#19 8.188   Downloaded futures-sink v0.3.32
+#19 8.189   Downloaded futures-macro v0.3.32
+#19 8.190   Downloaded fallible-streaming-iterator v0.1.9
+#19 8.191   Downloaded axum-core v0.4.5
+#19 8.192   Downloaded anstyle-parse v1.0.0
+#19 8.195   Downloaded crc v3.4.0
+#19 8.196   Downloaded colorchoice v1.0.5
+#19 8.196   Downloaded crc-catalog v2.4.0
+#19 8.197   Downloaded clap_lex v1.1.0
+#19 8.198   Downloaded cfg_aliases v0.2.1
+#19 8.200   Downloaded anstyle v1.0.14
+#19 8.201   Downloaded anstream v1.0.0
+#19 8.204   Downloaded atomic-waker v1.1.2
+#19 8.348    Compiling proc-macro2 v1.0.106
+#19 8.348    Compiling quote v1.0.45
+#19 8.348    Compiling unicode-ident v1.0.24
+#19 8.348    Compiling libc v0.2.183
+#19 8.348    Compiling cfg-if v1.0.4
+#19 8.363    Compiling version_check v0.9.5
+#19 8.373    Compiling once_cell v1.21.4
+#19 8.373    Compiling pin-project-lite v0.2.17
+#19 8.374    Compiling smallvec v1.15.1
+#19 8.384    Compiling serde_core v1.0.228
+#19 8.397    Compiling memchr v2.8.0
+#19 8.421    Compiling itoa v1.0.18
+#19 8.497    Compiling find-msvc-tools v0.1.9
+#19 8.497    Compiling shlex v1.3.0
+#19 8.497    Compiling futures-core v0.3.32
+#19 8.497    Compiling log v0.4.29
+#19 8.497    Compiling bytes v1.11.1
+#19 8.514    Compiling parking_lot_core v0.9.12
+#19 8.546    Compiling scopeguard v1.2.0
+#19 8.546    Compiling futures-sink v0.3.32
+#19 8.649    Compiling typenum v1.19.0
+#19 8.651    Compiling serde v1.0.228
+#19 8.721    Compiling slab v0.4.12
+#19 8.806    Compiling zerocopy v0.8.47
+#19 8.910    Compiling lock_api v0.4.14
+#19 9.001    Compiling tracing-core v0.1.36
+#19 9.057    Compiling pkg-config v0.3.32
+#19 9.091    Compiling foldhash v0.2.0
+#19 9.157    Compiling allocator-api2 v0.2.21
+#19 9.188    Compiling equivalent v1.0.2
+#19 9.284    Compiling futures-io v0.3.32
+#19 9.348    Compiling futures-task v0.3.32
+#19 9.348    Compiling thiserror v2.0.18
+#19 9.356    Compiling generic-array v0.14.7
+#19 9.377    Compiling zmij v1.0.21
+#19 9.377    Compiling icu_properties_data v2.1.2
+#19 9.519    Compiling icu_normalizer_data v2.1.1
+#19 9.519    Compiling serde_json v1.0.149
+#19 9.740    Compiling stable_deref_trait v1.2.1
+#19 9.749    Compiling crc32fast v1.5.0
+#19 9.799    Compiling percent-encoding v2.3.2
+#19 9.800    Compiling autocfg v1.5.0
+#19 9.831    Compiling hashbrown v0.16.1
+#19 9.982    Compiling tower-service v0.3.3
+#19 9.994    Compiling tower-layer v0.3.3
+#19 10.03    Compiling anyhow v1.0.102
+#19 10.12    Compiling http v1.4.0
+#19 10.26    Compiling subtle v2.6.1
+#19 10.37    Compiling sync_wrapper v1.0.2
+#19 10.42    Compiling httparse v1.10.1
+#19 10.45    Compiling bitflags v2.11.0
+#19 10.46    Compiling ahash v0.8.12
+#19 10.50    Compiling futures-channel v0.3.32
+#19 10.62    Compiling rustversion v1.0.22
+#19 10.64    Compiling fnv v1.0.7
+#19 10.70    Compiling litemap v0.8.1
+#19 10.75    Compiling dunce v1.0.5
+#19 10.84    Compiling mime v0.3.17
+#19 10.87    Compiling fs_extra v1.3.0
+#19 10.89    Compiling atomic-waker v1.1.2
+#19 10.99    Compiling try-lock v0.2.5
+#19 11.01    Compiling writeable v0.6.2
+#19 11.19    Compiling want v0.3.1
+#19 11.27    Compiling httpdate v1.0.3
+#19 11.29    Compiling getrandom v0.3.4
+#19 11.58    Compiling base64 v0.22.1
+#19 11.64    Compiling pin-utils v0.1.0
+#19 11.75    Compiling syn v2.0.117
+#19 11.79    Compiling jobserver v0.1.34
+#19 11.84    Compiling errno v0.3.14
+#19 11.89    Compiling socket2 v0.6.3
+#19 11.91    Compiling mio v1.1.1
+#19 11.91    Compiling getrandom v0.2.17
+#19 12.02    Compiling crypto-common v0.1.7
+#19 12.04    Compiling block-buffer v0.10.4
+#19 12.07    Compiling signal-hook-registry v1.4.8
+#19 12.13    Compiling http-body v1.0.1
+#19 12.20    Compiling parking_lot v0.12.5
+#19 12.29    Compiling cc v1.2.57
+#19 12.33    Compiling http-body-util v0.1.3
+#19 12.36    Compiling digest v0.10.7
+#19 12.53    Compiling aho-corasick v1.1.4
+#19 12.55    Compiling cpufeatures v0.2.17
+#19 12.57    Compiling crossbeam-utils v0.8.21
+#19 12.61    Compiling regex-syntax v0.8.10
+#19 12.63    Compiling ipnet v2.12.0
+#19 12.65    Compiling vcpkg v0.2.15
+#19 13.13    Compiling rand_core v0.6.4
+#19 13.13    Compiling num-traits v0.2.19
+#19 13.28    Compiling aws-lc-rs v1.16.2
+#19 13.32    Compiling simd-adler32 v0.3.8
+#19 13.43    Compiling getrandom v0.4.2
+#19 14.00    Compiling form_urlencoded v1.2.2
+#19 14.03    Compiling adler2 v2.0.1
+#19 14.04    Compiling toml_write v0.1.2
+#19 14.08    Compiling winnow v0.7.15
+#19 14.49    Compiling indexmap v1.9.3
+#19 14.54    Compiling cmake v0.1.57
+#19 14.61    Compiling miniz_oxide v0.8.9
+#19 15.23    Compiling lazy_static v1.5.0
+#19 15.57    Compiling zstd-safe v7.2.4
+#19 15.57    Compiling same-file v1.0.6
+#19 15.83    Compiling ryu v1.0.23
+#19 15.87    Compiling fallible-streaming-iterator v0.1.9
+#19 15.99    Compiling matchit v0.7.3
+#19 16.17    Compiling fallible-iterator v0.3.0
+#19 16.29    Compiling zip v2.4.2
+#19 16.34    Compiling indexmap v2.13.0
+#19 16.37    Compiling serde_path_to_error v0.1.20
+#19 16.40    Compiling bumpalo v3.20.2
+#19 16.40    Compiling powerfmt v0.2.0
+#19 16.43    Compiling either v1.15.0
+#19 16.58    Compiling utf8_iter v1.0.4
+#19 16.64    Compiling iana-time-zone v0.1.65
+#19 16.68    Compiling aws-lc-sys v0.39.0
+#19 16.71    Compiling zstd-sys v2.0.16+zstd.1.5.7
+#19 16.86    Compiling libsqlite3-sys v0.30.1
+#19 16.92    Compiling bzip2-sys v0.1.13+1.0.8
+#19 16.98    Compiling lzma-sys v0.1.20
+#19 17.00    Compiling zopfli v0.8.3
+#19 17.03    Compiling itertools v0.14.0
+#19 17.18    Compiling deranged v0.5.8
+#19 17.41    Compiling walkdir v2.5.0
+#19 17.90    Compiling uuid v1.22.0
+#19 ...
+
+#23 [mock-nntp builder 6/7] RUN cargo build --release &&     ./target/release/benchnzb --help > /dev/null
+#23 5.742    Compiling clap_lex v1.1.0
+#23 5.823    Compiling http-body-util v0.1.3
+#23 5.844    Compiling crc32fast v1.5.0
+#23 5.859    Compiling heck v0.5.0
+#23 5.968    Compiling bitflags v2.11.0
+#23 5.977    Compiling futures-sink v0.3.32
+#23 5.992    Compiling ring v0.17.14
+#23 6.009    Compiling clap_builder v4.6.0
+#23 6.093    Compiling sharded-slab v0.1.7
+#23 6.093    Compiling tracing-log v0.2.0
+#23 6.093    Compiling thread_local v1.1.9
+#23 6.133    Compiling iana-time-zone v0.1.65
+#23 6.135    Compiling nu-ansi-term v0.50.3
+#23 6.328    Compiling time v0.3.47
+#23 6.431    Compiling memmap2 v0.9.10
+#23 7.115    Compiling regex-automata v0.4.14
+#23 7.983    Compiling serde_with v3.18.0
+#23 10.63    Compiling synstructure v0.13.2
+#23 11.12    Compiling ppv-lite86 v0.2.21
+#23 11.74    Compiling zerovec-derive v0.11.2
+#23 11.74    Compiling displaydoc v0.2.5
+#23 11.74    Compiling tokio-macros v2.6.1
+#23 11.74    Compiling futures-macro v0.3.32
+#23 11.74    Compiling tracing-attributes v0.1.31
+#23 11.74    Compiling serde_derive v1.0.228
+#23 11.75    Compiling serde_repr v0.1.20
+#23 11.75    Compiling thiserror-impl v1.0.69
+#23 11.75    Compiling clap_derive v4.6.0
+#23 11.79    Compiling zerofrom-derive v0.1.6
+#23 11.80    Compiling yoke-derive v0.8.1
+#23 11.91    Compiling rand_chacha v0.9.0
+#23 12.27    Compiling rand v0.9.2
+#23 12.71    Compiling tokio v1.50.0
+#23 12.93    Compiling futures-util v0.3.32
+#23 13.26    Compiling matchers v0.2.0
+#23 13.36    Compiling tracing v0.1.44
+#23 13.62    Compiling zerofrom v0.1.6
+#23 13.92    Compiling yoke v0.8.1
+#23 13.97    Compiling tracing-subscriber v0.3.23
+#23 14.19    Compiling zerovec v0.11.5
+#23 14.19    Compiling zerotrie v0.2.3
+#23 15.22    Compiling tinystr v0.8.2
+#23 15.22    Compiling potential_utf v0.1.4
+#23 15.45    Compiling icu_collections v2.1.1
+#23 15.49    Compiling icu_locale_core v2.1.1
+#23 15.76    Compiling clap v4.6.0
+#23 ...
+
+#19 [rustnzbd builder 6/6] RUN cargo build --release
+#19 18.12    Compiling regex-automata v0.4.14
+#19 18.28    Compiling sha2 v0.10.9
+#19 18.60    Compiling sharded-slab v0.1.7
+#19 18.89    Compiling ppv-lite86 v0.2.21
+#19 19.14    Compiling flate2 v1.1.9
+#19 19.34    Compiling hashbrown v0.14.5
+#19 19.40    Compiling rand_chacha v0.3.1
+#19 19.70    Compiling synstructure v0.13.2
+#19 19.72    Compiling rand v0.8.5
+#19 19.80    Compiling rand_core v0.9.5
+#19 19.88    Compiling inout v0.1.4
+#19 20.09    Compiling tracing-log v0.2.0
+#19 20.11    Compiling quick-xml v0.37.5
+#19 20.19    Compiling thread_local v1.1.9
+#19 20.23    Compiling rustls v0.23.37
+#19 20.65    Compiling hashbrown v0.12.3
+#19 20.68    Compiling portable-atomic v1.13.1
+#19 20.74    Compiling time-core v0.1.8
+#19 20.86    Compiling nu-ansi-term v0.50.3
+#19 20.91    Compiling hashlink v0.9.1
+#19 20.91    Compiling iri-string v0.7.10
+#19 20.97    Compiling untrusted v0.9.0
+#19 21.13    Compiling crc-catalog v2.4.0
+#19 21.15    Compiling unicase v2.9.0
+#19 21.24    Compiling num-conv v0.2.0
+#19 21.41    Compiling mime_guess v2.0.5
+#19 21.43    Compiling time v0.3.47
+#19 21.58    Compiling crc v3.4.0
+#19 21.73    Compiling rand_chacha v0.9.0
+#19 21.87    Compiling cipher v0.4.4
+#19 21.92    Compiling rust-embed-utils v8.11.0
+#19 22.30    Compiling hmac v0.12.1
+#19 22.37    Compiling raw-cpuid v11.6.0
+#19 22.45    Compiling multer v3.1.0
+#19 22.58    Compiling utf8parse v0.2.2
+#19 22.63    Compiling byteorder v1.5.0
+#19 22.76    Compiling glob v0.3.3
+#19 23.12    Compiling zerofrom-derive v0.1.6
+#19 23.14    Compiling yoke-derive v0.8.1
+#19 23.14    Compiling displaydoc v0.2.5
+#19 23.23    Compiling zerovec-derive v0.11.2
+#19 23.34    Compiling tracing-attributes v0.1.31
+#19 24.14    Compiling serde_derive v1.0.228
+#19 24.63    Compiling tokio-macros v2.6.1
+#19 24.93    Compiling futures-macro v0.3.32
+#19 25.00    Compiling thiserror-impl v2.0.18
+#19 25.23    Compiling zeroize_derive v1.4.3
+#19 25.48    Compiling async-trait v0.1.89
+#19 25.66    Compiling regex v1.12.3
+#19 26.06    Compiling tracing v0.1.44
+#19 26.22    Compiling zerofrom v0.1.6
+#19 26.26    Compiling tokio v1.50.0
+#19 26.36    Compiling yoke v0.8.1
+#19 26.38    Compiling matchers v0.2.0
+#19 26.49    Compiling pin-project-internal v1.1.11
+#19 26.52    Compiling prost-derive v0.13.5
+#19 26.59    Compiling futures-util v0.3.32
+#19 26.59    Compiling zeroize v1.8.2
+#19 26.62    Compiling zerovec v0.11.5
+#19 26.62    Compiling zerotrie v0.2.3
+#19 26.67    Compiling async-stream-impl v0.3.6
+#19 26.98    Compiling rustls-pki-types v1.14.0
+#19 27.15    Compiling bzip2 v0.5.2
+#19 27.19    Compiling utoipa-gen v5.4.0
+#19 27.61    Compiling opentelemetry v0.28.0
+#19 27.63    Compiling webpki-roots v1.0.6
+#19 27.74    Compiling tinystr v0.8.2
+#19 27.79    Compiling potential_utf v0.1.4
+#19 27.82    Compiling quanta v0.12.6
+#19 27.89    Compiling async-stream v0.3.6
+#19 27.95    Compiling icu_collections v2.1.1
+#19 28.01    Compiling icu_locale_core v2.1.1
+#19 28.35    Compiling rust-embed-impl v8.11.0
+#19 28.45    Compiling pin-project v1.1.11
+#19 28.53    Compiling lzma-rs v0.3.0
+#19 28.73    Compiling anstyle-parse v1.0.0
+#19 28.88    Compiling pbkdf2 v0.12.2
+#19 28.99    Compiling icu_provider v2.1.1
+#19 29.11    Compiling xz2 v0.1.7
+#19 29.12    Compiling aes v0.8.4
+#19 29.38    Compiling rand v0.9.2
+#19 ...
+
+#23 [mock-nntp builder 6/7] RUN cargo build --release &&     ./target/release/benchnzb --help > /dev/null
+#23 17.03    Compiling icu_provider v2.1.1
+#23 17.36    Compiling icu_properties v2.1.2
+#23 17.36    Compiling icu_normalizer v2.1.1
+#23 17.38    Compiling serde_urlencoded v0.7.1
+#23 17.38    Compiling bollard-stubs v1.45.0-rc.26.0.1
+#23 17.38    Compiling chrono v0.4.44
+#23 18.58    Compiling idna_adapter v1.2.1
+#23 18.70    Compiling idna v1.1.0
+#23 19.09    Compiling url v2.5.8
+#23 19.09    Compiling publicsuffix v2.3.0
+#23 20.17    Compiling cookie_store v0.22.1
+#23 21.05    Compiling hyper v1.8.1
+#23 21.05    Compiling tower v0.5.3
+#23 21.05    Compiling tokio-util v0.7.18
+#23 21.99    Compiling tower-http v0.6.8
+#23 22.18    Compiling rustls-webpki v0.103.10
+#23 22.92    Compiling hyper-util v0.1.20
+#23 24.49    Compiling hyperlocal v0.9.1
+#23 ...
+
+#19 [rustnzbd builder 6/6] RUN cargo build --release
+#19 29.51    Compiling icu_normalizer v2.1.1
+#19 29.57    Compiling icu_properties v2.1.2
+#19 29.60    Compiling prost v0.13.5
+#19 29.66    Compiling dashmap v6.1.0
+#19 30.23    Compiling toml_datetime v0.6.11
+#19 30.33    Compiling serde_spanned v0.6.9
+#19 30.37    Compiling tracing-serde v0.2.0
+#19 30.39    Compiling serde_urlencoded v0.7.1
+#19 30.46    Compiling chrono v0.4.44
+#19 30.49    Compiling toml_edit v0.22.27
+#19 30.56    Compiling tracing-subscriber v0.3.23
+#19 30.64    Compiling axum-core v0.4.5
+#19 30.72    Compiling futures-executor v0.3.32
+#19 30.86    Compiling sha1 v0.10.6
+#19 31.12    Compiling socket2 v0.5.10
+#19 31.38    Compiling idna_adapter v1.2.1
+#19 31.66    Compiling idna v1.1.0
+#19 31.68    Compiling spinning_top v0.3.0
+#19 31.74    Compiling encoding_rs v0.8.35
+#19 31.80    Compiling anstyle-query v1.1.5
+#19 31.90    Compiling colorchoice v1.0.5
+#19 31.96    Compiling is_terminal_polyfill v1.70.2
+#19 32.05    Compiling anstyle v1.0.14
+#19 32.07    Compiling constant_time_eq v0.3.1
+#19 32.25    Compiling url v2.5.8
+#19 32.49    Compiling web-time v1.1.0
+#19 32.55    Compiling futures-timer v3.0.3
+#19 32.59    Compiling spin v0.9.8
+#19 32.60    Compiling nonzero_ext v0.3.0
+#19 32.69    Compiling deflate64 v0.1.11
+#19 32.71    Compiling anstream v1.0.0
+#19 32.88    Compiling rust-embed v8.11.0
+#19 32.89    Compiling webpki-roots v0.26.11
+#19 32.97    Compiling governor v0.10.4
+#19 33.03    Compiling axum-core v0.5.6
+#19 33.29    Compiling utoipa-swagger-ui v8.1.0
+#19 33.72    Compiling arc-swap v1.8.2
+#19 33.75    Compiling clap_lex v1.1.0
+#19 33.97    Compiling tokio-util v0.7.18
+#19 34.54    Compiling tower v0.5.3
+#19 34.72    Compiling toml v0.8.23
+#19 34.97    Compiling tokio-stream v0.1.18
+#19 35.56    Compiling h2 v0.4.13
+#19 35.68    Compiling axum v0.7.9
+#19 35.82    Compiling tower-http v0.6.8
+#19 35.86    Compiling opentelemetry_sdk v0.28.0
+#19 35.93    Compiling tower v0.4.13
+#19 36.05    Compiling strsim v0.11.1
+#19 36.55    Compiling heck v0.5.0
+#19 36.63    Compiling matchit v0.8.4
+#19 36.75    Compiling clap_derive v4.6.0
+#19 36.81    Compiling clap_builder v4.6.0
+#19 37.28    Compiling crossbeam-channel v0.5.15
+#19 37.31    Compiling hex v0.4.3
+#19 37.70    Compiling opentelemetry-appender-tracing v0.28.1
+#19 37.86    Compiling utoipa v5.4.0
+#19 38.18    Compiling tracing-appender v0.2.4
+#19 40.14    Compiling tracing-opentelemetry v0.29.0
+#19 ...
+
+#23 [mock-nntp builder 6/7] RUN cargo build --release &&     ./target/release/benchnzb --help > /dev/null
+#23 28.23    Compiling tokio-rustls v0.26.4
+#23 28.57    Compiling hyper-rustls v0.27.7
+#23 29.13    Compiling reqwest v0.12.28
+#23 30.47    Compiling bollard v0.17.1
+#23 35.45    Compiling benchnzb v0.1.0 (/app)
+#23 37.11 warning: method `healthy` is never used
+#23 37.11   --> src/clients/rustnzbd.rs:17:18
+#23 37.11    |
+#23 37.11  9 | impl RustnzbdClient {
+#23 37.11    | ------------------- method in this implementation
+#23 37.11 ...
+#23 37.11 17 |     pub async fn healthy(&self) -> bool {
+#23 37.11    |                  ^^^^^^^
+#23 37.11    |
+#23 37.11    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+#23 37.11 
+#23 37.11 warning: method `healthy` is never used
+#23 37.11   --> src/clients/sabnzbd.rs:33:18
+#23 37.11    |
+#23 37.11 11 | impl SabnzbdClient {
+#23 37.11    | ------------------ method in this implementation
+#23 37.11 ...
+#23 37.11 33 |     pub async fn healthy(&self) -> bool {
+#23 37.11    |                  ^^^^^^^
+#23 37.11 
+#23 ...
+
+#19 [rustnzbd builder 6/6] RUN cargo build --release
+#19 41.07    Compiling clap v4.6.0
+#19 42.45    Compiling hyper v1.8.1
+#19 46.92    Compiling hyper-util v0.1.20
+#19 51.58    Compiling hyper-timeout v0.5.2
+#19 51.68    Compiling reqwest v0.12.28
+#19 51.68    Compiling axum v0.8.8
+#19 51.80    Compiling tonic v0.12.3
+#19 55.90    Compiling opentelemetry-http v0.28.0
+#19 56.36    Compiling opentelemetry-proto v0.28.0
+#19 ...
+
+#23 [mock-nntp builder 6/7] RUN cargo build --release &&     ./target/release/benchnzb --help > /dev/null
+#23 55.80 warning: `benchnzb` (bin "benchnzb") generated 2 warnings
+#23 55.80     Finished `release` profile [optimized] target(s) in 55.51s
+#23 55.89 [benchnzb] PID=3455 args=["./target/release/benchnzb", "--help"]
+#23 DONE 56.1s
+
+#19 [rustnzbd builder 6/6] RUN cargo build --release
+#19 58.45    Compiling zstd v0.13.3
+#19 58.92    Compiling opentelemetry-otlp v0.28.0
+#19 ...
+
+#25 [orchestrator builder 7/7] RUN git clone --depth 1 https://github.com/animetosho/par2cmdline-turbo.git /tmp/par2turbo &&     cd /tmp/par2turbo &&     aclocal && automake --add-missing && autoconf &&     ./configure && make -j"$(nproc)" &&     cp par2 /usr/local/bin/par2
+#25 0.314 Cloning into '/tmp/par2turbo'...
+#25 2.553 configure.ac:45: installing './ar-lib'
+#25 2.553 configure.ac:45: installing './compile'
+#25 2.553 configure.ac:35: installing './install-sh'
+#25 2.553 configure.ac:35: installing './missing'
+#25 2.630 parallel-tests: installing './test-driver'
+#25 2.880 checking build system type... x86_64-pc-linux-gnu
+#25 2.919 checking host system type... x86_64-pc-linux-gnu
+#25 2.919 checking for a BSD-compatible install... /usr/bin/install -c
+#25 2.926 checking whether build environment is sane... yes
+#25 2.932 checking for a race-free mkdir -p... /usr/bin/mkdir -p
+#25 2.934 checking for gawk... no
+#25 2.934 checking for mawk... mawk
+#25 2.934 checking whether make sets $(MAKE)... yes
+#25 2.942 checking whether make supports nested variables... yes
+#25 2.947 checking for g++... g++
+#25 2.965 checking whether the C++ compiler works... yes
+#25 3.035 checking for C++ compiler default output file name... a.out
+#25 3.036 checking for suffix of executables... 
+#25 3.075 checking whether we are cross compiling... no
+#25 3.121 checking for suffix of object files... o
+#25 3.135 checking whether the compiler supports GNU C++... yes
+#25 3.151 checking whether g++ accepts -g... yes
+#25 3.166 checking for g++ option to enable C++11 features... none needed
+#25 3.226 checking whether make supports the include directive... yes (GNU style)
+#25 3.232 checking dependency style of g++... gcc3
+#25 3.256 checking for ranlib... ranlib
+#25 3.257 checking for gcc... gcc
+#25 3.274 checking whether the compiler supports GNU C... yes
+#25 3.287 checking whether gcc accepts -g... yes
+#25 3.303 checking for gcc option to enable C11 features... none needed
+#25 3.337 checking whether gcc understands -c and -o together... yes
+#25 3.360 checking dependency style of gcc... gcc3
+#25 3.382 checking for ar... ar
+#25 3.382 checking the archiver (ar) interface... ar
+#25 3.398 checking for dirent.h that defines DIR... yes
+#25 3.424 checking for library containing opendir... none required
+#25 3.467 checking for stdio.h... yes
+#25 3.483 checking for stdlib.h... yes
+#25 3.501 checking for string.h... yes
+#25 3.520 checking for inttypes.h... yes
+#25 3.548 checking for stdint.h... yes
+#25 3.571 checking for strings.h... yes
+#25 3.593 checking for sys/stat.h... yes
+#25 3.619 checking for sys/types.h... yes
+#25 3.642 checking for unistd.h... yes
+#25 3.666 checking for _Bool... no
+#25 3.690 checking for stdbool.h that conforms to C99... yes
+#25 3.709 checking for stdio.h... (cached) yes
+#25 3.709 checking for endian.h... yes
+#25 3.735 checking for getopt.h... yes
+#25 3.763 checking for limits.h... yes
+#25 3.787 checking for size_t... yes
+#25 3.841 checking whether byte ordering is bigendian... no
+#25 3.899 checking for an ANSI C-conforming const... yes
+#25 3.914 checking for inline... inline
+#25 3.924 checking for special C compiler options needed for large files... no
+#25 3.924 checking for _FILE_OFFSET_BITS value needed for large files... no
+#25 3.942 checking for _LARGEFILE_SOURCE value needed for large files... no
+#25 3.980 checking for the pthreads library -lpthreads... no
+#25 4.008 checking whether pthreads work without any flags... yes
+#25 4.074 checking whether pthreads work with -Kthread... no
+#25 4.083 checking whether pthreads work with -kthread... no
+#25 4.092 checking for the pthreads library -llthread... no
+#25 4.122 checking whether pthreads work with -pthread... yes
+#25 4.186 checking whether pthreads work with -pthreads... no
+#25 4.197 checking whether pthreads work with -mthreads... no
+#25 4.206 checking for the pthreads library -lpthread... yes
+#25 4.267 checking whether pthreads work with --thread-safe... no
+#25 4.280 checking whether pthreads work with -mt... no
+#25 4.287 checking for the pthreads library -lpthreadGC2... no
+#25 4.314 checking for working memcmp... yes
+#25 4.366 checking for stricmp... no
+#25 4.403 checking for strcasecmp... yes
+#25 4.439 checking for strchr... yes
+#25 4.476 checking for memcpy... yes
+#25 4.513 checking for getopt... yes
+#25 4.548 checking for getopt_long... yes
+#25 4.588 checking whether g++ supports C++14 features with -std=c++14... yes
+#25 4.622 checking whether C compiler accepts -msse2... yes
+#25 4.639 checking whether C compiler accepts -mssse3... yes
+#25 4.656 checking whether C compiler accepts -mpclmul... yes
+#25 4.670 checking whether C compiler accepts -mavx... yes
+#25 4.684 checking whether C compiler accepts -mxop... yes
+#25 4.701 checking whether C compiler accepts -mbmi... yes
+#25 4.716 checking whether C compiler accepts -mavx2... yes
+#25 4.731 checking whether C compiler accepts -mavx512vl -mavx512bw... yes
+#25 4.747 checking whether C compiler accepts -mavx512vbmi... yes
+#25 4.764 checking whether C compiler accepts -mgfni... yes
+#25 4.779 checking whether C compiler accepts -mvpclmulqdq... yes
+#25 4.795 checking whether C compiler accepts -mno-evex512... no
+#25 4.806 checking whether C compiler accepts -mfpu=neon -march=armv7-a... no
+#25 4.816 checking whether C compiler accepts -mfpu=fp-armv8... no
+#25 4.826 checking whether C compiler accepts -march=armv8-a+sve... no
+#25 4.835 checking whether C compiler accepts -march=armv8-a+sve2... no
+#25 4.844 checking whether C compiler accepts -march=armv8-a+crc... no
+#25 4.853 checking whether C compiler accepts -march=armv8.2-a+sha3... no
+#25 4.862 checking whether C compiler accepts -march=rv64gcv... no
+#25 4.871 checking whether C compiler accepts -march=rv32gcv... no
+#25 4.880 checking whether C compiler accepts -march=rv64gc_zbkc... no
+#25 4.888 checking whether C compiler accepts -march=rv32gc_zbkc... no
+#25 4.897 checking whether C compiler accepts -march=rv64gcv_zvbc... no
+#25 4.906 checking whether C compiler accepts -march=rv32gcv_zvbc... no
+#25 4.915 checking for gcc options needed to detect all undeclared functions... none needed
+#25 4.941 checking whether posix_memalign is declared... no
+#25 4.958 checking whether the linker accepts -latomic... yes
+#25 5.005 checking that generated files are newer than configure... done
+#25 5.005 configure: creating ./config.status
+#25 5.059 config.status: creating stamp-h
+#25 5.066 config.status: creating Makefile
+#25 5.076 config.status: creating config.h
+#25 5.082 config.status: executing depfiles commands
+#25 5.391 (CDPATH="${ZSH_VERSION+.}:" && cd . && /bin/bash '/tmp/par2turbo/missing' autoheader)
+#25 5.488 rm -f stamp-h1
+#25 5.489 touch config.h.in
+#25 5.492 cd . && /bin/bash ./config.status config.h
+#25 5.512 config.status: creating config.h
+#25 5.519 make  all-am
+#25 5.523 make[1]: Entering directory '/tmp/par2turbo'
+#25 5.527 depbase=`echo src/par2cmdline.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.527 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par2cmdline.o -MD -MP -MF $depbase.Tpo -c -o src/par2cmdline.o src/par2cmdline.cpp &&\
+#25 5.527 mv -f $depbase.Tpo $depbase.Po
+#25 5.527 depbase=`echo src/commandline.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.527 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/commandline.o -MD -MP -MF $depbase.Tpo -c -o src/commandline.o src/commandline.cpp &&\
+#25 5.527 mv -f $depbase.Tpo $depbase.Po
+#25 5.528 depbase=`echo src/crc.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.528 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/crc.o -MD -MP -MF $depbase.Tpo -c -o src/crc.o src/crc.cpp &&\
+#25 5.528 mv -f $depbase.Tpo $depbase.Po
+#25 5.528 depbase=`echo src/creatorpacket.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.528 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/creatorpacket.o -MD -MP -MF $depbase.Tpo -c -o src/creatorpacket.o src/creatorpacket.cpp &&\
+#25 5.528 mv -f $depbase.Tpo $depbase.Po
+#25 5.528 depbase=`echo src/criticalpacket.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.528 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/criticalpacket.o -MD -MP -MF $depbase.Tpo -c -o src/criticalpacket.o src/criticalpacket.cpp &&\
+#25 5.528 mv -f $depbase.Tpo $depbase.Po
+#25 5.528 depbase=`echo src/datablock.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.528 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/datablock.o -MD -MP -MF $depbase.Tpo -c -o src/datablock.o src/datablock.cpp &&\
+#25 5.528 mv -f $depbase.Tpo $depbase.Po
+#25 5.528 depbase=`echo src/descriptionpacket.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.528 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/descriptionpacket.o -MD -MP -MF $depbase.Tpo -c -o src/descriptionpacket.o src/descriptionpacket.cpp &&\
+#25 5.528 mv -f $depbase.Tpo $depbase.Po
+#25 5.529 depbase=`echo src/diskfile.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.529 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/diskfile.o -MD -MP -MF $depbase.Tpo -c -o src/diskfile.o src/diskfile.cpp &&\
+#25 5.529 mv -f $depbase.Tpo $depbase.Po
+#25 5.529 depbase=`echo src/filechecksummer.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.529 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/filechecksummer.o -MD -MP -MF $depbase.Tpo -c -o src/filechecksummer.o src/filechecksummer.cpp &&\
+#25 5.529 mv -f $depbase.Tpo $depbase.Po
+#25 5.529 depbase=`echo src/galois.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.529 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/galois.o -MD -MP -MF $depbase.Tpo -c -o src/galois.o src/galois.cpp &&\
+#25 5.529 mv -f $depbase.Tpo $depbase.Po
+#25 5.529 depbase=`echo src/mainpacket.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.529 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/mainpacket.o -MD -MP -MF $depbase.Tpo -c -o src/mainpacket.o src/mainpacket.cpp &&\
+#25 5.529 mv -f $depbase.Tpo $depbase.Po
+#25 5.530 depbase=`echo src/md5.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.530 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/md5.o -MD -MP -MF $depbase.Tpo -c -o src/md5.o src/md5.cpp &&\
+#25 5.530 mv -f $depbase.Tpo $depbase.Po
+#25 5.530 depbase=`echo src/par1fileformat.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.530 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par1fileformat.o -MD -MP -MF $depbase.Tpo -c -o src/par1fileformat.o src/par1fileformat.cpp &&\
+#25 5.530 mv -f $depbase.Tpo $depbase.Po
+#25 5.530 depbase=`echo src/par1repairer.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.530 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par1repairer.o -MD -MP -MF $depbase.Tpo -c -o src/par1repairer.o src/par1repairer.cpp &&\
+#25 5.530 mv -f $depbase.Tpo $depbase.Po
+#25 5.530 depbase=`echo src/par1repairersourcefile.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.530 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par1repairersourcefile.o -MD -MP -MF $depbase.Tpo -c -o src/par1repairersourcefile.o src/par1repairersourcefile.cpp &&\
+#25 5.530 mv -f $depbase.Tpo $depbase.Po
+#25 5.531 depbase=`echo src/par2creator.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.531 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par2creator.o -MD -MP -MF $depbase.Tpo -c -o src/par2creator.o src/par2creator.cpp &&\
+#25 5.531 mv -f $depbase.Tpo $depbase.Po
+#25 5.532 depbase=`echo src/par2creatorsourcefile.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.532 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par2creatorsourcefile.o -MD -MP -MF $depbase.Tpo -c -o src/par2creatorsourcefile.o src/par2creatorsourcefile.cpp &&\
+#25 5.532 mv -f $depbase.Tpo $depbase.Po
+#25 5.532 depbase=`echo src/par2fileformat.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.532 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par2fileformat.o -MD -MP -MF $depbase.Tpo -c -o src/par2fileformat.o src/par2fileformat.cpp &&\
+#25 5.532 mv -f $depbase.Tpo $depbase.Po
+#25 5.533 depbase=`echo src/par2repairer.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.533 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par2repairer.o -MD -MP -MF $depbase.Tpo -c -o src/par2repairer.o src/par2repairer.cpp &&\
+#25 5.533 mv -f $depbase.Tpo $depbase.Po
+#25 5.533 depbase=`echo src/par2repairersourcefile.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 5.533 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/par2repairersourcefile.o -MD -MP -MF $depbase.Tpo -c -o src/par2repairersourcefile.o src/par2repairersourcefile.cpp &&\
+#25 5.533 mv -f $depbase.Tpo $depbase.Po
+#25 6.361 depbase=`echo src/recoverypacket.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 6.361 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/recoverypacket.o -MD -MP -MF $depbase.Tpo -c -o src/recoverypacket.o src/recoverypacket.cpp &&\
+#25 6.361 mv -f $depbase.Tpo $depbase.Po
+#25 6.522 src/par1repairer.cpp: In member function 'bool Par1Repairer::LoadRecoveryFile(std::string)':
+#25 6.522 src/par1repairer.cpp:517:8: warning: unused variable 'success' [-Wunused-variable]
+#25 6.522   517 |   bool success = diskfilemap.Insert(diskfile);
+#25 6.522       |        ^~~~~~~
+#25 6.543 src/par1repairer.cpp: In member function 'bool Par1Repairer::VerifySourceFiles()':
+#25 6.543 src/par1repairer.cpp:639:14: warning: unused variable 'success' [-Wunused-variable]
+#25 6.543   639 |         bool success = diskfilemap.Insert(diskfile);
+#25 6.543       |              ^~~~~~~
+#25 6.576 src/par1repairer.cpp: In member function 'bool Par1Repairer::VerifyExtraFiles(const std::vector<std::__cxx11::basic_string<char> >&)':
+#25 6.576 src/par1repairer.cpp:720:14: warning: unused variable 'success' [-Wunused-variable]
+#25 6.576   720 |         bool success = diskfilemap.Insert(diskfile);
+#25 6.576       |              ^~~~~~~
+#25 6.587 src/par1repairer.cpp: In member function 'bool Par1Repairer::RenameTargetFiles()':
+#25 6.587 src/par1repairer.cpp:1072:12: warning: unused variable 'success' [-Wunused-variable]
+#25 6.587  1072 |       bool success = diskfilemap.Insert(targetfile);
+#25 6.587       |            ^~~~~~~
+#25 6.588 src/par1repairer.cpp:1100:12: warning: unused variable 'success' [-Wunused-variable]
+#25 6.588  1100 |       bool success = diskfilemap.Insert(targetfile);
+#25 6.588       |            ^~~~~~~
+#25 6.588 src/par1repairer.cpp: In member function 'bool Par1Repairer::CreateTargetFiles()':
+#25 6.588 src/par1repairer.cpp:1147:12: warning: unused variable 'success' [-Wunused-variable]
+#25 6.588  1147 |       bool success = diskfilemap.Insert(targetfile);
+#25 6.588       |            ^~~~~~~
+#25 6.840 src/par2repairer.cpp: In member function 'bool Par2Repairer::LoadPacketsFromFile(std::string)':
+#25 6.840 src/par2repairer.cpp:590:10: warning: unused variable 'success' [-Wunused-variable]
+#25 6.840   590 |     bool success = diskFileMap.Insert(diskfile);
+#25 6.840       |          ^~~~~~~
+#25 6.944 depbase=`echo src/reedsolomon.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 6.944 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/reedsolomon.o -MD -MP -MF $depbase.Tpo -c -o src/reedsolomon.o src/reedsolomon.cpp &&\
+#25 6.944 mv -f $depbase.Tpo $depbase.Po
+#25 6.995 src/par2repairer.cpp: In lambda function:
+#25 6.995 src/par2repairer.cpp:1309:14: warning: unused variable 'success' [-Wunused-variable]
+#25 6.995  1309 |         bool success = diskFileMap.Insert(diskfile);
+#25 6.995       |              ^~~~~~~
+#25 7.005 depbase=`echo src/verificationhashtable.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 7.005 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/verificationhashtable.o -MD -MP -MF $depbase.Tpo -c -o src/verificationhashtable.o src/verificationhashtable.cpp &&\
+#25 7.005 mv -f $depbase.Tpo $depbase.Po
+#25 7.005 src/par2repairer.cpp: In lambda function:
+#25 7.005 src/par2repairer.cpp:1382:16: warning: unused variable 'success' [-Wunused-variable]
+#25 7.005  1382 |           bool success = diskFileMap.Insert(diskfile);
+#25 7.005       |                ^~~~~~~
+#25 7.051 src/par2repairer.cpp: In member function 'bool Par2Repairer::RenameTargetFiles()':
+#25 7.051 src/par2repairer.cpp:2220:12: warning: unused variable 'success' [-Wunused-variable]
+#25 7.051  2220 |       bool success = diskFileMap.Insert(targetfile);
+#25 7.051       |            ^~~~~~~
+#25 7.053 src/par2repairer.cpp:2252:12: warning: unused variable 'success' [-Wunused-variable]
+#25 7.053  2252 |       bool success = diskFileMap.Insert(targetfile);
+#25 7.053       |            ^~~~~~~
+#25 7.054 src/par2repairer.cpp: In member function 'bool Par2Repairer::CreateTargetFiles()':
+#25 7.054 src/par2repairer.cpp:2301:12: warning: unused variable 'success' [-Wunused-variable]
+#25 7.054  2301 |       bool success = diskFileMap.Insert(targetfile);
+#25 7.054       |            ^~~~~~~
+#25 7.182 depbase=`echo src/verificationpacket.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 7.182 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/verificationpacket.o -MD -MP -MF $depbase.Tpo -c -o src/verificationpacket.o src/verificationpacket.cpp &&\
+#25 7.182 mv -f $depbase.Tpo $depbase.Po
+#25 7.215 depbase=`echo src/libpar2.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 7.215 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/libpar2.o -MD -MP -MF $depbase.Tpo -c -o src/libpar2.o src/libpar2.cpp &&\
+#25 7.215 mv -f $depbase.Tpo $depbase.Po
+#25 7.259 depbase=`echo src/utf8.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+#25 7.259 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -std=c++14 -pthread  -g -O2 -MT src/utf8.o -MD -MP -MF $depbase.Tpo -c -o src/utf8.o src/utf8.cpp &&\
+#25 7.259 mv -f $depbase.Tpo $depbase.Po
+#25 7.290 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/gf16/libparpar_gf16_a-controller.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-controller.Tpo -c -o parpar/gf16/libparpar_gf16_a-controller.o `test -f 'parpar/gf16/controller.cpp' || echo './'`parpar/gf16/controller.cpp
+#25 7.349 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/gf16/libparpar_gf16_a-controller_cpu.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-controller_cpu.Tpo -c -o parpar/gf16/libparpar_gf16_a-controller_cpu.o `test -f 'parpar/gf16/controller_cpu.cpp' || echo './'`parpar/gf16/controller_cpu.cpp
+#25 7.463 gcc -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_a-gfmat_coeff.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-gfmat_coeff.Tpo -c -o parpar/gf16/libparpar_gf16_a-gfmat_coeff.o `test -f 'parpar/gf16/gfmat_coeff.c' || echo './'`parpar/gf16/gfmat_coeff.c
+#25 7.558 mv -f parpar/gf16/.deps/libparpar_gf16_a-gfmat_coeff.Tpo parpar/gf16/.deps/libparpar_gf16_a-gfmat_coeff.Po
+#25 7.562 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/gf16/libparpar_gf16_a-gfmat_inv.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-gfmat_inv.Tpo -c -o parpar/gf16/libparpar_gf16_a-gfmat_inv.o `test -f 'parpar/gf16/gfmat_inv.cpp' || echo './'`parpar/gf16/gfmat_inv.cpp
+#25 7.576 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/gf16/libparpar_gf16_a-gf16pmul.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-gf16pmul.Tpo -c -o parpar/gf16/libparpar_gf16_a-gf16pmul.o `test -f 'parpar/gf16/gf16pmul.cpp' || echo './'`parpar/gf16/gf16pmul.cpp
+#25 7.767 mv -f parpar/gf16/.deps/libparpar_gf16_a-gf16pmul.Tpo parpar/gf16/.deps/libparpar_gf16_a-gf16pmul.Po
+#25 7.777 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/gf16/libparpar_gf16_a-gf16mul.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-gf16mul.Tpo -c -o parpar/gf16/libparpar_gf16_a-gf16mul.o `test -f 'parpar/gf16/gf16mul.cpp' || echo './'`parpar/gf16/gf16mul.cpp
+#25 8.009 gcc -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_a-gf16_lookup.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-gf16_lookup.Tpo -c -o parpar/gf16/libparpar_gf16_a-gf16_lookup.o `test -f 'parpar/gf16/gf16_lookup.c' || echo './'`parpar/gf16/gf16_lookup.c
+#25 8.016 gcc -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_a-gf_add_generic.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-gf_add_generic.Tpo -c -o parpar/gf16/libparpar_gf16_a-gf_add_generic.o `test -f 'parpar/gf16/gf_add_generic.c' || echo './'`parpar/gf16/gf_add_generic.c
+#25 8.018 gcc -DHAVE_CONFIG_H -I.  -Iparpar/gf16 -Iparpar/gf16/opencl-include -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_a-gf16_cksum_generic.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_a-gf16_cksum_generic.Tpo -c -o parpar/gf16/libparpar_gf16_a-gf16_cksum_generic.o `test -f 'parpar/gf16/gf16_cksum_generic.c' || echo './'`parpar/gf16/gf16_cksum_generic.c
+#25 8.065 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -msse2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sse2_a-gf16_xor_sse2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_xor_sse2.Tpo -c -o parpar/gf16/libparpar_gf16_sse2_a-gf16_xor_sse2.o `test -f 'parpar/gf16/gf16_xor_sse2.c' || echo './'`parpar/gf16/gf16_xor_sse2.c
+#25 8.113 mv -f parpar/gf16/.deps/libparpar_gf16_a-gf16_cksum_generic.Tpo parpar/gf16/.deps/libparpar_gf16_a-gf16_cksum_generic.Po
+#25 8.119 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -msse2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sse2_a-gf16_lookup_sse2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_lookup_sse2.Tpo -c -o parpar/gf16/libparpar_gf16_sse2_a-gf16_lookup_sse2.o `test -f 'parpar/gf16/gf16_lookup_sse2.c' || echo './'`parpar/gf16/gf16_lookup_sse2.c
+#25 8.169 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -msse2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sse2_a-gf_add_sse2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sse2_a-gf_add_sse2.Tpo -c -o parpar/gf16/libparpar_gf16_sse2_a-gf_add_sse2.o `test -f 'parpar/gf16/gf_add_sse2.c' || echo './'`parpar/gf16/gf_add_sse2.c
+#25 8.226 mv -f parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_lookup_sse2.Tpo parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_lookup_sse2.Po
+#25 8.231 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -msse2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sse2_a-gf16_cksum_sse2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_cksum_sse2.Tpo -c -o parpar/gf16/libparpar_gf16_sse2_a-gf16_cksum_sse2.o `test -f 'parpar/gf16/gf16_cksum_sse2.c' || echo './'`parpar/gf16/gf16_cksum_sse2.c
+#25 8.251 mv -f parpar/gf16/.deps/libparpar_gf16_a-gf_add_generic.Tpo parpar/gf16/.deps/libparpar_gf16_a-gf_add_generic.Po
+#25 8.257 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mssse3 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_ssse3_a-gf16_shuffle_ssse3.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_ssse3_a-gf16_shuffle_ssse3.Tpo -c -o parpar/gf16/libparpar_gf16_ssse3_a-gf16_shuffle_ssse3.o `test -f 'parpar/gf16/gf16_shuffle_ssse3.c' || echo './'`parpar/gf16/gf16_shuffle_ssse3.c
+#25 8.317 mv -f parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_cksum_sse2.Tpo parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_cksum_sse2.Po
+#25 8.322 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx_a-gf16_shuffle_avx.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx_a-gf16_shuffle_avx.Tpo -c -o parpar/gf16/libparpar_gf16_avx_a-gf16_shuffle_avx.o `test -f 'parpar/gf16/gf16_shuffle_avx.c' || echo './'`parpar/gf16/gf16_shuffle_avx.c
+#25 8.400 mv -f parpar/gf16/.deps/libparpar_gf16_a-gf16mul.Tpo parpar/gf16/.deps/libparpar_gf16_a-gf16mul.Po
+#25 8.403 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx2_a-gf16_xor_avx2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_xor_avx2.Tpo -c -o parpar/gf16/libparpar_gf16_avx2_a-gf16_xor_avx2.o `test -f 'parpar/gf16/gf16_xor_avx2.c' || echo './'`parpar/gf16/gf16_xor_avx2.c
+#25 8.533 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx2_a-gf16_shuffle_avx2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_shuffle_avx2.Tpo -c -o parpar/gf16/libparpar_gf16_avx2_a-gf16_shuffle_avx2.o `test -f 'parpar/gf16/gf16_shuffle_avx2.c' || echo './'`parpar/gf16/gf16_shuffle_avx2.c
+#25 8.542 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx2_a-gf_add_avx2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx2_a-gf_add_avx2.Tpo -c -o parpar/gf16/libparpar_gf16_avx2_a-gf_add_avx2.o `test -f 'parpar/gf16/gf_add_avx2.c' || echo './'`parpar/gf16/gf_add_avx2.c
+#25 8.548 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx2_a-gf16_cksum_avx2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_cksum_avx2.Tpo -c -o parpar/gf16/libparpar_gf16_avx2_a-gf16_cksum_avx2.o `test -f 'parpar/gf16/gf16_cksum_avx2.c' || echo './'`parpar/gf16/gf16_cksum_avx2.c
+#25 8.906 mv -f parpar/gf16/.deps/libparpar_gf16_a-gf16_lookup.Tpo parpar/gf16/.deps/libparpar_gf16_a-gf16_lookup.Po
+#25 8.916 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx512vl -mavx512bw -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx512_a-gf16_xor_avx512.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_xor_avx512.Tpo -c -o parpar/gf16/libparpar_gf16_avx512_a-gf16_xor_avx512.o `test -f 'parpar/gf16/gf16_xor_avx512.c' || echo './'`parpar/gf16/gf16_xor_avx512.c
+#25 8.928 mv -f parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_cksum_avx2.Tpo parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_cksum_avx2.Po
+#25 8.933 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx512vl -mavx512bw -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx512_a-gf16_shuffle_avx512.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_shuffle_avx512.Tpo -c -o parpar/gf16/libparpar_gf16_avx512_a-gf16_shuffle_avx512.o `test -f 'parpar/gf16/gf16_shuffle_avx512.c' || echo './'`parpar/gf16/gf16_shuffle_avx512.c
+#25 9.088 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx512vl -mavx512bw -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx512_a-gf_add_avx512.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx512_a-gf_add_avx512.Tpo -c -o parpar/gf16/libparpar_gf16_avx512_a-gf_add_avx512.o `test -f 'parpar/gf16/gf_add_avx512.c' || echo './'`parpar/gf16/gf_add_avx512.c
+#25 9.103 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx512vl -mavx512bw -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx512_a-gf16_cksum_avx512.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_cksum_avx512.Tpo -c -o parpar/gf16/libparpar_gf16_avx512_a-gf16_cksum_avx512.o `test -f 'parpar/gf16/gf16_cksum_avx512.c' || echo './'`parpar/gf16/gf16_cksum_avx512.c
+#25 9.154 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx512vl -mavx512vbmi -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_vbmi_a-gf16_shuffle_vbmi.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_vbmi_a-gf16_shuffle_vbmi.Tpo -c -o parpar/gf16/libparpar_gf16_vbmi_a-gf16_shuffle_vbmi.o `test -f 'parpar/gf16/gf16_shuffle_vbmi.c' || echo './'`parpar/gf16/gf16_shuffle_vbmi.c
+#25 9.226 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mgfni -mssse3 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_gfni_a-gf16_affine_gfni.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_gfni_a-gf16_affine_gfni.Tpo -c -o parpar/gf16/libparpar_gf16_gfni_a-gf16_affine_gfni.o `test -f 'parpar/gf16/gf16_affine_gfni.c' || echo './'`parpar/gf16/gf16_affine_gfni.c
+#25 9.351 mv -f parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_xor_avx512.Tpo parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_xor_avx512.Po
+#25 9.359 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mgfni -mssse3 -mavx2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_gfni_avx2_a-gf16_affine_avx2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_gfni_avx2_a-gf16_affine_avx2.Tpo -c -o parpar/gf16/libparpar_gf16_gfni_avx2_a-gf16_affine_avx2.o `test -f 'parpar/gf16/gf16_affine_avx2.c' || echo './'`parpar/gf16/gf16_affine_avx2.c
+#25 9.523 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mgfni -mssse3 -mavx2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/src/libparpar_gf16_gfni_avx2_a-platform_warnings.o -MD -MP -MF parpar/src/.deps/libparpar_gf16_gfni_avx2_a-platform_warnings.Tpo -c -o parpar/src/libparpar_gf16_gfni_avx2_a-platform_warnings.o `test -f 'parpar/src/platform_warnings.c' || echo './'`parpar/src/platform_warnings.c
+#25 9.563 mv -f parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_cksum_avx512.Tpo parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_cksum_avx512.Po
+#25 9.569 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mgfni -mssse3 -mavx512vl -mavx512bw -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_gfni_avx512_a-gf16_affine_avx512.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_gfni_avx512_a-gf16_affine_avx512.Tpo -c -o parpar/gf16/libparpar_gf16_gfni_avx512_a-gf16_affine_avx512.o `test -f 'parpar/gf16/gf16_affine_avx512.c' || echo './'`parpar/gf16/gf16_affine_avx512.c
+#25 9.695 mv -f parpar/gf16/.deps/libparpar_gf16_avx_a-gf16_shuffle_avx.Tpo parpar/gf16/.deps/libparpar_gf16_avx_a-gf16_shuffle_avx.Po
+#25 9.700 mv -f parpar/gf16/.deps/libparpar_gf16_ssse3_a-gf16_shuffle_ssse3.Tpo parpar/gf16/.deps/libparpar_gf16_ssse3_a-gf16_shuffle_ssse3.Po
+#25 9.703 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mgfni -mssse3  -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_gfni_avx10_a-gf16_affine_avx10.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_gfni_avx10_a-gf16_affine_avx10.Tpo -c -o parpar/gf16/libparpar_gf16_gfni_avx10_a-gf16_affine_avx10.o `test -f 'parpar/gf16/gf16_affine_avx10.c' || echo './'`parpar/gf16/gf16_affine_avx10.c
+#25 9.705 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mgfni -mssse3  -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_gfni_avx10_a-gf_add_avx10.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_gfni_avx10_a-gf_add_avx10.Tpo -c -o parpar/gf16/libparpar_gf16_gfni_avx10_a-gf_add_avx10.o `test -f 'parpar/gf16/gf_add_avx10.c' || echo './'`parpar/gf16/gf_add_avx10.c
+#25 9.917 mv -f parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_shuffle_avx2.Tpo parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_shuffle_avx2.Po
+#25 9.924 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mpclmul -msse4.1 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_clmul_a-gf16pmul_sse.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_clmul_a-gf16pmul_sse.Tpo -c -o parpar/gf16/libparpar_gf16_clmul_a-gf16pmul_sse.o `test -f 'parpar/gf16/gf16pmul_sse.c' || echo './'`parpar/gf16/gf16pmul_sse.c
+#25 10.05 mv -f parpar/gf16/.deps/libparpar_gf16_sse2_a-gf_add_sse2.Tpo parpar/gf16/.deps/libparpar_gf16_sse2_a-gf_add_sse2.Po
+#25 10.06 mv -f parpar/gf16/.deps/libparpar_gf16_clmul_a-gf16pmul_sse.Tpo parpar/gf16/.deps/libparpar_gf16_clmul_a-gf16pmul_sse.Po
+#25 10.06 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mpclmul -msse4.1 -mavx2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_avx2_clmul_a-gf16pmul_avx2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_avx2_clmul_a-gf16pmul_avx2.Tpo -c -o parpar/gf16/libparpar_gf16_avx2_clmul_a-gf16pmul_avx2.o `test -f 'parpar/gf16/gf16pmul_avx2.c' || echo './'`parpar/gf16/gf16pmul_avx2.c
+#25 10.06 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mvpclmulqdq -mavx2 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_vpclmul_a-gf16pmul_vpclmul.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_vpclmul_a-gf16pmul_vpclmul.Tpo -c -o parpar/gf16/libparpar_gf16_vpclmul_a-gf16pmul_vpclmul.o `test -f 'parpar/gf16/gf16pmul_vpclmul.c' || echo './'`parpar/gf16/gf16pmul_vpclmul.c
+#25 10.32 mv -f parpar/src/.deps/libparpar_gf16_gfni_avx2_a-platform_warnings.Tpo parpar/src/.deps/libparpar_gf16_gfni_avx2_a-platform_warnings.Po
+#25 10.33 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mvpclmulqdq -mavx2 -mgfni -mssse3 -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_vpclgfni_a-gf16pmul_vpclgfni.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_vpclgfni_a-gf16pmul_vpclgfni.Tpo -c -o parpar/gf16/libparpar_gf16_vpclgfni_a-gf16pmul_vpclgfni.o `test -f 'parpar/gf16/gf16pmul_vpclgfni.c' || echo './'`parpar/gf16/gf16pmul_vpclgfni.c
+#25 10.43 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_neon_a-gf16_shuffle_neon.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_shuffle_neon.Tpo -c -o parpar/gf16/libparpar_gf16_neon_a-gf16_shuffle_neon.o `test -f 'parpar/gf16/gf16_shuffle_neon.c' || echo './'`parpar/gf16/gf16_shuffle_neon.c
+#25 10.47 mv -f parpar/gf16/.deps/libparpar_gf16_avx2_clmul_a-gf16pmul_avx2.Tpo parpar/gf16/.deps/libparpar_gf16_avx2_clmul_a-gf16pmul_avx2.Po
+#25 10.48 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_neon_a-gf16_clmul_neon.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_clmul_neon.Tpo -c -o parpar/gf16/libparpar_gf16_neon_a-gf16_clmul_neon.o `test -f 'parpar/gf16/gf16_clmul_neon.c' || echo './'`parpar/gf16/gf16_clmul_neon.c
+#25 10.55 mv -f parpar/gf16/.deps/libparpar_gf16_gfni_avx10_a-gf16_affine_avx10.Tpo parpar/gf16/.deps/libparpar_gf16_gfni_avx10_a-gf16_affine_avx10.Po
+#25 10.55 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_neon_a-gf_add_neon.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_neon_a-gf_add_neon.Tpo -c -o parpar/gf16/libparpar_gf16_neon_a-gf_add_neon.o `test -f 'parpar/gf16/gf_add_neon.c' || echo './'`parpar/gf16/gf_add_neon.c
+#25 10.58 mv -f parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_clmul_neon.Tpo parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_clmul_neon.Po
+#25 10.58 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_neon_a-gf16_cksum_neon.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_cksum_neon.Tpo -c -o parpar/gf16/libparpar_gf16_neon_a-gf16_cksum_neon.o `test -f 'parpar/gf16/gf16_cksum_neon.c' || echo './'`parpar/gf16/gf16_cksum_neon.c
+#25 10.61 mv -f parpar/gf16/.deps/libparpar_gf16_gfni_avx10_a-gf_add_avx10.Tpo parpar/gf16/.deps/libparpar_gf16_gfni_avx10_a-gf_add_avx10.Po
+#25 10.61 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_neon_a-gf16pmul_neon.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_neon_a-gf16pmul_neon.Tpo -c -o parpar/gf16/libparpar_gf16_neon_a-gf16pmul_neon.o `test -f 'parpar/gf16/gf16pmul_neon.c' || echo './'`parpar/gf16/gf16pmul_neon.c
+#25 10.63 mv -f parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_cksum_neon.Tpo parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_cksum_neon.Po
+#25 10.63 mv -f parpar/gf16/.deps/libparpar_gf16_vpclmul_a-gf16pmul_vpclmul.Tpo parpar/gf16/.deps/libparpar_gf16_vpclmul_a-gf16pmul_vpclmul.Po
+#25 10.64 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_neonsha3_a-gf16_clmul_sha3.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_neonsha3_a-gf16_clmul_sha3.Tpo -c -o parpar/gf16/libparpar_gf16_neonsha3_a-gf16_clmul_sha3.o `test -f 'parpar/gf16/gf16_clmul_sha3.c' || echo './'`parpar/gf16/gf16_clmul_sha3.c
+#25 10.64 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve_a-gf16_shuffle128_sve.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve_a-gf16_shuffle128_sve.Tpo -c -o parpar/gf16/libparpar_gf16_sve_a-gf16_shuffle128_sve.o `test -f 'parpar/gf16/gf16_shuffle128_sve.c' || echo './'`parpar/gf16/gf16_shuffle128_sve.c
+#25 10.65 mv -f parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_shuffle_neon.Tpo parpar/gf16/.deps/libparpar_gf16_neon_a-gf16_shuffle_neon.Po
+#25 10.66 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve_a-gf_add_sve.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve_a-gf_add_sve.Tpo -c -o parpar/gf16/libparpar_gf16_sve_a-gf_add_sve.o `test -f 'parpar/gf16/gf_add_sve.c' || echo './'`parpar/gf16/gf_add_sve.c
+#25 10.66 mv -f parpar/gf16/.deps/libparpar_gf16_neon_a-gf_add_neon.Tpo parpar/gf16/.deps/libparpar_gf16_neon_a-gf_add_neon.Po
+#25 10.67 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve_a-gf16_cksum_sve.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve_a-gf16_cksum_sve.Tpo -c -o parpar/gf16/libparpar_gf16_sve_a-gf16_cksum_sve.o `test -f 'parpar/gf16/gf16_cksum_sve.c' || echo './'`parpar/gf16/gf16_cksum_sve.c
+#25 10.71 mv -f parpar/gf16/.deps/libparpar_gf16_neon_a-gf16pmul_neon.Tpo parpar/gf16/.deps/libparpar_gf16_neon_a-gf16pmul_neon.Po
+#25 10.72 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle128_sve2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle128_sve2.Tpo -c -o parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle128_sve2.o `test -f 'parpar/gf16/gf16_shuffle128_sve2.c' || echo './'`parpar/gf16/gf16_shuffle128_sve2.c
+#25 10.75 mv -f parpar/gf16/.deps/libparpar_gf16_sve_a-gf16_cksum_sve.Tpo parpar/gf16/.deps/libparpar_gf16_sve_a-gf16_cksum_sve.Po
+#25 10.76 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle2x128_sve2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle2x128_sve2.Tpo -c -o parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle2x128_sve2.o `test -f 'parpar/gf16/gf16_shuffle2x128_sve2.c' || echo './'`parpar/gf16/gf16_shuffle2x128_sve2.c
+#25 10.82 mv -f parpar/gf16/.deps/libparpar_gf16_sve_a-gf_add_sve.Tpo parpar/gf16/.deps/libparpar_gf16_sve_a-gf_add_sve.Po
+#25 10.82 mv -f parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_xor_avx2.Tpo parpar/gf16/.deps/libparpar_gf16_avx2_a-gf16_xor_avx2.Po
+#25 10.82 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle512_sve2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle512_sve2.Tpo -c -o parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle512_sve2.o `test -f 'parpar/gf16/gf16_shuffle512_sve2.c' || echo './'`parpar/gf16/gf16_shuffle512_sve2.c
+#25 10.82 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve2_a-gf16_clmul_sve2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_clmul_sve2.Tpo -c -o parpar/gf16/libparpar_gf16_sve2_a-gf16_clmul_sve2.o `test -f 'parpar/gf16/gf16_clmul_sve2.c' || echo './'`parpar/gf16/gf16_clmul_sve2.c
+#25 10.83 mv -f parpar/gf16/.deps/libparpar_gf16_neonsha3_a-gf16_clmul_sha3.Tpo parpar/gf16/.deps/libparpar_gf16_neonsha3_a-gf16_clmul_sha3.Po
+#25 10.84 mv -f parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle128_sve2.Tpo parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle128_sve2.Po
+#25 10.84 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve2_a-gf_add_sve2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve2_a-gf_add_sve2.Tpo -c -o parpar/gf16/libparpar_gf16_sve2_a-gf_add_sve2.o `test -f 'parpar/gf16/gf_add_sve2.c' || echo './'`parpar/gf16/gf_add_sve2.c
+#25 10.84 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_sve2_a-gf16pmul_sve2.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16pmul_sve2.Tpo -c -o parpar/gf16/libparpar_gf16_sve2_a-gf16pmul_sve2.o `test -f 'parpar/gf16/gf16pmul_sve2.c' || echo './'`parpar/gf16/gf16pmul_sve2.c
+#25 10.86 mv -f parpar/gf16/.deps/libparpar_gf16_sve_a-gf16_shuffle128_sve.Tpo parpar/gf16/.deps/libparpar_gf16_sve_a-gf16_shuffle128_sve.Po
+#25 10.87 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16    -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_rvv_a-gf16_cksum_rvv.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_rvv_a-gf16_cksum_rvv.Tpo -c -o parpar/gf16/libparpar_gf16_rvv_a-gf16_cksum_rvv.o `test -f 'parpar/gf16/gf16_cksum_rvv.c' || echo './'`parpar/gf16/gf16_cksum_rvv.c
+#25 10.89 mv -f parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle2x128_sve2.Tpo parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle2x128_sve2.Po
+#25 10.90 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16    -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_rvv_a-gf16_shuffle128_rvv.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_rvv_a-gf16_shuffle128_rvv.Tpo -c -o parpar/gf16/libparpar_gf16_rvv_a-gf16_shuffle128_rvv.o `test -f 'parpar/gf16/gf16_shuffle128_rvv.c' || echo './'`parpar/gf16/gf16_shuffle128_rvv.c
+#25 10.92 mv -f parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle512_sve2.Tpo parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_shuffle512_sve2.Po
+#25 10.93 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16    -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_rvv_a-gf_add_rvv.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_rvv_a-gf_add_rvv.Tpo -c -o parpar/gf16/libparpar_gf16_rvv_a-gf_add_rvv.o `test -f 'parpar/gf16/gf_add_rvv.c' || echo './'`parpar/gf16/gf_add_rvv.c
+#25 10.93 mv -f parpar/gf16/.deps/libparpar_gf16_rvv_a-gf16_cksum_rvv.Tpo parpar/gf16/.deps/libparpar_gf16_rvv_a-gf16_cksum_rvv.Po
+#25 10.94 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16    -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_rvv_zvbc_a-gf16_clmul_rvv.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_rvv_zvbc_a-gf16_clmul_rvv.Tpo -c -o parpar/gf16/libparpar_gf16_rvv_zvbc_a-gf16_clmul_rvv.o `test -f 'parpar/gf16/gf16_clmul_rvv.c' || echo './'`parpar/gf16/gf16_clmul_rvv.c
+#25 10.94 mv -f parpar/gf16/.deps/libparpar_gf16_avx2_a-gf_add_avx2.Tpo parpar/gf16/.deps/libparpar_gf16_avx2_a-gf_add_avx2.Po
+#25 10.95 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16    -D_POSIX_C_SOURCE=200112L -D_DARWIN_C_SOURCE -D_GNU_SOURCE -D_DEFAULT_SOURCE -g -O2 -std=c99 -MT parpar/gf16/libparpar_gf16_rvv_zvbc_a-gf16pmul_rvv.o -MD -MP -MF parpar/gf16/.deps/libparpar_gf16_rvv_zvbc_a-gf16pmul_rvv.Tpo -c -o parpar/gf16/libparpar_gf16_rvv_zvbc_a-gf16pmul_rvv.o `test -f 'parpar/gf16/gf16pmul_rvv.c' || echo './'`parpar/gf16/gf16pmul_rvv.c
+#25 10.95 mv -f parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_clmul_sve2.Tpo parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16_clmul_sve2.Po
+#25 10.96 mv -f parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16pmul_sve2.Tpo parpar/gf16/.deps/libparpar_gf16_sve2_a-gf16pmul_sve2.Po
+#25 10.96 mv -f parpar/gf16/.deps/libparpar_gf16_vpclgfni_a-gf16pmul_vpclgfni.Tpo parpar/gf16/.deps/libparpar_gf16_vpclgfni_a-gf16pmul_vpclgfni.Po
+#25 10.96 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -D_POSIX_C_SOURCE=200112L -g -O2 -std=c99 -MT parpar/hasher/libparpar_hasher_a-crc_zeropad.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_a-crc_zeropad.Tpo -c -o parpar/hasher/libparpar_hasher_a-crc_zeropad.o `test -f 'parpar/hasher/crc_zeropad.c' || echo './'`parpar/hasher/crc_zeropad.c
+#25 10.96 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/hasher/libparpar_hasher_a-hasher.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_a-hasher.Tpo -c -o parpar/hasher/libparpar_hasher_a-hasher.o `test -f 'parpar/hasher/hasher.cpp' || echo './'`parpar/hasher/hasher.cpp
+#25 10.97 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/hasher/libparpar_hasher_a-hasher_scalar.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_a-hasher_scalar.Tpo -c -o parpar/hasher/libparpar_hasher_a-hasher_scalar.o `test -f 'parpar/hasher/hasher_scalar.cpp' || echo './'`parpar/hasher/hasher_scalar.cpp
+#25 10.99 mv -f parpar/gf16/.deps/libparpar_gf16_sve2_a-gf_add_sve2.Tpo parpar/gf16/.deps/libparpar_gf16_sve2_a-gf_add_sve2.Po
+#25 10.99 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/hasher/libparpar_hasher_a-hasher_input.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_a-hasher_input.Tpo -c -o parpar/hasher/libparpar_hasher_a-hasher_input.o `test -f 'parpar/hasher/hasher_input.cpp' || echo './'`parpar/hasher/hasher_input.cpp
+#25 11.02 mv -f parpar/gf16/.deps/libparpar_gf16_rvv_a-gf16_shuffle128_rvv.Tpo parpar/gf16/.deps/libparpar_gf16_rvv_a-gf16_shuffle128_rvv.Po
+#25 11.03 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/hasher/libparpar_hasher_a-hasher_md5crc.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_a-hasher_md5crc.Tpo -c -o parpar/hasher/libparpar_hasher_a-hasher_md5crc.o `test -f 'parpar/hasher/hasher_md5crc.cpp' || echo './'`parpar/hasher/hasher_md5crc.cpp
+#25 11.03 mv -f parpar/gf16/.deps/libparpar_gf16_rvv_zvbc_a-gf16pmul_rvv.Tpo parpar/gf16/.deps/libparpar_gf16_rvv_zvbc_a-gf16pmul_rvv.Po
+#25 11.03 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16   -g -O2 -MT parpar/hasher/libparpar_hasher_a-tables.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_a-tables.Tpo -c -o parpar/hasher/libparpar_hasher_a-tables.o `test -f 'parpar/hasher/tables.cpp' || echo './'`parpar/hasher/tables.cpp
+#25 11.04 mv -f parpar/hasher/.deps/libparpar_hasher_a-crc_zeropad.Tpo parpar/hasher/.deps/libparpar_hasher_a-crc_zeropad.Po
+#25 11.04 mv -f parpar/gf16/.deps/libparpar_gf16_rvv_zvbc_a-gf16_clmul_rvv.Tpo parpar/gf16/.deps/libparpar_gf16_rvv_zvbc_a-gf16_clmul_rvv.Po
+#25 11.05 gcc -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -D_POSIX_C_SOURCE=200112L -g -O2 -std=c99 -MT parpar/hasher/libparpar_hasher_a-md5-final.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_a-md5-final.Tpo -c -o parpar/hasher/libparpar_hasher_a-md5-final.o `test -f 'parpar/hasher/md5-final.c' || echo './'`parpar/hasher/md5-final.c
+#25 11.05 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -msse2  -g -O2 -MT parpar/hasher/libparpar_hasher_sse2_a-hasher_sse.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_sse2_a-hasher_sse.Tpo -c -o parpar/hasher/libparpar_hasher_sse2_a-hasher_sse.o `test -f 'parpar/hasher/hasher_sse.cpp' || echo './'`parpar/hasher/hasher_sse.cpp
+#25 11.05 mv -f parpar/gf16/.deps/libparpar_gf16_rvv_a-gf_add_rvv.Tpo parpar/gf16/.deps/libparpar_gf16_rvv_a-gf_add_rvv.Po
+#25 11.06 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mpclmul -msse4.1  -g -O2 -MT parpar/hasher/libparpar_hasher_clmul_a-hasher_clmul.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_clmul_a-hasher_clmul.Tpo -c -o parpar/hasher/libparpar_hasher_clmul_a-hasher_clmul.o `test -f 'parpar/hasher/hasher_clmul.cpp' || echo './'`parpar/hasher/hasher_clmul.cpp
+#25 11.14 mv -f parpar/hasher/.deps/libparpar_hasher_a-md5-final.Tpo parpar/hasher/.deps/libparpar_hasher_a-md5-final.Po
+#25 11.15 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx -mxop  -g -O2 -MT parpar/hasher/libparpar_hasher_xop_a-hasher_xop.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_xop_a-hasher_xop.Tpo -c -o parpar/hasher/libparpar_hasher_xop_a-hasher_xop.o `test -f 'parpar/hasher/hasher_xop.cpp' || echo './'`parpar/hasher/hasher_xop.cpp
+#25 11.20 mv -f parpar/hasher/.deps/libparpar_hasher_a-tables.Tpo parpar/hasher/.deps/libparpar_hasher_a-tables.Po
+#25 11.21 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx -mbmi -mpclmul  -g -O2 -MT parpar/hasher/libparpar_hasher_bmi1_a-hasher_bmi1.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_bmi1_a-hasher_bmi1.Tpo -c -o parpar/hasher/libparpar_hasher_bmi1_a-hasher_bmi1.o `test -f 'parpar/hasher/hasher_bmi1.cpp' || echo './'`parpar/hasher/hasher_bmi1.cpp
+#25 11.32 mv -f parpar/hasher/.deps/libparpar_hasher_a-hasher_input.Tpo parpar/hasher/.deps/libparpar_hasher_a-hasher_input.Po
+#25 11.32 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx2  -g -O2 -MT parpar/hasher/libparpar_hasher_avx2_a-hasher_avx2.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_avx2_a-hasher_avx2.Tpo -c -o parpar/hasher/libparpar_hasher_avx2_a-hasher_avx2.o `test -f 'parpar/hasher/hasher_avx2.cpp' || echo './'`parpar/hasher/hasher_avx2.cpp
+#25 11.36 mv -f parpar/gf16/.deps/libparpar_gf16_a-controller.Tpo parpar/gf16/.deps/libparpar_gf16_a-controller.Po
+#25 11.37 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx512f  -g -O2 -MT parpar/hasher/libparpar_hasher_avx512_a-hasher_avx512.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_avx512_a-hasher_avx512.Tpo -c -o parpar/hasher/libparpar_hasher_avx512_a-hasher_avx512.o `test -f 'parpar/hasher/hasher_avx512.cpp' || echo './'`parpar/hasher/hasher_avx512.cpp
+#25 11.37 mv -f parpar/hasher/.deps/libparpar_hasher_a-hasher_md5crc.Tpo parpar/hasher/.deps/libparpar_hasher_a-hasher_md5crc.Po
+#25 11.37 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16  -mavx512vl -mavx512bw -mbmi2 -mpclmul   -g -O2 -MT parpar/hasher/libparpar_hasher_avx512vl_a-hasher_avx512vl.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_avx512vl_a-hasher_avx512vl.Tpo -c -o parpar/hasher/libparpar_hasher_avx512vl_a-hasher_avx512vl.o `test -f 'parpar/hasher/hasher_avx512vl.cpp' || echo './'`parpar/hasher/hasher_avx512vl.cpp
+#25 11.44 mv -f parpar/gf16/.deps/libparpar_gf16_gfni_avx2_a-gf16_affine_avx2.Tpo parpar/gf16/.deps/libparpar_gf16_gfni_avx2_a-gf16_affine_avx2.Po
+#25 11.46 mv -f parpar/hasher/.deps/libparpar_hasher_sse2_a-hasher_sse.Tpo parpar/hasher/.deps/libparpar_hasher_sse2_a-hasher_sse.Po
+#25 11.46 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16     -g -O2 -MT parpar/hasher/libparpar_hasher_armcrc_a-hasher_armcrc.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_armcrc_a-hasher_armcrc.Tpo -c -o parpar/hasher/libparpar_hasher_armcrc_a-hasher_armcrc.o `test -f 'parpar/hasher/hasher_armcrc.cpp' || echo './'`parpar/hasher/hasher_armcrc.cpp
+#25 11.47 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16    -g -O2 -MT parpar/hasher/libparpar_hasher_neon_a-hasher_neon.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_neon_a-hasher_neon.Tpo -c -o parpar/hasher/libparpar_hasher_neon_a-hasher_neon.o `test -f 'parpar/hasher/hasher_neon.cpp' || echo './'`parpar/hasher/hasher_neon.cpp
+#25 11.57 mv -f parpar/hasher/.deps/libparpar_hasher_neon_a-hasher_neon.Tpo parpar/hasher/.deps/libparpar_hasher_neon_a-hasher_neon.Po
+#25 11.57 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16     -g -O2 -MT parpar/hasher/libparpar_hasher_neoncrc_a-hasher_neoncrc.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_neoncrc_a-hasher_neoncrc.Tpo -c -o parpar/hasher/libparpar_hasher_neoncrc_a-hasher_neoncrc.o `test -f 'parpar/hasher/hasher_neoncrc.cpp' || echo './'`parpar/hasher/hasher_neoncrc.cpp
+#25 11.59 mv -f parpar/hasher/.deps/libparpar_hasher_a-hasher.Tpo parpar/hasher/.deps/libparpar_hasher_a-hasher.Po
+#25 11.60 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16    -g -O2 -MT parpar/hasher/libparpar_hasher_sve2_a-hasher_sve2.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_sve2_a-hasher_sve2.Tpo -c -o parpar/hasher/libparpar_hasher_sve2_a-hasher_sve2.o `test -f 'parpar/hasher/hasher_sve2.cpp' || echo './'`parpar/hasher/hasher_sve2.cpp
+#25 11.62 mv -f parpar/hasher/.deps/libparpar_hasher_armcrc_a-hasher_armcrc.Tpo parpar/hasher/.deps/libparpar_hasher_armcrc_a-hasher_armcrc.Po
+#25 11.62 g++ -std=c++14 -DHAVE_CONFIG_H -I.  -Wall -DNDEBUG -DPARPAR_ENABLE_HASHER_MD5CRC -DPARPAR_INVERT_SUPPORT -DPARPAR_SLIM_GF16     -g -O2 -MT parpar/hasher/libparpar_hasher_zbkc_a-hasher_rvzbc.o -MD -MP -MF parpar/hasher/.deps/libparpar_hasher_zbkc_a-hasher_rvzbc.Tpo -c -o parpar/hasher/libparpar_hasher_zbkc_a-hasher_rvzbc.o `test -f 'parpar/hasher/hasher_rvzbc.cpp' || echo './'`parpar/hasher/hasher_rvzbc.cpp
+#25 11.66 mv -f parpar/hasher/.deps/libparpar_hasher_neoncrc_a-hasher_neoncrc.Tpo parpar/hasher/.deps/libparpar_hasher_neoncrc_a-hasher_neoncrc.Po
+#25 11.66 rm -f libparpar_gf16_ssse3.a
+#25 11.66 ar cru libparpar_gf16_ssse3.a parpar/gf16/libparpar_gf16_ssse3_a-gf16_shuffle_ssse3.o 
+#25 11.67 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.67 ranlib libparpar_gf16_ssse3.a
+#25 11.67 mv -f parpar/gf16/.deps/libparpar_gf16_a-controller_cpu.Tpo parpar/gf16/.deps/libparpar_gf16_a-controller_cpu.Po
+#25 11.68 rm -f libparpar_gf16_avx.a
+#25 11.68 rm -f libparpar_gf16_avx2.a
+#25 11.68 ar cru libparpar_gf16_avx.a parpar/gf16/libparpar_gf16_avx_a-gf16_shuffle_avx.o 
+#25 11.68 ar cru libparpar_gf16_avx2.a parpar/gf16/libparpar_gf16_avx2_a-gf16_xor_avx2.o parpar/gf16/libparpar_gf16_avx2_a-gf16_shuffle_avx2.o parpar/gf16/libparpar_gf16_avx2_a-gf_add_avx2.o parpar/gf16/libparpar_gf16_avx2_a-gf16_cksum_avx2.o 
+#25 11.69 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.69 ar: ranlib libparpar_gf16_avx.a
+#25 11.69 `u' modifier ignored since `D' is the default (see `U')
+#25 11.70 rm -f libparpar_gf16_gfni_avx2.a
+#25 11.70 ranlib libparpar_gf16_avx2.a
+#25 11.70 ar cru libparpar_gf16_gfni_avx2.a parpar/gf16/libparpar_gf16_gfni_avx2_a-gf16_affine_avx2.o parpar/src/libparpar_gf16_gfni_avx2_a-platform_warnings.o 
+#25 11.70 rm -f libparpar_gf16_gfni_avx10.a
+#25 11.71 ar cru libparpar_gf16_gfni_avx10.a parpar/gf16/libparpar_gf16_gfni_avx10_a-gf16_affine_avx10.o parpar/gf16/libparpar_gf16_gfni_avx10_a-gf_add_avx10.o 
+#25 11.71 mv -f parpar/hasher/.deps/libparpar_hasher_sve2_a-hasher_sve2.Tpo parpar/hasher/.deps/libparpar_hasher_sve2_a-hasher_sve2.Po
+#25 11.71 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.71 ranlib libparpar_gf16_gfni_avx2.a
+#25 11.72 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.72 ranlib libparpar_gf16_gfni_avx10.a
+#25 11.72 rm -f libparpar_gf16_clmul.a
+#25 11.72 rm -f libparpar_gf16_avx2_clmul.a
+#25 11.72 rm -f libparpar_gf16_vpclmul.a
+#25 11.73 ar cru libparpar_gf16_clmul.a parpar/gf16/libparpar_gf16_clmul_a-gf16pmul_sse.o 
+#25 11.73 ar cru libparpar_gf16_avx2_clmul.a parpar/gf16/libparpar_gf16_avx2_clmul_a-gf16pmul_avx2.o 
+#25 11.73 rm -f libparpar_gf16_vpclgfni.a
+#25 11.73 ar cru libparpar_gf16_vpclmul.a parpar/gf16/libparpar_gf16_vpclmul_a-gf16pmul_vpclmul.o 
+#25 11.73 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.73 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.73 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.74 ar cru libparpar_gf16_vpclgfni.a parpar/gf16/libparpar_gf16_vpclgfni_a-gf16pmul_vpclgfni.o 
+#25 11.74 ranlib libparpar_gf16_clmul.a
+#25 11.74 ranlib libparpar_gf16_avx2_clmul.a
+#25 11.74 ranlib libparpar_gf16_vpclmul.a
+#25 11.74 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.74 rm -f libparpar_gf16_neon.a
+#25 11.74 ranlib libparpar_gf16_vpclgfni.a
+#25 11.75 rm -f libparpar_gf16_neonsha3.a
+#25 11.75 ar cru libparpar_gf16_neon.a parpar/gf16/libparpar_gf16_neon_a-gf16_shuffle_neon.o parpar/gf16/libparpar_gf16_neon_a-gf16_clmul_neon.o parpar/gf16/libparpar_gf16_neon_a-gf_add_neon.o parpar/gf16/libparpar_gf16_neon_a-gf16_cksum_neon.o parpar/gf16/libparpar_gf16_neon_a-gf16pmul_neon.o 
+#25 11.75 rm -f libparpar_gf16_sve.a
+#25 11.75 rm -f libparpar_gf16_sve2.a
+#25 11.75 ar cru libparpar_gf16_neonsha3.a parpar/gf16/libparpar_gf16_neonsha3_a-gf16_clmul_sha3.o 
+#25 11.75 ar cru libparpar_gf16_sve2.a parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle128_sve2.o parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle2x128_sve2.o parpar/gf16/libparpar_gf16_sve2_a-gf16_shuffle512_sve2.o parpar/gf16/libparpar_gf16_sve2_a-gf16_clmul_sve2.o parpar/gf16/libparpar_gf16_sve2_a-gf_add_sve2.o parpar/gf16/libparpar_gf16_sve2_a-gf16pmul_sve2.o 
+#25 11.75 ar: ar: `u' modifier ignored since `D' is the default (see `U')`u' modifier ignored since `D' is the default (see `U')
+#25 11.75 
+#25 11.75 ar cru libparpar_gf16_sve.a parpar/gf16/libparpar_gf16_sve_a-gf16_shuffle128_sve.o parpar/gf16/libparpar_gf16_sve_a-gf_add_sve.o parpar/gf16/libparpar_gf16_sve_a-gf16_cksum_sve.o 
+#25 11.76 ar: ranlib libparpar_gf16_neon.a
+#25 11.76 `u' modifier ignored since `D' is the default (see `U')
+#25 11.76 ranlib libparpar_gf16_neonsha3.a
+#25 11.76 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.76 ranlib libparpar_gf16_sve2.a
+#25 11.76 ranlib libparpar_gf16_sve.a
+#25 11.77 rm -f libparpar_gf16_rvv.a
+#25 11.78 mv -f parpar/hasher/.deps/libparpar_hasher_zbkc_a-hasher_rvzbc.Tpo parpar/hasher/.deps/libparpar_hasher_zbkc_a-hasher_rvzbc.Po
+#25 11.78 ar cru libparpar_gf16_rvv.a parpar/gf16/libparpar_gf16_rvv_a-gf16_cksum_rvv.o parpar/gf16/libparpar_gf16_rvv_a-gf16_shuffle128_rvv.o parpar/gf16/libparpar_gf16_rvv_a-gf_add_rvv.o 
+#25 11.78 rm -f libparpar_gf16_rvv_zvbc.a
+#25 11.78 ar cru libparpar_gf16_rvv_zvbc.a parpar/gf16/libparpar_gf16_rvv_zvbc_a-gf16_clmul_rvv.o parpar/gf16/libparpar_gf16_rvv_zvbc_a-gf16pmul_rvv.o 
+#25 11.78 rm -f libparpar_hasher_sse2.a
+#25 11.78 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.78 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.79 ar cru libparpar_hasher_sse2.a parpar/hasher/libparpar_hasher_sse2_a-hasher_sse.o 
+#25 11.79 rm -f libparpar_hasher_armcrc.a
+#25 11.79 ar: rm -f libparpar_hasher_neon.a
+#25 11.79 ar cru libparpar_hasher_armcrc.a parpar/hasher/libparpar_hasher_armcrc_a-hasher_armcrc.o 
+#25 11.79 ar cru libparpar_hasher_neon.a parpar/hasher/libparpar_hasher_neon_a-hasher_neon.o 
+#25 11.79 ranlib libparpar_gf16_rvv.a
+#25 11.79 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.79 ar: ranlib libparpar_gf16_rvv_zvbc.a
+#25 11.80 ranlib libparpar_hasher_sse2.a
+#25 11.80 `u' modifier ignored since `D' is the default (see `U')
+#25 11.80 `u' modifier ignored since `D' is the default (see `U')
+#25 11.80 rm -f libparpar_hasher_neoncrc.a
+#25 11.80 ranlib libparpar_hasher_armcrc.a
+#25 11.80 ranlib libparpar_hasher_neon.a
+#25 11.81 rm -f libparpar_hasher_sve2.a
+#25 11.81 rm -f libparpar_hasher_zbkc.a
+#25 11.81 ar cru libparpar_hasher_neoncrc.a parpar/hasher/libparpar_hasher_neoncrc_a-hasher_neoncrc.o 
+#25 11.81 ar cru libparpar_hasher_sve2.a parpar/hasher/libparpar_hasher_sve2_a-hasher_sve2.o 
+#25 11.81 ar cru libparpar_hasher_zbkc.a parpar/hasher/libparpar_hasher_zbkc_a-hasher_rvzbc.o 
+#25 11.82 ar: ar: ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.82 `u' modifier ignored since `D' is the default (see `U')ranlib libparpar_hasher_neoncrc.a
+#25 11.82 
+#25 11.82 ranlib libparpar_hasher_sve2.a
+#25 11.82 `u' modifier ignored since `D' is the default (see `U')
+#25 11.83 ranlib libparpar_hasher_zbkc.a
+#25 11.91 mv -f parpar/gf16/.deps/libparpar_gf16_gfni_a-gf16_affine_gfni.Tpo parpar/gf16/.deps/libparpar_gf16_gfni_a-gf16_affine_gfni.Po
+#25 11.92 rm -f libparpar_gf16_gfni.a
+#25 11.92 mv -f parpar/hasher/.deps/libparpar_hasher_a-hasher_scalar.Tpo parpar/hasher/.deps/libparpar_hasher_a-hasher_scalar.Po
+#25 11.92 ar cru libparpar_gf16_gfni.a parpar/gf16/libparpar_gf16_gfni_a-gf16_affine_gfni.o 
+#25 11.92 rm -f libparpar_hasher.a
+#25 11.92 ar cru libparpar_hasher.a parpar/hasher/libparpar_hasher_a-crc_zeropad.o parpar/hasher/libparpar_hasher_a-hasher.o parpar/hasher/libparpar_hasher_a-hasher_scalar.o parpar/hasher/libparpar_hasher_a-hasher_input.o parpar/hasher/libparpar_hasher_a-hasher_md5crc.o parpar/hasher/libparpar_hasher_a-tables.o parpar/hasher/libparpar_hasher_a-md5-final.o 
+#25 11.92 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.92 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.93 ranlib libparpar_gf16_gfni.a
+#25 11.93 ranlib libparpar_hasher.a
+#25 11.98 mv -f parpar/hasher/.deps/libparpar_hasher_clmul_a-hasher_clmul.Tpo parpar/hasher/.deps/libparpar_hasher_clmul_a-hasher_clmul.Po
+#25 11.98 rm -f libparpar_hasher_clmul.a
+#25 11.98 ar cru libparpar_hasher_clmul.a parpar/hasher/libparpar_hasher_clmul_a-hasher_clmul.o 
+#25 11.98 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 11.98 ranlib libparpar_hasher_clmul.a
+#25 12.16 mv -f parpar/hasher/.deps/libparpar_hasher_xop_a-hasher_xop.Tpo parpar/hasher/.deps/libparpar_hasher_xop_a-hasher_xop.Po
+#25 12.16 rm -f libparpar_hasher_xop.a
+#25 12.16 ar cru libparpar_hasher_xop.a parpar/hasher/libparpar_hasher_xop_a-hasher_xop.o 
+#25 12.16 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.17 ranlib libparpar_hasher_xop.a
+#25 12.27 mv -f parpar/hasher/.deps/libparpar_hasher_avx2_a-hasher_avx2.Tpo parpar/hasher/.deps/libparpar_hasher_avx2_a-hasher_avx2.Po
+#25 12.27 rm -f libparpar_hasher_avx2.a
+#25 12.27 ar cru libparpar_hasher_avx2.a parpar/hasher/libparpar_hasher_avx2_a-hasher_avx2.o 
+#25 12.27 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.28 ranlib libparpar_hasher_avx2.a
+#25 12.29 mv -f parpar/gf16/.deps/libparpar_gf16_a-gfmat_inv.Tpo parpar/gf16/.deps/libparpar_gf16_a-gfmat_inv.Po
+#25 12.29 rm -f libparpar_gf16.a
+#25 12.29 ar cru libparpar_gf16.a parpar/gf16/libparpar_gf16_a-controller.o parpar/gf16/libparpar_gf16_a-controller_cpu.o parpar/gf16/libparpar_gf16_a-gfmat_coeff.o parpar/gf16/libparpar_gf16_a-gfmat_inv.o parpar/gf16/libparpar_gf16_a-gf16pmul.o parpar/gf16/libparpar_gf16_a-gf16mul.o parpar/gf16/libparpar_gf16_a-gf16_lookup.o parpar/gf16/libparpar_gf16_a-gf_add_generic.o parpar/gf16/libparpar_gf16_a-gf16_cksum_generic.o 
+#25 12.30 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.31 ranlib libparpar_gf16.a
+#25 12.32 mv -f parpar/hasher/.deps/libparpar_hasher_bmi1_a-hasher_bmi1.Tpo parpar/hasher/.deps/libparpar_hasher_bmi1_a-hasher_bmi1.Po
+#25 12.32 rm -f libparpar_hasher_bmi1.a
+#25 12.33 ar cru libparpar_hasher_bmi1.a parpar/hasher/libparpar_hasher_bmi1_a-hasher_bmi1.o 
+#25 12.33 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.33 ranlib libparpar_hasher_bmi1.a
+#25 12.36 mv -f parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_xor_sse2.Tpo parpar/gf16/.deps/libparpar_gf16_sse2_a-gf16_xor_sse2.Po
+#25 12.36 rm -f libparpar_gf16_sse2.a
+#25 12.36 ar cru libparpar_gf16_sse2.a parpar/gf16/libparpar_gf16_sse2_a-gf16_xor_sse2.o parpar/gf16/libparpar_gf16_sse2_a-gf16_lookup_sse2.o parpar/gf16/libparpar_gf16_sse2_a-gf_add_sse2.o parpar/gf16/libparpar_gf16_sse2_a-gf16_cksum_sse2.o 
+#25 12.37 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.37 ranlib libparpar_gf16_sse2.a
+#25 12.39 mv -f parpar/hasher/.deps/libparpar_hasher_avx512_a-hasher_avx512.Tpo parpar/hasher/.deps/libparpar_hasher_avx512_a-hasher_avx512.Po
+#25 12.39 rm -f libparpar_hasher_avx512.a
+#25 12.39 ar cru libparpar_hasher_avx512.a parpar/hasher/libparpar_hasher_avx512_a-hasher_avx512.o 
+#25 12.39 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.39 ranlib libparpar_hasher_avx512.a
+#25 12.40 mv -f parpar/gf16/.deps/libparpar_gf16_avx512_a-gf_add_avx512.Tpo parpar/gf16/.deps/libparpar_gf16_avx512_a-gf_add_avx512.Po
+#25 12.41 mv -f parpar/hasher/.deps/libparpar_hasher_avx512vl_a-hasher_avx512vl.Tpo parpar/hasher/.deps/libparpar_hasher_avx512vl_a-hasher_avx512vl.Po
+#25 12.41 rm -f libparpar_hasher_avx512vl.a
+#25 12.41 ar cru libparpar_hasher_avx512vl.a parpar/hasher/libparpar_hasher_avx512vl_a-hasher_avx512vl.o 
+#25 12.41 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.41 ranlib libparpar_hasher_avx512vl.a
+#25 12.46 mv -f parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_shuffle_avx512.Tpo parpar/gf16/.deps/libparpar_gf16_avx512_a-gf16_shuffle_avx512.Po
+#25 12.47 rm -f libparpar_gf16_avx512.a
+#25 12.47 ar cru libparpar_gf16_avx512.a parpar/gf16/libparpar_gf16_avx512_a-gf16_xor_avx512.o parpar/gf16/libparpar_gf16_avx512_a-gf16_shuffle_avx512.o parpar/gf16/libparpar_gf16_avx512_a-gf_add_avx512.o parpar/gf16/libparpar_gf16_avx512_a-gf16_cksum_avx512.o 
+#25 12.47 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.48 ranlib libparpar_gf16_avx512.a
+#25 12.85 mv -f parpar/gf16/.deps/libparpar_gf16_gfni_avx512_a-gf16_affine_avx512.Tpo parpar/gf16/.deps/libparpar_gf16_gfni_avx512_a-gf16_affine_avx512.Po
+#25 12.85 rm -f libparpar_gf16_gfni_avx512.a
+#25 12.85 ar cru libparpar_gf16_gfni_avx512.a parpar/gf16/libparpar_gf16_gfni_avx512_a-gf16_affine_avx512.o 
+#25 12.85 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 12.85 ranlib libparpar_gf16_gfni_avx512.a
+#25 13.07 mv -f parpar/gf16/.deps/libparpar_gf16_vbmi_a-gf16_shuffle_vbmi.Tpo parpar/gf16/.deps/libparpar_gf16_vbmi_a-gf16_shuffle_vbmi.Po
+#25 13.07 rm -f libparpar_gf16_vbmi.a
+#25 13.08 ar cru libparpar_gf16_vbmi.a parpar/gf16/libparpar_gf16_vbmi_a-gf16_shuffle_vbmi.o 
+#25 13.08 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 13.08 ranlib libparpar_gf16_vbmi.a
+#25 13.09 rm -f libpar2.a
+#25 13.09 ar cru libpar2.a src/crc.o src/creatorpacket.o src/criticalpacket.o src/datablock.o src/descriptionpacket.o src/diskfile.o src/filechecksummer.o src/galois.o src/mainpacket.o src/md5.o src/par1fileformat.o src/par1repairer.o src/par1repairersourcefile.o src/par2creator.o src/par2creatorsourcefile.o src/par2fileformat.o src/par2repairer.o src/par2repairersourcefile.o src/recoverypacket.o src/reedsolomon.o src/verificationhashtable.o src/verificationpacket.o src/libpar2.o src/utf8.o parpar/gf16/libparpar_gf16*.o parpar/hasher/libparpar_hasher*.o
+#25 13.09 ar: `u' modifier ignored since `D' is the default (see `U')
+#25 13.13 ranlib libpar2.a
+#25 13.18 g++ -std=c++14 -std=c++14 -pthread  -g -O2   -o par2 src/par2cmdline.o src/commandline.o libpar2.a -lstdc++ -lpthread      -latomic 
+#25 13.31 make[1]: Leaving directory '/tmp/par2turbo'
+#25 DONE 13.4s
+
+#26 [orchestrator stage-1 3/4] COPY --from=builder /app/target/release/benchnzb /usr/local/bin/benchnzb
+#26 DONE 0.1s
+
+#27 [orchestrator stage-1 4/4] COPY --from=builder /usr/local/bin/par2 /usr/local/bin/par2
+#27 DONE 0.1s
+
+#28 [orchestrator] exporting to image
+#28 exporting layers
+#28 exporting layers 0.2s done
+#28 writing image sha256:c31e3afc2dc2175872f69b5e21609bb88c33a2df653ce61c8e3563603d99b7ab done
+#28 naming to docker.io/library/benchnzb-orchestrator 0.0s done
+#28 DONE 0.3s
+
+#29 [mock-nntp] exporting to image
+#29 exporting layers 0.2s done
+#29 writing image sha256:4f6ce74a33490228295c24820386a39a57268a82b3f1ea8e646f1fa2e3091964 0.0s done
+#29 naming to docker.io/library/benchnzb-mock-nntp 0.0s done
+#29 DONE 0.3s
+
+#19 [rustnzbd builder 6/6] RUN cargo build --release
+#19 ...
+
+#30 [orchestrator] resolving provenance for metadata file
+#30 DONE 0.0s
+
+#31 [mock-nntp] resolving provenance for metadata file
+#31 DONE 0.0s
+
+#19 [rustnzbd builder 6/6] RUN cargo build --release
+#19 73.00    Compiling rustls-webpki v0.103.9
+#19 75.45    Compiling tokio-rustls v0.26.4
+#19 81.92    Compiling rusqlite v0.32.1
+#19 82.32    Compiling nzb-core v0.1.0 (/build/crates/nzb-core)
+#19 82.64 warning: constant `SCHEMA_VERSION` is never used
+#19 82.64   --> crates/nzb-core/src/db.rs:10:7
+#19 82.64    |
+#19 82.64 10 | const SCHEMA_VERSION: u32 = 1;
+#19 82.64    |       ^^^^^^^^^^^^^^
+#19 82.64    |
+#19 82.64    = note: `#[warn(dead_code)]` on by default
+#19 82.64 
+#19 82.78    Compiling nzb-decode v0.1.0 (/build/crates/nzb-decode)
+#19 82.78    Compiling nzb-nntp v0.1.0 (/build/crates/nzb-nntp)
+#19 82.78    Compiling nzb-postproc v0.1.0 (/build/crates/nzb-postproc)
+#19 83.35    Compiling nzb-web v0.1.0 (/build/crates/nzb-web)
+#19 83.80 warning: `nzb-core` (lib) generated 1 warning
+#19 87.19    Compiling rustnzbd v0.1.0 (/build)
+#19 89.68     Finished `release` profile [optimized] target(s) in 1m 29s
+#19 DONE 89.8s
+
+#32 [rustnzbd stage-1 2/5] RUN apt-get update && apt-get install -y --no-install-recommends         ca-certificates         curl         par2         unrar-free         p7zip-full     && rm -rf /var/lib/apt/lists/*
+#32 CACHED
+
+#33 [rustnzbd stage-1 3/5] COPY --from=builder /build/target/release/rustnzbd /usr/local/bin/rustnzbd
+#33 DONE 0.1s
+
+#34 [rustnzbd stage-1 4/5] RUN useradd -m -s /bin/bash rustnzbd     && mkdir -p /config /data /downloads/incomplete /downloads/complete     && chown -R rustnzbd:rustnzbd /config /data /downloads
+#34 DONE 0.4s
+
+#35 [rustnzbd stage-1 5/5] WORKDIR /app
+#35 DONE 0.1s
+
+#36 [rustnzbd] exporting to image
+#36 exporting layers
+#36 exporting layers 0.2s done
+#36 writing image sha256:190e14c6a7158492c721fff3ddeeef8bf45b97a1242b1e75a6abd461997028b9 done
+#36 naming to docker.io/library/benchnzb-rustnzbd 0.0s done
+#36 DONE 0.2s
+
+#37 [rustnzbd] resolving provenance for metadata file
+#37 DONE 0.0s
+ Image benchnzb-mock-nntp Built 
+ Image benchnzb-rustnzbd Built 
+ Image benchnzb-orchestrator Built 
+ Network benchnzb_bench Creating 
+ Network benchnzb_bench Created 
+ Volume benchnzb_benchdata Creating 
+ Volume benchnzb_benchdata Created 
+ Volume benchnzb_downloads-sab Creating 
+ Volume benchnzb_downloads-sab Created 
+ Volume benchnzb_downloads-rnzb Creating 
+ Volume benchnzb_downloads-rnzb Created 
+ Container benchnzb-mock-nntp-1 Creating 
+ Container benchnzb-mock-nntp-1 Created 
+ Container benchnzb-rustnzbd-1 Creating 
+ Container benchnzb-sabnzbd-1 Creating 
+ Container benchnzb-sabnzbd-1 Created 
+ Container benchnzb-rustnzbd-1 Created 
+ Container benchnzb-orchestrator-1 Creating 
+ Container benchnzb-orchestrator-1 Created 
+Attaching to mock-nntp-1, orchestrator-1, rustnzbd-1, sabnzbd-1
+ Container benchnzb-mock-nntp-1 Starting 
+mock-nntp-1  | [benchnzb] PID=1 args=["benchnzb", "mock-nntp", "--port", "119", "--data-dir", "/data", "--health-port", "8080"]
+mock-nntp-1  | [2m2026-03-21T00:55:38.940226Z[0m [32m INFO[0m Loaded 0 file entries, 0 missing articles, 0.0 GB mmap'd
+mock-nntp-1  | [2m2026-03-21T00:55:38.940252Z[0m [32m INFO[0m Mock NNTP server listening on 0.0.0.0:119
+mock-nntp-1  | [2m2026-03-21T00:55:38.940278Z[0m [32m INFO[0m Control server on port 8080 (/health, /status, /reload)
+ Container benchnzb-mock-nntp-1 Started 
+ Container benchnzb-sabnzbd-1 Starting 
+ Container benchnzb-rustnzbd-1 Starting 
+ Container benchnzb-sabnzbd-1 Started 
+rustnzbd-1   | [2m2026-03-21T00:55:39.119922Z[0m [32m INFO[0m [2mrustnzbd[0m[2m:[0m rustnzbd v0.1.0
+ Container benchnzb-rustnzbd-1 Started 
+ Container benchnzb-orchestrator-1 Starting 
+rustnzbd-1   | [2m2026-03-21T00:55:39.185194Z[0m [32m INFO[0m [2mnzb_core::db[0m[2m:[0m Applying database migration v1
+rustnzbd-1   | [2m2026-03-21T00:55:39.280971Z[0m [32m INFO[0m [2mnzb_core::db[0m[2m:[0m Applying database migration v2
+orchestrator-1  | [benchnzb] PID=1 args=["benchnzb", "run", "--scenarios=medium"]
+orchestrator-1  | [2m2026-03-21T00:55:39.316665Z[0m [32m INFO[0m ============================================================
+orchestrator-1  | [2m2026-03-21T00:55:39.316676Z[0m [32m INFO[0m   Usenet Client Benchmark: SABnzbd vs rustnzbd
+orchestrator-1  | [2m2026-03-21T00:55:39.316678Z[0m [32m INFO[0m ============================================================
+orchestrator-1  | [2m2026-03-21T00:55:39.316696Z[0m [32m INFO[0m Waiting for services...
+orchestrator-1  | [2m2026-03-21T00:55:39.317351Z[0m [32m INFO[0m   mock-nntp: ready
+ Container benchnzb-orchestrator-1 Started 
+rustnzbd-1      | [2m2026-03-21T00:55:39.340348Z[0m [32m INFO[0m [2mnzb_core::db[0m[2m:[0m Applying database migration v3
+rustnzbd-1      | [2m2026-03-21T00:55:39.365206Z[0m [32m INFO[0m [2mrustnzbd[0m[2m:[0m Database opened [3mpath[0m[2m=[0m/data/rustnzbd.db
+rustnzbd-1      | [2m2026-03-21T00:55:39.365311Z[0m [32m INFO[0m [2mrustnzbd[0m[2m:[0m Queue manager initialized [3mservers[0m[2m=[0m1
+rustnzbd-1      | [2m2026-03-21T00:55:39.365316Z[0m [32m INFO[0m [2mrustnzbd[0m[2m:[0m Starting HTTP API server
+rustnzbd-1      | [2m2026-03-21T00:55:39.365521Z[0m [32m INFO[0m [2mnzb_web::server[0m[2m:[0m HTTP server listening on http://0.0.0.0:9090
+rustnzbd-1      | [2m2026-03-21T00:55:39.365525Z[0m [32m INFO[0m [2mnzb_web::server[0m[2m:[0m Web GUI: http://0.0.0.0:9090/
+rustnzbd-1      | [2m2026-03-21T00:55:39.365526Z[0m [32m INFO[0m [2mnzb_web::server[0m[2m:[0m Arr API: http://0.0.0.0:9090/sabnzbd/api?mode=version
+sabnzbd-1       | [migrations] started
+sabnzbd-1       | [migrations] no migrations found
+sabnzbd-1       | ───────────────────────────────────────
+sabnzbd-1       | 
+sabnzbd-1       |       ██╗     ███████╗██╗ ██████╗
+sabnzbd-1       |       ██║     ██╔════╝██║██╔═══██╗
+sabnzbd-1       |       ██║     ███████╗██║██║   ██║
+sabnzbd-1       |       ██║     ╚════██║██║██║   ██║
+sabnzbd-1       |       ███████╗███████║██║╚██████╔╝
+sabnzbd-1       |       ╚══════╝╚══════╝╚═╝ ╚═════╝
+sabnzbd-1       | 
+sabnzbd-1       |    Brought to you by linuxserver.io
+sabnzbd-1       | ───────────────────────────────────────
+sabnzbd-1       | 
+sabnzbd-1       | To support the app dev(s) visit:
+sabnzbd-1       | SABnzbd: https://sabnzbd.org/donate
+sabnzbd-1       | 
+sabnzbd-1       | To support LSIO projects visit:
+sabnzbd-1       | https://www.linuxserver.io/donate/
+sabnzbd-1       | 
+sabnzbd-1       | ───────────────────────────────────────
+sabnzbd-1       | GID/UID
+sabnzbd-1       | ───────────────────────────────────────
+sabnzbd-1       | 
+sabnzbd-1       | User UID:    1000
+sabnzbd-1       | User GID:    1000
+sabnzbd-1       | ───────────────────────────────────────
+sabnzbd-1       | Linuxserver.io version: 4.5.5-ls246
+sabnzbd-1       | Build-date: 2026-03-19T03:25:27+00:00
+sabnzbd-1       | ───────────────────────────────────────
+sabnzbd-1       |     
+sabnzbd-1       | [custom-init] No custom files found, skipping...
+sabnzbd-1       | 2026-03-21 00:55:40,010::INFO::[SABnzbd:1134] --------------------------------
+sabnzbd-1       | 2026-03-21 00:55:40,010::INFO::[SABnzbd:1135] SABnzbd.py-4.5.5
+sabnzbd-1       | 2026-03-21 00:55:40,010::INFO::[SABnzbd:1136] Full executable path = /app/sabnzbd/SABnzbd.py
+sabnzbd-1       | 2026-03-21 00:55:40,010::INFO::[SABnzbd:1137] Arguments = "/app/sabnzbd/SABnzbd.py" "--config-file" "/config" "--server" "::"
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[SABnzbd:1146] Certifi version = 2025.10.05
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[SABnzbd:1147] Loaded additional certificates from /lsiopy/lib/python3.12/site-packages/certifi/cacert.pem
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[SABnzbd:1153] Using INI file /config/sabnzbd.ini
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[filesystem:725] Creating directories: /downloads/incomplete
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[filesystem:725] Creating directories: /downloads/complete
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[cfg:794] Config conversion set 1
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[cfg:830] Config conversion set 2
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[cfg:835] Config conversion set 3
+sabnzbd-1       | 2026-03-21 00:55:40,011::INFO::[cfg:846] Config conversion set 4
+sabnzbd-1       | 2026-03-21 00:55:40,012::INFO::[config:999] Writing settings to INI file /config/sabnzbd.ini
+sabnzbd-1       | 2026-03-21 00:55:40,013::INFO::[filesystem:1089] [N/A] /config/admin/totals10.sab missing
+sabnzbd-1       | 2026-03-21 00:55:40,088::INFO::[postproc:141] Loading postproc queue
+sabnzbd-1       | 2026-03-21 00:55:40,088::INFO::[filesystem:1089] [N/A] /config/admin/postproc2.sab missing
+sabnzbd-1       | 2026-03-21 00:55:40,088::INFO::[filesystem:1089] [N/A] /config/admin/watched_data2.sab missing
+sabnzbd-1       | 2026-03-21 00:55:40,088::INFO::[filesystem:1089] [N/A] /config/admin/rss_data.sab missing
+sabnzbd-1       | 2026-03-21 00:55:40,088::INFO::[scheduler:191] Scheduling RSS interval task every 60 min (delay=18)
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[scheduler:215] Setting schedule for midnight auto history-purge
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[scheduler:224] Setting schedule for midnight BPS reset
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[scheduler:233] Setting schedule for midnight server expiration check
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[scheduler:242] Setting schedule for server quota check
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[filesystem:1089] [N/A] /config/admin/queue10.sab missing
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[__init__:306] All processes started
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[SABnzbd:337] Template location for Glitter is /app/sabnzbd/interfaces/Glitter
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[SABnzbd:337] Template location for Config is /app/sabnzbd/interfaces/Config
+sabnzbd-1       | 2026-03-21 00:55:40,089::INFO::[misc:1324] [N/A] Running external command: ['/usr/bin/unrar']
+sabnzbd-1       | 2026-03-21 00:55:40,091::INFO::[misc:1324] [N/A] Running external command: ['/usr/bin/7zz']
+sabnzbd-1       | 2026-03-21 00:55:40,093::INFO::[misc:1324] [N/A] Running external command: ['/usr/local/bin/par2', '-V']
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:422] SABCTools module (v8.2.6)... found!
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:423] SABCTools module is using SIMD set: AVX2
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:424] SABCTools module is linked to OpenSSL: True
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:441] Cryptography module (v46.0.3)... found!
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:444] par2 binary... found (/usr/local/bin/par2)
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:451] UNRAR binary... found (/usr/bin/unrar)
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:459] UNRAR binary version 7.20
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:466] 7za binary... found (/usr/bin/7zz)
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:468] 7za binary version 25.01
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:474] nice binary... found (/bin/nice)
+sabnzbd-1       | 2026-03-21 00:55:40,094::INFO::[SABnzbd:478] ionice binary... found (/bin/ionice)
+sabnzbd-1       | 2026-03-21 00:55:40,095::INFO::[SABnzbd:1350] Starting web-interface on :::8080
+sabnzbd-1       | 2026-03-21 00:55:40,095::INFO::[_cplogging:213] [21/Mar/2026:00:55:40] ENGINE Bus STARTING
+sabnzbd-1       | 2026-03-21 00:55:40,196::INFO::[_cplogging:213] [21/Mar/2026:00:55:40] ENGINE Serving on http://:::8080
+sabnzbd-1       | 2026-03-21 00:55:40,197::INFO::[_cplogging:213] [21/Mar/2026:00:55:40] ENGINE Bus STARTED
+sabnzbd-1       | 2026-03-21 00:55:40,197::INFO::[SABnzbd:1389] Starting SABnzbd.py-4.5.5
+sabnzbd-1       | 2026-03-21 00:55:40,198::INFO::[dirscanner:112] Dirscanner starting up
+sabnzbd-1       | 2026-03-21 00:55:40,199::INFO::[notifier:166] Sending notification: SABnzbd - SABnzbd 4.5.5 started (type=startup, job_cat=None)
+sabnzbd-1       | 2026-03-21 00:55:40,200::INFO::[__init__:460] Commit = 11ba9ae12ade8c8f2abb42d44ea35efdd361fae5
+sabnzbd-1       | 2026-03-21 00:55:40,200::INFO::[__init__:461] Python-version = 3.12.12 (main, Oct 11 2025, 01:16:26) [GCC 15.2.0]
+sabnzbd-1       | 2026-03-21 00:55:40,200::INFO::[__init__:462] CPU architecture = x86_64
+sabnzbd-1       | 2026-03-21 00:55:40,200::INFO::[__init__:463] Platform = Docker
+sabnzbd-1       | 2026-03-21 00:55:40,200::INFO::[__init__:464] JSON-module = orjson 3.11.3
+sabnzbd-1       | 2026-03-21 00:55:40,200::INFO::[__init__:465] Preferred encoding = UTF-8
+sabnzbd-1       | 2026-03-21 00:55:40,200::INFO::[__init__:466] SSL version = OpenSSL 3.5.5 27 Jan 2026
+sabnzbd-1       | 2026-03-21 00:55:40,202::INFO::[zconfig:61] No bonjour/zeroconf support installed
+sabnzbd-1       | 2026-03-21 00:55:40,202::INFO::[ssdp:108] Serving SSDP on 192.168.192.3 as SABnzbd
+sabnzbd-1       | [ls.io-init] done.
+orchestrator-1  | [2m2026-03-21T00:55:41.431812Z[0m [32m INFO[0m   sabnzbd: ready
+orchestrator-1  | [2m2026-03-21T00:55:41.432495Z[0m [32m INFO[0m   rustnzbd: ready
+orchestrator-1  | [2m2026-03-21T00:55:41.433693Z[0m [32m INFO[0m Resolved sabnzbd -> 475b2a719fec
+orchestrator-1  | [2m2026-03-21T00:55:41.434459Z[0m [32m INFO[0m Resolved rustnzbd -> 6162464f5067
+orchestrator-1  | [2m2026-03-21T00:55:41.435621Z[0m [32m INFO[0m Running 6 scenario(s), 45.0 GB total raw data
+orchestrator-1  | [2m2026-03-21T00:55:41.435624Z[0m [32m INFO[0m   sz5gb_raw                     5 GB  raw  timeout=600s
+orchestrator-1  | [2m2026-03-21T00:55:41.435626Z[0m [32m INFO[0m   sz5gb_par2                    5 GB  par2  timeout=1200s
+orchestrator-1  | [2m2026-03-21T00:55:41.435627Z[0m [32m INFO[0m   sz5gb_unpack                  5 GB  unpack  timeout=1500s
+orchestrator-1  | [2m2026-03-21T00:55:41.435627Z[0m [32m INFO[0m   sz10gb_raw                   10 GB  raw  timeout=1200s
+orchestrator-1  | [2m2026-03-21T00:55:41.435628Z[0m [32m INFO[0m   sz10gb_par2                  10 GB  par2  timeout=1800s
+orchestrator-1  | [2m2026-03-21T00:55:41.435629Z[0m [32m INFO[0m   sz10gb_unpack                10 GB  unpack  timeout=2100s
+orchestrator-1  | [2m2026-03-21T00:55:41.435630Z[0m [32m INFO[0m Generating test data...
+orchestrator-1  | [2m2026-03-21T00:55:41.435721Z[0m [32m INFO[0m Pre-flight: estimated 33.6 GB disk needed for test data
+orchestrator-1  | [2m2026-03-21T00:55:41.436603Z[0m [32m INFO[0m Pre-flight: 800.6 GB disk available at /data
+orchestrator-1  | [2m2026-03-21T00:55:41.436655Z[0m [32m INFO[0m Pre-flight: 43226 MB memory available
+orchestrator-1  | [2m2026-03-21T00:55:41.436658Z[0m [32m INFO[0m Preparing: sz5gb_raw — 5 GB raw download
+orchestrator-1  | [2m2026-03-21T00:55:41.436684Z[0m [32m INFO[0m   Generating /data/testdata/bench_5gb.bin (5120 MB)...
+orchestrator-1  |     10% (2180 MB/s)    20% (2176 MB/s)    30% (2177 MB/s)    40% (2172 MB/s)    50% (2169 MB/s)    60% (2167 MB/s)    70% (2167 MB/s)    80% (2169 MB/s)    90% (2157 MB/s)    100% (2145 MB/s)
+orchestrator-1  | [2m2026-03-21T00:55:43.823796Z[0m [32m INFO[0m Generated /data/testdata/bench_5gb.bin (5120 MB) in 2.4s
+orchestrator-1  | [2m2026-03-21T00:55:43.826447Z[0m [32m INFO[0m   NZB: /data/nzbs/sz5gb_raw.nzb
+orchestrator-1  | [2m2026-03-21T00:55:43.826541Z[0m [32m INFO[0m Preparing: sz5gb_par2 — 5 GB download + par2 repair (3% missing)
+orchestrator-1  | [2m2026-03-21T00:55:43.826616Z[0m [32m INFO[0m   Exists: /data/testdata/bench_5gb.bin (5120 MB)
+orchestrator-1  | [2m2026-03-21T00:55:43.827442Z[0m [32m INFO[0m   Creating par2 (8% redundancy) for /data/testdata/bench_5gb.bin (5120 MB, timeout 600s)...
