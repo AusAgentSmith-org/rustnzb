@@ -231,21 +231,16 @@ impl RssMonitor {
                     .unwrap_or(false)
             });
 
-            // If there are rules for this feed, only download if a rule matches.
-            // If there are no rules, use the feed's existing auto-download behavior.
-            let (should_download, category, priority) = if !rules.is_empty() {
-                if let Some(rule) = matched_rule {
-                    (
-                        true,
-                        rule.category.clone().or_else(|| feed.category.clone()),
-                        rule.priority,
-                    )
-                } else {
-                    (false, None, 1)
-                }
+            // Only auto-download if a download rule matches.
+            // No rules = no auto-download (items are persisted for manual download).
+            let (should_download, category, priority) = if let Some(rule) = matched_rule {
+                (
+                    true,
+                    rule.category.clone().or_else(|| feed.category.clone()),
+                    rule.priority,
+                )
             } else {
-                // No rules: auto-download everything that passes the filter (legacy behavior)
-                (true, feed.category.clone(), 1)
+                (false, None, 1)
             };
 
             if !should_download {
