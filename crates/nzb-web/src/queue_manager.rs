@@ -513,6 +513,7 @@ impl QueueManager {
             let config = PostProcConfig {
                 cleanup_after_extract: true,
                 output_dir: Some(output_dir.clone()),
+                articles_failed,
             };
 
             let result = run_pipeline(&work_dir, &config).await;

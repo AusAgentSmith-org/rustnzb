@@ -31,6 +31,40 @@ pub struct ClientResult {
     pub iowait_avg: f64,
     pub iowait_peak: f64,
     pub timeseries: Vec<MetricSample>,
+    /// Internal metrics from the client's own API (rustnzbd only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub internal_metrics: Option<InternalMetrics>,
+}
+
+/// Metrics captured from rustnzbd's own REST API after job completion.
+#[derive(Debug, Clone, Serialize, serde::Deserialize, Default)]
+pub struct InternalMetrics {
+    /// Per-server download statistics.
+    pub server_stats: Vec<ServerStat>,
+    /// Per-stage durations reported by the client's post-processing pipeline.
+    pub stage_durations: Vec<StageDuration>,
+    /// Download throughput reported by the download engine (MB/s).
+    pub download_throughput_mbps: f64,
+    /// Total articles downloaded.
+    pub articles_downloaded: u64,
+    /// Total articles failed.
+    pub articles_failed: u64,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct ServerStat {
+    pub server_name: String,
+    pub articles_downloaded: u64,
+    pub articles_failed: u64,
+    pub bytes_downloaded: u64,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct StageDuration {
+    pub name: String,
+    pub status: String,
+    pub duration_secs: f64,
+    pub message: Option<String>,
 }
 
 async fn wait_for_service(name: &str, url: &str, timeout_secs: u64) -> Result<()> {
@@ -266,6 +300,7 @@ async fn run_client(
         iowait_avg: 0.0,
         iowait_peak: 0.0,
         timeseries: vec![],
+        internal_metrics: None,
     };
 
     tracing::info!("  [{client_name}] Adding NZB...");
@@ -370,6 +405,24 @@ async fn run_client(
     }
     if result.download_sec == 0.0 {
         result.download_sec = result.total_sec;
+    }
+
+    // Internal metrics (rustnzbd only)
+    if client_name == "rustnzbd" {
+        match rnzb.get_internal_metrics().await {
+            Ok(metrics) => {
+                tracing::info!(
+                    "  [{client_name}] Internal: {} server(s), {} stage(s), {:.1} MB/s download throughput",
+                    metrics.server_stats.len(),
+                    metrics.stage_durations.len(),
+                    metrics.download_throughput_mbps,
+                );
+                result.internal_metrics = Some(metrics);
+            }
+            Err(e) => {
+                tracing::warn!("  [{client_name}] Failed to fetch internal metrics: {e}");
+            }
+        }
     }
 
     // Docker stats

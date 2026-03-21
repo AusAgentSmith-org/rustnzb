@@ -10,7 +10,7 @@
 //! 7. Job only fails if failed articles exceed threshold AND no par2 recovery possible
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -89,6 +89,12 @@ struct WorkItem {
 pub struct DownloadEngine {
     cancelled: Arc<AtomicBool>,
     paused: Arc<AtomicBool>,
+    /// Cumulative yEnc decode time across all workers (microseconds).
+    pub total_decode_us: Arc<AtomicU64>,
+    /// Cumulative file assembly time across all workers (microseconds).
+    pub total_assemble_us: Arc<AtomicU64>,
+    /// Total articles successfully decoded.
+    pub total_articles_decoded: Arc<AtomicU64>,
 }
 
 impl DownloadEngine {
@@ -96,6 +102,9 @@ impl DownloadEngine {
         Self {
             cancelled: Arc::new(AtomicBool::new(false)),
             paused: Arc::new(AtomicBool::new(false)),
+            total_decode_us: Arc::new(AtomicU64::new(0)),
+            total_assemble_us: Arc::new(AtomicU64::new(0)),
+            total_articles_decoded: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -182,6 +191,11 @@ impl DownloadEngine {
         let work_queue = Arc::new(Mutex::new(VecDeque::from(work_items)));
         let articles_failed = Arc::new(AtomicUsize::new(0));
 
+        // Reset cumulative decode timing counters for this job
+        self.total_decode_us.store(0, Ordering::Relaxed);
+        self.total_assemble_us.store(0, Ordering::Relaxed);
+        self.total_articles_decoded.store(0, Ordering::Relaxed);
+
         // Track yEnc-derived real filenames for deobfuscation.
         // NZB subjects may be obfuscated (random hashes), but yEnc headers
         // contain the actual filename. We capture these during download and
@@ -225,6 +239,9 @@ impl DownloadEngine {
                     let articles_failed = Arc::clone(&articles_failed);
                     let all_servers = sorted_servers.clone();
                     let yenc_names = Arc::clone(&yenc_names);
+                    let total_decode_us = Arc::clone(&self.total_decode_us);
+                    let total_assemble_us = Arc::clone(&self.total_assemble_us);
+                    let total_articles_decoded = Arc::clone(&self.total_articles_decoded);
 
                     async move {
                         download_worker(
@@ -238,6 +255,9 @@ impl DownloadEngine {
                             articles_failed,
                             all_servers,
                             yenc_names,
+                            total_decode_us,
+                            total_assemble_us,
+                            total_articles_decoded,
                         )
                         .await;
                     }
@@ -258,12 +278,25 @@ impl DownloadEngine {
         } else {
             0.0
         };
+        let decode_total_us = self.total_decode_us.load(Ordering::Relaxed);
+        let assemble_total_us = self.total_assemble_us.load(Ordering::Relaxed);
+        let articles_decoded = self.total_articles_decoded.load(Ordering::Relaxed);
+
         info!(
             job_id = %job_id,
             elapsed_secs = download_elapsed.as_secs_f64(),
             total_bytes,
             throughput_mbps = format!("{throughput_mbps:.2}"),
             "Download phase complete"
+        );
+        info!(
+            job_id = %job_id,
+            articles_decoded,
+            decode_secs = format!("{:.3}", decode_total_us as f64 / 1_000_000.0),
+            assemble_secs = format!("{:.3}", assemble_total_us as f64 / 1_000_000.0),
+            decode_pct = format!("{:.1}", decode_total_us as f64 / download_elapsed.as_micros() as f64 * 100.0),
+            assemble_pct = format!("{:.1}", assemble_total_us as f64 / download_elapsed.as_micros() as f64 * 100.0),
+            "Decode timing summary (cumulative across all workers)"
         );
 
         // Drain any remaining items (stuck because needed servers exited)
@@ -336,6 +369,7 @@ impl DownloadEngine {
 // Worker task
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::too_many_arguments)]
 async fn download_worker(
     primary_server: ServerConfig,
     conn_idx: usize,
@@ -347,6 +381,9 @@ async fn download_worker(
     articles_failed: Arc<AtomicUsize>,
     all_servers: Vec<ServerConfig>,
     yenc_names: Arc<Mutex<HashMap<String, String>>>,
+    total_decode_us: Arc<AtomicU64>,
+    total_assemble_us: Arc<AtomicU64>,
+    total_articles_decoded: Arc<AtomicU64>,
 ) {
     let worker_id = format!("{}#{}", primary_server.id, conn_idx);
 
@@ -379,6 +416,9 @@ async fn download_worker(
             &articles_failed,
             &all_servers,
             &yenc_names,
+            &total_decode_us,
+            &total_assemble_us,
+            &total_articles_decoded,
         )
         .await;
     } else {
@@ -395,6 +435,9 @@ async fn download_worker(
             &articles_failed,
             &all_servers,
             &yenc_names,
+            &total_decode_us,
+            &total_assemble_us,
+            &total_articles_decoded,
         )
         .await;
     }
@@ -417,6 +460,9 @@ async fn download_worker_pipelined(
     articles_failed: &Arc<AtomicUsize>,
     all_servers: &[ServerConfig],
     yenc_names: &Arc<Mutex<HashMap<String, String>>>,
+    total_decode_us: &Arc<AtomicU64>,
+    total_assemble_us: &Arc<AtomicU64>,
+    total_articles_decoded: &Arc<AtomicU64>,
 ) {
     let mut pipeline = Pipeline::new(pipe_depth);
     // In-flight items indexed by pipeline tag
@@ -497,6 +543,9 @@ async fn download_worker_pipelined(
                         let raw_data = response.data.unwrap_or_default();
                         match decode_and_assemble(&item, &raw_data, assembler) {
                             Ok(process_result) => {
+                                total_decode_us.fetch_add(process_result.decode_us, Ordering::Relaxed);
+                                total_assemble_us.fetch_add(process_result.assemble_us, Ordering::Relaxed);
+                                total_articles_decoded.fetch_add(1, Ordering::Relaxed);
                                 if let Some(ref yname) = process_result.yenc_filename {
                                     yenc_names.lock().entry(item.file_id.clone())
                                         .or_insert_with(|| yname.clone());
@@ -660,6 +709,9 @@ async fn download_worker_serial(
     articles_failed: &Arc<AtomicUsize>,
     all_servers: &[ServerConfig],
     yenc_names: &Arc<Mutex<HashMap<String, String>>>,
+    total_decode_us: &Arc<AtomicU64>,
+    total_assemble_us: &Arc<AtomicU64>,
+    total_articles_decoded: &Arc<AtomicU64>,
 ) {
     let mut consecutive_errors: u32 = 0;
     let mut consecutive_skips: usize = 0;
@@ -720,6 +772,9 @@ async fn download_worker_serial(
         match result {
             Ok(process_result) => {
                 consecutive_errors = 0;
+                total_decode_us.fetch_add(process_result.decode_us, Ordering::Relaxed);
+                total_assemble_us.fetch_add(process_result.assemble_us, Ordering::Relaxed);
+                total_articles_decoded.fetch_add(1, Ordering::Relaxed);
                 if let Some(ref yname) = process_result.yenc_filename {
                     yenc_names.lock().entry(item.file_id.clone())
                         .or_insert_with(|| yname.clone());
@@ -900,6 +955,10 @@ struct ProcessResult {
     file_complete: bool,
     /// Real filename from yEnc =ybegin header (may differ from NZB subject name).
     yenc_filename: Option<String>,
+    /// yEnc decode time in microseconds.
+    decode_us: u64,
+    /// File assembly time in microseconds.
+    assemble_us: u64,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -963,5 +1022,7 @@ fn decode_and_assemble(
         decoded_bytes: decoded_len,
         file_complete,
         yenc_filename,
+        decode_us: decode_us as u64,
+        assemble_us: assemble_us as u64,
     })
 }

@@ -143,20 +143,38 @@ async fn normal_subjects_pipeline_finds_files() {
         "Movie.2024.part002.rar",
     ];
     let dir = make_work_dir(&files);
-    let config = PostProcConfig {
+
+    // With zero failures, par2 should be skipped (files known-good)
+    let config_zero = PostProcConfig {
         cleanup_after_extract: false,
         output_dir: None,
+        articles_failed: 0,
     };
-
-    let result = run_pipeline(dir.path(), &config).await;
-
-    // Verify stage should NOT be "Skipped" (it should attempt par2 verify, which
-    // will fail because the files aren't real par2 — but it should NOT skip)
+    let result = run_pipeline(dir.path(), &config_zero).await;
     let verify = result.stages.iter().find(|s| s.name == "Verify").unwrap();
-    assert_ne!(
+    assert_eq!(
         verify.status,
         StageStatus::Skipped,
-        "Verify should not be skipped when par2 files exist — detection failed!"
+        "Verify should be skipped when articles_failed == 0 (files known-good)"
+    );
+    assert!(
+        verify.message.as_deref().unwrap_or("").contains("zero article failures"),
+        "Skip message should indicate zero failures"
+    );
+
+    // With failures, par2 repair should be attempted (will fail on dummy files,
+    // but the stage should NOT be skipped — confirming detection works)
+    let config_fail = PostProcConfig {
+        cleanup_after_extract: false,
+        output_dir: None,
+        articles_failed: 1,
+    };
+    let result = run_pipeline(dir.path(), &config_fail).await;
+    let repair = result.stages.iter().find(|s| s.name == "Repair").unwrap();
+    assert_ne!(
+        repair.status,
+        StageStatus::Skipped,
+        "Repair should not be skipped when articles_failed > 0 and par2 files exist"
     );
 }
 
@@ -255,6 +273,7 @@ async fn obfuscated_pipeline_skips_everything() {
     let config = PostProcConfig {
         cleanup_after_extract: false,
         output_dir: None,
+        articles_failed: 0,
     };
 
     let result = run_pipeline(dir.path(), &config).await;
@@ -433,7 +452,7 @@ async fn deobfuscation_enables_full_pipeline() {
     ]);
 
     // Before deobfuscation: pipeline skips everything
-    let config = PostProcConfig { cleanup_after_extract: false, output_dir: None };
+    let config = PostProcConfig { cleanup_after_extract: false, output_dir: None, articles_failed: 0 };
     let result = run_pipeline(dir.path(), &config).await;
     let verify = result.stages.iter().find(|s| s.name == "Verify").unwrap();
     assert_eq!(verify.status, StageStatus::Skipped, "Pre-deobfuscation: verify skipped");
@@ -441,15 +460,20 @@ async fn deobfuscation_enables_full_pipeline() {
     // Deobfuscate
     simulate_deobfuscation(dir.path(), &nzb_filenames, &yenc_names);
 
-    // After deobfuscation: pipeline finds par2 files and attempts verification.
-    // Verify will fail (these aren't real par2 files) but critically it should
-    // NOT be skipped — that proves detection worked.
-    let result = run_pipeline(dir.path(), &config).await;
-    let verify = result.stages.iter().find(|s| s.name == "Verify").unwrap();
+    // After deobfuscation: pipeline finds par2 files. With articles_failed == 0,
+    // verify is still skipped (files known-good). To prove detection works, we
+    // run with articles_failed > 0 so repair is attempted.
+    let config_fail = PostProcConfig {
+        cleanup_after_extract: false,
+        output_dir: None,
+        articles_failed: 1,
+    };
+    let result = run_pipeline(dir.path(), &config_fail).await;
+    let repair = result.stages.iter().find(|s| s.name == "Repair").unwrap();
     assert_ne!(
-        verify.status,
+        repair.status,
         StageStatus::Skipped,
-        "Post-deobfuscation: verify should find par2 files and attempt processing"
+        "Post-deobfuscation: repair should find par2 files and attempt processing"
     );
 
     // Also verify that archives ARE detectable now (even if pipeline didn't reach extract)
@@ -605,6 +629,7 @@ async fn pipeline_with_only_archives_no_par2() {
     let config = PostProcConfig {
         cleanup_after_extract: false,
         output_dir: Some(output_dir.path().to_path_buf()),
+        articles_failed: 0,
     };
 
     let result = run_pipeline(dir.path(), &config).await;

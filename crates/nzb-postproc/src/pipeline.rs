@@ -1,7 +1,10 @@
 //! Post-processing pipeline orchestrator.
 //!
-//! Runs the stages in order: verify → repair → extract → cleanup.
-//! Each stage is logged via tracing and tracks its own duration.
+//! Stages:
+//! - If articles_failed > 0: par2 repair (verifies + repairs in one pass)
+//! - If articles_failed == 0: par2 skipped entirely (files are known-good)
+//! - Extract archives (RAR, 7z, ZIP)
+//! - Cleanup temporary files
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -10,7 +13,7 @@ use nzb_core::models::{StageResult, StageStatus};
 use tracing::{error, info, warn};
 
 use crate::detect::{find_archives, find_cleanup_files, find_par2_files, ArchiveType};
-use crate::par2::{par2_repair, par2_verify, Par2Status, parse_par2_output};
+use crate::par2::{par2_repair, parse_par2_output};
 use crate::unpack::{extract_7z, extract_rar, extract_zip};
 
 /// Final result of the complete post-processing pipeline.
@@ -32,6 +35,11 @@ pub struct PostProcConfig {
     /// Directory where extracted files should be placed.
     /// If None, extracts into the job directory itself.
     pub output_dir: Option<PathBuf>,
+    /// Number of articles that failed during download.
+    /// When 0, par2 verification is skipped (files are known-good).
+    /// When > 0, `par2 repair` is run directly (which verifies + repairs
+    /// in a single pass), avoiding the redundant verify-then-repair double-scan.
+    pub articles_failed: usize,
 }
 
 impl Default for PostProcConfig {
@@ -39,6 +47,7 @@ impl Default for PostProcConfig {
         Self {
             cleanup_after_extract: true,
             output_dir: None,
+            articles_failed: 0,
         }
     }
 }
@@ -57,22 +66,39 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
     info!(dir = %job_dir.display(), "Starting post-processing pipeline");
 
     // ------------------------------------------------------------------
-    // Stage 1: Verify
+    // Stage 1 + 2: Par2 verify / repair
     // ------------------------------------------------------------------
-    let needs_repair = match run_verify_stage(job_dir).await {
-        StageOutcome::Stage(result, needs_repair) => {
-            if result.status == StageStatus::Failed {
-                pipeline_ok = false;
-            }
-            stages.push(result);
-            needs_repair
-        }
-    };
+    // When articles_failed == 0, we skip par2 entirely — the download
+    // completed without errors so the files are known-good.
+    //
+    // When articles_failed > 0, we run `par2 repair` directly. The
+    // repair command verifies first and then repairs in a single pass,
+    // avoiding the redundant double-scan of a separate verify + repair.
+    let par2_files = find_par2_files(job_dir);
 
-    // ------------------------------------------------------------------
-    // Stage 2: Repair (only if verify indicated damage)
-    // ------------------------------------------------------------------
-    if needs_repair && pipeline_ok {
+    if par2_files.is_empty() {
+        // No par2 files — skip both stages
+        stages.push(StageResult {
+            name: "Verify".to_string(),
+            status: StageStatus::Skipped,
+            message: Some("No par2 files found".to_string()),
+            duration_secs: 0.0,
+        });
+    } else if config.articles_failed == 0 {
+        // No failures — skip par2 verification entirely
+        info!("Download had zero article failures — skipping par2 verification");
+        stages.push(StageResult {
+            name: "Verify".to_string(),
+            status: StageStatus::Skipped,
+            message: Some("Skipped — download had zero article failures".to_string()),
+            duration_secs: 0.0,
+        });
+    } else {
+        // Articles failed — run par2 repair directly (verifies + repairs in one pass)
+        info!(
+            articles_failed = config.articles_failed,
+            "Running par2 repair directly (verify + repair in single pass)"
+        );
         let result = run_repair_stage(job_dir).await;
         if result.status == StageStatus::Failed {
             pipeline_ok = false;
@@ -128,73 +154,6 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
 // ---------------------------------------------------------------------------
 // Internal stage runners
 // ---------------------------------------------------------------------------
-
-enum StageOutcome {
-    /// (stage_result, needs_repair)
-    Stage(StageResult, bool),
-}
-
-async fn run_verify_stage(job_dir: &Path) -> StageOutcome {
-    let start = Instant::now();
-    let par2_files = find_par2_files(job_dir);
-
-    if par2_files.is_empty() {
-        info!("No par2 files found — skipping verification");
-        return StageOutcome::Stage(
-            StageResult {
-                name: "Verify".to_string(),
-                status: StageStatus::Skipped,
-                message: Some("No par2 files found".to_string()),
-                duration_secs: start.elapsed().as_secs_f64(),
-            },
-            false,
-        );
-    }
-
-    // Use the index par2 file (first in the sorted list)
-    let index_par2 = &par2_files[0];
-    info!(file = %index_par2.display(), "Running par2 verify");
-
-    match par2_verify(index_par2).await {
-        Ok(result) => {
-            let (status, _, _) = parse_par2_output(&result.output);
-            let needs_repair = !result.success && status != Par2Status::AllCorrect;
-            let stage_status = if result.success {
-                StageStatus::Success
-            } else if needs_repair {
-                // Verify failed but repair may be possible — don't mark the
-                // stage as failed yet; let repair try.
-                StageStatus::Success
-            } else {
-                StageStatus::Failed
-            };
-
-            let message = Some(format!("{status}"));
-
-            StageOutcome::Stage(
-                StageResult {
-                    name: "Verify".to_string(),
-                    status: stage_status,
-                    message,
-                    duration_secs: start.elapsed().as_secs_f64(),
-                },
-                needs_repair,
-            )
-        }
-        Err(e) => {
-            error!(error = %e, "par2 verify failed with error");
-            StageOutcome::Stage(
-                StageResult {
-                    name: "Verify".to_string(),
-                    status: StageStatus::Failed,
-                    message: Some(format!("par2 verify error: {e}")),
-                    duration_secs: start.elapsed().as_secs_f64(),
-                },
-                false,
-            )
-        }
-    }
-}
 
 async fn run_repair_stage(job_dir: &Path) -> StageResult {
     let start = Instant::now();
@@ -378,6 +337,7 @@ mod tests {
         let config = PostProcConfig::default();
         assert!(config.cleanup_after_extract);
         assert!(config.output_dir.is_none());
+        assert_eq!(config.articles_failed, 0);
     }
 
     #[tokio::test]
@@ -447,12 +407,11 @@ mod tests {
         let config = PostProcConfig {
             cleanup_after_extract: false,
             output_dir: None,
+            articles_failed: 0,
         };
         let result = run_pipeline(dir.path(), &config).await;
 
-        // Should have Verify and Extract (both skipped). Repair is skipped
-        // entirely (not even listed) since verify didn't indicate damage.
-        // Cleanup is disabled.
+        // Should have Verify and Extract (both skipped). Cleanup is disabled.
         let stage_names: Vec<&str> = result.stages.iter().map(|s| s.name.as_str()).collect();
         assert!(stage_names.contains(&"Verify"), "Should have Verify stage");
         assert!(stage_names.contains(&"Extract"), "Should have Extract stage");
@@ -463,6 +422,94 @@ mod tests {
         assert!(
             verify_idx < extract_idx,
             "Verify ({verify_idx}) should come before Extract ({extract_idx})"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_skips_par2_when_zero_failures() {
+        // With par2 files present but articles_failed == 0, verify should be skipped
+        let dir = make_test_dir(&[
+            "movie.par2",
+            "movie.vol00+01.par2",
+            "movie.mkv",
+        ]);
+        let config = PostProcConfig {
+            cleanup_after_extract: false,
+            output_dir: None,
+            articles_failed: 0,
+        };
+        let result = run_pipeline(dir.path(), &config).await;
+        assert!(result.success);
+
+        let verify_stage = result.stages.iter().find(|s| s.name == "Verify").unwrap();
+        assert_eq!(
+            verify_stage.status,
+            StageStatus::Skipped,
+            "Verify should be skipped when articles_failed == 0"
+        );
+        assert!(
+            verify_stage
+                .message
+                .as_deref()
+                .unwrap_or("")
+                .contains("zero article failures"),
+            "Skip message should indicate zero failures"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_no_par2_files_skips_regardless() {
+        // No par2 files — should skip even if articles_failed > 0
+        let dir = make_test_dir(&["movie.mkv"]);
+        let config = PostProcConfig {
+            cleanup_after_extract: false,
+            output_dir: None,
+            articles_failed: 5,
+        };
+        let result = run_pipeline(dir.path(), &config).await;
+        assert!(result.success);
+
+        let verify_stage = result.stages.iter().find(|s| s.name == "Verify").unwrap();
+        assert_eq!(
+            verify_stage.status,
+            StageStatus::Skipped,
+            "Verify should be skipped when no par2 files exist"
+        );
+        assert!(
+            verify_stage
+                .message
+                .as_deref()
+                .unwrap_or("")
+                .contains("No par2 files"),
+            "Skip message should indicate no par2 files"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_runs_repair_when_failures() {
+        // With par2 files and articles_failed > 0, should attempt repair
+        // (which will fail since these are dummy files, but the stage should be attempted)
+        let dir = make_test_dir(&[
+            "movie.par2",
+            "movie.vol00+01.par2",
+            "movie.mkv",
+        ]);
+        let config = PostProcConfig {
+            cleanup_after_extract: false,
+            output_dir: None,
+            articles_failed: 3,
+        };
+        let result = run_pipeline(dir.path(), &config).await;
+
+        // Should have a Repair stage (not Verify) since we go straight to repair
+        let stage_names: Vec<&str> = result.stages.iter().map(|s| s.name.as_str()).collect();
+        assert!(
+            stage_names.contains(&"Repair"),
+            "Should have Repair stage when articles_failed > 0, got: {stage_names:?}"
+        );
+        assert!(
+            !stage_names.contains(&"Verify"),
+            "Should NOT have Verify stage when going direct to repair"
         );
     }
 }

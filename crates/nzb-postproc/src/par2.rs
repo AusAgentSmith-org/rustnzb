@@ -99,14 +99,25 @@ pub fn find_par2() -> Option<String> {
     None
 }
 
+/// Number of threads to use for par2 operations.
+/// Uses all available CPUs for maximum throughput.
+fn par2_thread_count() -> String {
+    std::thread::available_parallelism()
+        .map(|n| n.get().to_string())
+        .unwrap_or_else(|_| "0".to_string()) // 0 = auto-detect in par2cmdline-turbo
+}
+
 /// Verify par2 integrity of files in a directory.
 pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
     let par2_bin = find_par2().ok_or_else(|| anyhow::anyhow!("par2 binary not found on PATH"))?;
+    let threads = par2_thread_count();
 
-    info!(file = %par2_file.display(), "Running par2 verify");
+    info!(file = %par2_file.display(), threads = %threads, "Running par2 verify");
 
     let output = Command::new(&par2_bin)
         .arg("verify")
+        .arg("-t")
+        .arg(&threads)
         .arg(par2_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -136,13 +147,19 @@ pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
 }
 
 /// Repair files using par2 recovery blocks.
+///
+/// The `repair` command verifies first, then repairs if needed — so this
+/// is a single-pass alternative to calling verify + repair separately.
 pub async fn par2_repair(par2_file: &Path) -> anyhow::Result<Par2Result> {
     let par2_bin = find_par2().ok_or_else(|| anyhow::anyhow!("par2 binary not found on PATH"))?;
+    let threads = par2_thread_count();
 
-    info!(file = %par2_file.display(), "Running par2 repair");
+    info!(file = %par2_file.display(), threads = %threads, "Running par2 repair");
 
     let output = Command::new(&par2_bin)
         .arg("repair")
+        .arg("-t")
+        .arg(&threads)
         .arg(par2_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -232,5 +249,13 @@ mod tests {
         let output = "Some unexpected output from par2\n";
         let (status, _, _) = parse_par2_output(output);
         assert_eq!(status, Par2Status::Unknown);
+    }
+
+    #[test]
+    fn test_par2_thread_count_returns_valid_number() {
+        let threads = par2_thread_count();
+        let n: u32 = threads.parse().expect("thread count should be a valid number");
+        // Should be at least 1 on any system (or 0 for auto-detect)
+        assert!(n >= 1, "Expected at least 1 thread, got {n}");
     }
 }

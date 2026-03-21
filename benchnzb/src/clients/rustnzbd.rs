@@ -188,6 +188,79 @@ impl RustnzbdClient {
         Ok(timing)
     }
 
+    /// Fetch internal metrics from the history API after job completion.
+    pub async fn get_internal_metrics(&self) -> Result<crate::runner::InternalMetrics> {
+        let history: serde_json::Value = self
+            .http
+            .get(format!("{}/api/history", self.url))
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        let mut metrics = crate::runner::InternalMetrics::default();
+
+        let entries = history["entries"].as_array().cloned().unwrap_or_default();
+        for entry in &entries {
+            // Server stats
+            if let Some(stats) = entry["server_stats"].as_array() {
+                for ss in stats {
+                    metrics.server_stats.push(crate::runner::ServerStat {
+                        server_name: ss["server_name"]
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string(),
+                        articles_downloaded: ss["articles_downloaded"].as_u64().unwrap_or(0),
+                        articles_failed: ss["articles_failed"].as_u64().unwrap_or(0),
+                        bytes_downloaded: ss["bytes_downloaded"].as_u64().unwrap_or(0),
+                    });
+                }
+            }
+
+            // Stage durations
+            if let Some(stages) = entry["stages"].as_array() {
+                for stage in stages {
+                    metrics.stage_durations.push(crate::runner::StageDuration {
+                        name: stage["name"].as_str().unwrap_or("").to_string(),
+                        status: stage["status"].as_str().unwrap_or("").to_string(),
+                        duration_secs: stage["duration_secs"].as_f64().unwrap_or(0.0),
+                        message: stage["message"].as_str().map(|s| s.to_string()),
+                    });
+                }
+            }
+
+            // Article totals from job data
+            let downloaded = entry["downloaded_bytes"].as_u64().unwrap_or(0);
+            let total_bytes = entry["total_bytes"].as_u64().unwrap_or(0);
+            metrics.articles_downloaded += downloaded;
+
+            // Calculate download throughput from timestamps
+            if let (Some(added), Some(completed)) = (
+                entry["added_at"].as_str(),
+                entry["completed_at"].as_str(),
+            ) {
+                if let (Ok(a), Ok(c)) = (
+                    chrono::DateTime::parse_from_rfc3339(added),
+                    chrono::DateTime::parse_from_rfc3339(completed),
+                ) {
+                    // Use stage timing to isolate download phase
+                    let pp_time: f64 = metrics
+                        .stage_durations
+                        .iter()
+                        .map(|s| s.duration_secs)
+                        .sum();
+                    let total_secs = (c - a).num_milliseconds() as f64 / 1000.0;
+                    let dl_secs = (total_secs - pp_time).max(0.1);
+                    metrics.download_throughput_mbps =
+                        total_bytes as f64 / dl_secs / (1024.0 * 1024.0);
+                }
+            }
+        }
+
+        Ok(metrics)
+    }
+
     pub async fn clear_all(&self) {
         // Delete queue
         let queue: serde_json::Value = match self
