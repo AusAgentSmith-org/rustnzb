@@ -548,6 +548,39 @@ impl Database {
         Ok(())
     }
 
+    /// Batch upsert RSS feed items in a single transaction.
+    /// Returns the number of newly inserted items.
+    pub fn rss_items_batch_upsert(&self, items: &[RssItem]) -> Result<usize, NzbError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let mut inserted = 0usize;
+        {
+            let mut stmt = tx.prepare_cached(
+                "INSERT OR IGNORE INTO rss_items (id, feed_name, title, url, published_at,
+                 first_seen_at, downloaded, downloaded_at, category, size_bytes)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            )?;
+            for item in items {
+                let rows = stmt.execute(params![
+                    item.id,
+                    item.feed_name,
+                    item.title,
+                    item.url,
+                    item.published_at.map(|d| d.to_rfc3339()),
+                    item.first_seen_at.to_rfc3339(),
+                    item.downloaded as i32,
+                    item.downloaded_at.map(|d| d.to_rfc3339()),
+                    item.category,
+                    item.size_bytes as i64,
+                ])?;
+                if rows > 0 {
+                    inserted += 1;
+                }
+            }
+        }
+        tx.commit()?;
+        Ok(inserted)
+    }
+
     /// Check if an RSS item ID already exists in the database.
     pub fn rss_item_exists(&self, id: &str) -> Result<bool, NzbError> {
         let count: i64 = self.conn.query_row(

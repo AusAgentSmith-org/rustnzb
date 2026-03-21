@@ -161,13 +161,18 @@ pub struct LogResponse {
 /// GET /api/queue -- List all jobs in the download queue.
 pub async fn h_queue_list(
     State(state): State<Arc<AppState>>,
-    Query(_q): Query<QueueQuery>,
+    Query(q): Query<QueueQuery>,
 ) -> Result<Json<QueueResponse>, ApiError> {
     let qm = &state.queue_manager;
-    let jobs = qm.get_jobs();
-    let total = jobs.len();
+    let all_jobs = qm.get_jobs();
+    let total = all_jobs.len();
     let speed_bps = qm.get_speed();
     let paused = qm.is_paused();
+
+    // Apply pagination (default: first 100 jobs)
+    let offset = q.offset.unwrap_or(0);
+    let limit = q.limit.unwrap_or(100);
+    let jobs: Vec<_> = all_jobs.into_iter().skip(offset).take(limit).collect();
 
     Ok(Json(QueueResponse {
         jobs,

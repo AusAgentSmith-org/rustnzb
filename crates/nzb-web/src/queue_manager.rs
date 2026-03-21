@@ -1370,6 +1370,12 @@ impl QueueManager {
         db.rss_item_upsert(item).map_err(Into::into)
     }
 
+    /// Batch upsert RSS feed items (single DB lock + transaction).
+    pub fn rss_items_batch_upsert(&self, items: &[RssItem]) -> nzb_core::Result<usize> {
+        let db = self.db.lock();
+        db.rss_items_batch_upsert(items).map_err(Into::into)
+    }
+
     /// Check if an RSS item exists.
     pub fn rss_item_exists(&self, id: &str) -> nzb_core::Result<bool> {
         let db = self.db.lock();
