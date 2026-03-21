@@ -17,7 +17,7 @@ RUN git clone --depth 1 https://github.com/animetosho/par2cmdline-turbo.git /tmp
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl p7zip-full libgomp1 \
+        ca-certificates curl p7zip-full \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/benchnzb /usr/local/bin/benchnzb
 COPY --from=builder /usr/local/bin/par2 /usr/local/bin/par2

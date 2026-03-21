@@ -244,6 +244,18 @@ async fn generate_par2(data_file: &Path, redundancy_pct: f64) -> Result<Vec<Path
 
     let redundancy = redundancy_pct as u32;
     let file_size_mb = tokio::fs::metadata(data_file).await?.len() / MB;
+
+    // Log par2 version on first call
+    let ver_output = tokio::process::Command::new("par2")
+        .arg("--version")
+        .output()
+        .await;
+    if let Ok(out) = ver_output {
+        let ver = String::from_utf8_lossy(&out.stdout);
+        let ver_line = ver.lines().next().unwrap_or("unknown");
+        tracing::info!("  par2 binary: {ver_line}");
+    }
+
     tracing::info!(
         "  Creating par2 ({}% redundancy) for {} ({} MB, timeout {}s)...",
         redundancy,
@@ -252,12 +264,12 @@ async fn generate_par2(data_file: &Path, redundancy_pct: f64) -> Result<Vec<Path
         PAR2_TIMEOUT_SECS
     );
 
-    // Spawn par2 with inherited stderr so progress is visible in logs
+    // Spawn par2 — par2cmdline-turbo auto-detects thread count
     use tokio::process::Command;
     let mut child = Command::new("par2")
-        .args(["create", &format!("-r{redundancy}"), &format!("-t{}", std::thread::available_parallelism().map_or(4, |n| n.get()))])
+        .args(["create", &format!("-r{redundancy}")])
         .arg(data_file)
-        .stdout(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
         .spawn()
         .map_err(|e| anyhow::anyhow!("Failed to spawn par2: {e}"))?;
