@@ -86,24 +86,25 @@ fn parse_blocks_available(stdout: &str) -> u32 {
         .unwrap_or(0)
 }
 
-/// Number of threads to use for par2 operations.
-fn thread_count() -> String {
-    std::thread::available_parallelism()
-        .map(|n| n.get().to_string())
-        .unwrap_or_else(|_| "0".to_string())
+/// Thread flag for par2 operations.
+/// par2cmdline-turbo requires `-tN` (no space), e.g. `-t4`.
+fn thread_arg() -> String {
+    let n = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(0);
+    format!("-t{n}")
 }
 
 /// Verify par2 integrity of files in a directory.
 pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
     let par2_bin = par2_sys::par2_bin_path();
-    let threads = thread_count();
+    let t_arg = thread_arg();
 
-    info!(file = %par2_file.display(), threads = %threads, "Running par2 verify");
+    info!(file = %par2_file.display(), threads = %t_arg, "Running par2 verify");
 
     let output = Command::new(par2_bin)
         .arg("verify")
-        .arg("-t")
-        .arg(&threads)
+        .arg(&t_arg)
         .arg(par2_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -113,7 +114,14 @@ pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let success = output.status.success();
 
-    debug!(exit_code = ?output.status.code(), "par2 verify completed");
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    debug!(
+        exit_code = ?output.status.code(),
+        stdout_len = stdout.len(),
+        stderr = %stderr,
+        "par2 verify completed"
+    );
 
     let (status, blocks_needed, blocks_available) = parse_par2_output(&stdout);
     info!(%status, blocks_needed, blocks_available, "par2 verify result");
@@ -135,14 +143,13 @@ pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
 /// is a single-pass alternative to calling verify + repair separately.
 pub async fn par2_repair(par2_file: &Path) -> anyhow::Result<Par2Result> {
     let par2_bin = par2_sys::par2_bin_path();
-    let threads = thread_count();
+    let t_arg = thread_arg();
 
-    info!(file = %par2_file.display(), threads = %threads, "Running par2 repair");
+    info!(file = %par2_file.display(), threads = %t_arg, "Running par2 repair");
 
     let output = Command::new(par2_bin)
         .arg("repair")
-        .arg("-t")
-        .arg(&threads)
+        .arg(&t_arg)
         .arg(par2_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -154,12 +161,21 @@ pub async fn par2_repair(par2_file: &Path) -> anyhow::Result<Par2Result> {
 
     let (status, blocks_needed, blocks_available) = parse_par2_output(&stdout);
 
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     let repaired = success || status == Par2Status::RepairComplete;
 
     if repaired {
         info!("par2 repair successful");
     } else {
-        warn!(%status, blocks_needed, blocks_available, "par2 repair failed");
+        warn!(
+            %status,
+            blocks_needed,
+            blocks_available,
+            exit_code = ?output.status.code(),
+            stderr = %stderr,
+            stdout_len = stdout.len(),
+            "par2 repair failed"
+        );
     }
 
     Ok(Par2Result {
