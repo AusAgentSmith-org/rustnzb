@@ -78,6 +78,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/queue/{id}/resume", post(handlers::h_queue_resume))
         .route("/queue/{id}/move", post(handlers::h_queue_move))
         .route("/queue/{id}/priority", put(handlers::h_queue_set_priority))
+        .route("/queue/{id}/category", put(handlers::h_queue_change_category))
+        .route("/queue/bulk", post(handlers::h_queue_bulk_action))
         .route("/queue/{id}", delete(handlers::h_queue_delete))
         // History
         .route("/history", get(handlers::h_history_list))
@@ -153,6 +155,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route(
             "/config/speed-limit",
             put(handlers::h_set_speed_limit),
+        )
+        .route(
+            "/browse-directory",
+            get(handlers::h_browse_directory),
         );
 
     // Arr-compatible API (Sonarr/Radarr)

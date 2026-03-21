@@ -264,18 +264,22 @@ impl QueueManager {
                 break;
             }
 
-            // Find the first queued job (in order)
+            // Find the highest-priority queued job (priority descending, then queue order)
             let next = {
                 let jobs = self.jobs.lock();
                 let order = self.job_order.lock();
-                order
-                    .iter()
-                    .find(|id| {
-                        jobs.get(*id)
-                            .map(|s| s.job.status == JobStatus::Queued)
-                            .unwrap_or(false)
-                    })
-                    .cloned()
+                let mut best: Option<(String, u8)> = None;
+                for id in order.iter() {
+                    if let Some(s) = jobs.get(id) {
+                        if s.job.status == JobStatus::Queued {
+                            let p = s.job.priority as u8;
+                            if best.as_ref().map_or(true, |(_, bp)| p > *bp) {
+                                best = Some((id.clone(), p));
+                            }
+                        }
+                    }
+                }
+                best.map(|(id, _)| id)
             };
 
             let Some(job_id) = next else { break };

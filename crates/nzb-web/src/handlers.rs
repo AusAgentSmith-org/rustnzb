@@ -1141,3 +1141,158 @@ fn get_disk_space_free(path: &std::path::Path) -> u64 {
 pub async fn h_health() -> Json<serde_json::Value> {
     Json(serde_json::json!({"status": "ok"}))
 }
+
+// ---------------------------------------------------------------------------
+// Directory browser
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, Default)]
+pub struct BrowseDirectoryQuery {
+    pub path: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct BrowseDirectoryResponse {
+    pub current: String,
+    pub parent: Option<String>,
+    pub directories: Vec<String>,
+}
+
+/// GET /api/browse-directory -- List subdirectories for the directory picker.
+pub async fn h_browse_directory(
+    Query(q): Query<BrowseDirectoryQuery>,
+) -> Result<Json<BrowseDirectoryResponse>, ApiError> {
+    let path = q
+        .path
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "/".to_string());
+    let dir = std::path::Path::new(&path);
+
+    if !dir.is_dir() {
+        return Err(ApiError::from(anyhow::anyhow!(
+            "Not a directory: {}",
+            path
+        )));
+    }
+
+    let parent = dir.parent().map(|p| p.to_string_lossy().to_string());
+
+    let mut directories = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if let Ok(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    if let Some(name) = entry.file_name().to_str() {
+                        // Skip hidden directories
+                        if !name.starts_with('.') {
+                            directories
+                                .push(entry.path().to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    directories.sort();
+
+    Ok(Json(BrowseDirectoryResponse {
+        current: dir.to_string_lossy().to_string(),
+        parent,
+        directories,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Queue category change
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct ChangeCategoryBody {
+    pub category: String,
+}
+
+/// PUT /api/queue/{id}/category -- Change a job's category.
+pub async fn h_queue_change_category(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<ChangeCategoryBody>,
+) -> Result<Json<SimpleResponse>, ApiError> {
+    state
+        .queue_manager
+        .change_job_category(&id, &body.category)
+        .map_err(ApiError::from)?;
+    Ok(Json(SimpleResponse { status: true }))
+}
+
+// ---------------------------------------------------------------------------
+// Bulk queue operations
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct BulkActionBody {
+    pub ids: Vec<String>,
+    pub action: String,
+    /// Optional value for priority (int) or category (string).
+    pub value: Option<serde_json::Value>,
+}
+
+#[derive(Serialize)]
+pub struct BulkActionResponse {
+    pub status: bool,
+    pub succeeded: usize,
+    pub failed: usize,
+}
+
+/// POST /api/queue/bulk -- Perform an action on multiple jobs.
+pub async fn h_queue_bulk_action(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<BulkActionBody>,
+) -> Result<Json<BulkActionResponse>, ApiError> {
+    let qm = &state.queue_manager;
+    let mut succeeded = 0usize;
+    let mut failed = 0usize;
+
+    for id in &body.ids {
+        let result = match body.action.as_str() {
+            "pause" => qm.pause_job(id),
+            "resume" => qm.resume_job(id),
+            "delete" => qm.remove_job(id),
+            "priority" => {
+                let p = body
+                    .value
+                    .as_ref()
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(1) as i32;
+                let priority = match p {
+                    0 => Priority::Low,
+                    2 => Priority::High,
+                    3 => Priority::Force,
+                    _ => Priority::Normal,
+                };
+                qm.set_job_priority(id, priority)
+            }
+            "category" => {
+                let cat = body
+                    .value
+                    .as_ref()
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                qm.change_job_category(id, cat)
+            }
+            _ => Err(nzb_core::NzbError::Other(format!(
+                "Unknown action: {}",
+                body.action
+            ))),
+        };
+        match result {
+            Ok(_) => succeeded += 1,
+            Err(_) => failed += 1,
+        }
+    }
+
+    Ok(Json(BulkActionResponse {
+        status: failed == 0,
+        succeeded,
+        failed,
+    }))
+}

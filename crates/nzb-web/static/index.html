@@ -232,17 +232,17 @@ select.priority-low { background: rgba(160,160,184,0.08); color: var(--text-mute
 
 /* ===== Log viewer ===== */
 .log-viewer { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.8rem; height: 500px; overflow-y: auto; padding: 0; }
-.log-line { padding: 2px 12px; border-bottom: 1px solid rgba(42,58,94,0.3); display: flex; gap: 8px; white-space: nowrap; }
+.log-line { padding: 2px 12px; border-bottom: 1px solid rgba(42,58,94,0.3); display: flex; gap: 8px; flex-wrap: wrap; }
 .log-line:hover { background: rgba(78,168,222,0.05); }
-.log-ts { color: var(--text-muted); min-width: 80px; }
-.log-lvl { min-width: 50px; font-weight: 600; }
+.log-ts { color: var(--text-muted); min-width: 80px; white-space: nowrap; }
+.log-lvl { min-width: 50px; font-weight: 600; white-space: nowrap; }
 .log-lvl.ERROR { color: var(--red); }
 .log-lvl.WARN { color: var(--yellow); }
 .log-lvl.INFO { color: var(--accent); }
 .log-lvl.DEBUG { color: var(--text-muted); }
 .log-lvl.TRACE { color: var(--text-muted); }
 .log-target { color: var(--text-muted); min-width: 100px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
-.log-msg { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.log-msg { color: var(--text-primary); flex: 1; min-width: 200px; word-break: break-word; white-space: pre-wrap; }
 .log-job { color: var(--purple); font-size: 0.75rem; }
 .log-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .log-controls select, .log-controls input { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-input); color: var(--text-primary); font-size: 0.85rem; }
@@ -266,6 +266,15 @@ select.priority-low { background: rgba(160,160,184,0.08); color: var(--text-mute
 /* ===== Keyboard hint ===== */
 .kbd-hint { position: fixed; bottom: 8px; left: 24px; font-size: 0.7rem; color: var(--text-muted); z-index: 50; }
 kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-secondary); font-size: 0.7rem; font-family: inherit; }
+
+/* ===== Directory browser ===== */
+.dir-item { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(42,58,94,0.3); font-size: 0.85rem; color: var(--text-primary); }
+.dir-item:last-child { border-bottom: none; }
+.dir-item:hover { background: rgba(78,168,222,0.08); }
+.dir-icon { color: var(--accent); font-size: 1rem; }
+.setting-row-browse { display: flex; gap: 8px; align-items: center; flex: 1; max-width: 320px; }
+.setting-row-browse input { flex: 1; }
+.btn-browse { padding: 6px 10px; font-size: 0.8rem; white-space: nowrap; }
 
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
@@ -379,10 +388,27 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
         </span>
       </div>
     </div>
+    <div id="bulk-actions-bar" style="display:none;background:var(--bg-tertiary);border:1px solid var(--accent);border-radius:var(--radius);padding:8px 16px;margin-bottom:12px;display:none;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:0.85rem;color:var(--accent);font-weight:600;" id="bulk-count">0 selected</span>
+      <button class="btn btn-sm" onclick="window._bulkAction('pause')">Pause</button>
+      <button class="btn btn-sm" onclick="window._bulkAction('resume')">Resume</button>
+      <button class="btn btn-sm btn-danger" onclick="window._bulkAction('delete')">Delete</button>
+      <select id="bulk-priority" class="priority-select" style="font-size:0.8rem;padding:4px 8px;">
+        <option value="">Set Priority...</option>
+        <option value="0">Low</option>
+        <option value="1">Normal</option>
+        <option value="2">High</option>
+        <option value="3">Force</option>
+      </select>
+      <select id="bulk-category" class="priority-select" style="font-size:0.8rem;padding:4px 8px;">
+        <option value="">Set Category...</option>
+      </select>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
+            <th style="width:30px;"><input type="checkbox" id="queue-select-all" title="Select all"></th>
             <th style="width:30px;"></th>
             <th>Name</th>
             <th>Status</th>
@@ -395,7 +421,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
           </tr>
         </thead>
         <tbody id="queue-body">
-          <tr><td colspan="9" class="table-empty">Queue is empty</td></tr>
+          <tr><td colspan="10" class="table-empty">Queue is empty</td></tr>
         </tbody>
       </table>
     </div>
@@ -635,7 +661,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
 
 <!-- ===== Files/Logs Modal ===== -->
 <div class="modal-overlay" id="modal-files">
-  <div class="modal" style="max-width:700px;">
+  <div class="modal" style="max-width:900px;width:95%;">
     <h2 id="files-modal-title">Files</h2>
     <div class="modal-tabs">
       <button class="modal-tab active" data-mtab="files">Files</button>
@@ -649,7 +675,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
       <div id="job-stats-content"></div>
     </div>
     <div class="modal-tab-content" id="mtab-job-logs">
-      <div class="log-viewer" id="job-log-viewer" style="height:300px;"></div>
+      <div class="log-viewer" id="job-log-viewer" style="height:60vh;max-height:600px;min-height:300px;"></div>
     </div>
     <div class="modal-actions">
       <button class="btn" id="btn-files-close">Close</button>
@@ -749,6 +775,22 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
   </div>
 </div>
 
+<!-- ===== Directory Browser Modal ===== -->
+<div class="modal-overlay" id="modal-dir-browser">
+  <div class="modal" style="max-width:560px;">
+    <h2>Browse Directory</h2>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+      <button class="btn btn-sm" id="dir-browser-up" title="Parent directory">&#8679; Up</button>
+      <div id="dir-browser-current" style="flex:1;font-size:0.85rem;color:var(--text-secondary);word-break:break-all;"></div>
+    </div>
+    <div id="dir-browser-list" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-card);"></div>
+    <div class="modal-actions">
+      <button class="btn" id="dir-browser-cancel">Cancel</button>
+      <button class="btn btn-primary" id="dir-browser-select">Select This Directory</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Page drag-and-drop overlay ===== -->
 <div class="page-drop-overlay" id="page-drop-overlay">
   <div class="page-drop-overlay-text">Drop NZB file to upload</div>
@@ -776,6 +818,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
   var maxSpeedSeen = 1;
   var logLastSeq = 0;
   var currentJobIdForModal = null;
+  var cachedCategories = [];
 
   // ---- Utilities ----
   function formatBytes(bytes) {
@@ -934,6 +977,8 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
   var currentQueueSpeed = 0;
   function fetchQueue() {
     api('GET', '/api/queue').then(function(d) { renderQueue(d); detectCompletions(d); }).catch(function(){});
+    // Refresh categories cache periodically for the inline dropdown
+    api('GET', '/api/config/categories').then(function(cats) { cachedCategories = cats || []; }).catch(function(){});
   }
   function detectCompletions(d) {
     var cur = {}; var jobs = d.jobs || [];
@@ -953,7 +998,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
     var jobs = d.jobs || [], speed = d.speed_bps || 0;
     currentQueueSpeed = speed;
     document.getElementById('queue-speed').textContent = formatSpeed(speed);
-    if (jobs.length === 0) { tbody.innerHTML = '<tr><td colspan="9" class="table-empty">Queue is empty</td></tr>'; return; }
+    if (jobs.length === 0) { tbody.innerHTML = '<tr><td colspan="10" class="table-empty">Queue is empty</td></tr>'; updateBulkBar(); return; }
     var html = '';
     for (var i = 0; i < jobs.length; i++) {
       var j = jobs[i], pct = j.total_bytes > 0 ? Math.round((j.downloaded_bytes/j.total_bytes)*100) : 0;
@@ -964,6 +1009,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
       var arts = (j.articles_downloaded||0)+'/'+(j.article_count||0);
 
       html += '<tr data-job-id="'+esc(j.id)+'">' +
+        '<td><input type="checkbox" class="queue-row-cb" value="'+esc(j.id)+'" onchange="updateBulkBar()"></td>' +
         '<td><div class="actions" style="flex-direction:column;gap:2px;">' +
           (i>0?'<button class="btn btn-sm btn-icon" title="Move up" onclick="window._queueMoveUp(\''+j.id+'\')" style="font-size:0.6rem;padding:2px 6px;">&#9650;</button>':'<div style="height:22px;"></div>') +
           (i<jobs.length-1?'<button class="btn btn-sm btn-icon" title="Move down" onclick="window._queueMoveDown(\''+j.id+'\')" style="font-size:0.6rem;padding:2px 6px;">&#9660;</button>':'<div style="height:22px;"></div>') +
@@ -983,7 +1029,10 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
         '</div></td>' +
         '<td><span class="speed-value" style="font-size:0.85rem;">'+(isActive && jobSpd > 0 ? formatSpeed(jobSpd) : '--')+'</span></td>' +
         '<td>'+formatBytes(j.total_bytes)+'</td>' +
-        '<td class="col-hide-mobile">'+esc(j.category||'--')+'</td>' +
+        '<td class="col-hide-mobile"><select class="priority-select priority-normal" onchange="window._changeCategory(\''+j.id+'\', this.value)" style="min-width:80px;">' +
+          '<option value=""'+(!(j.category)?' selected':'')+'>Default</option>' +
+          (function(){ var co=''; for(var ci=0;ci<cachedCategories.length;ci++){co+='<option value="'+esc(cachedCategories[ci].name)+'"'+((j.category||'')===cachedCategories[ci].name?' selected':'')+'>'+esc(cachedCategories[ci].name)+'</option>';} return co; })() +
+        '</select></td>' +
         '<td class="col-hide-mobile"><select class="priority-select priority-'+(j.priority||'normal')+'" onchange="window._changePriority(\''+j.id+'\', this.value, this)">' +
           '<option value="0"'+((j.priority||'normal')==='low'?' selected':'')+'>Low</option>' +
           '<option value="1"'+((j.priority||'normal')==='normal'?' selected':'')+'>Normal</option>' +
@@ -1005,6 +1054,11 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
   window._changePriority = function(id, newPriority, el) {
     api('PUT', '/api/queue/' + id + '/priority', { priority: parseInt(newPriority) })
       .then(function() { notify('Priority updated'); fetchQueue(); })
+      .catch(function(e) { notify('Error: ' + e.message, 'error'); });
+  };
+  window._changeCategory = function(id, newCategory) {
+    api('PUT', '/api/queue/' + id + '/category', { category: newCategory })
+      .then(function() { notify('Category updated'); fetchQueue(); })
       .catch(function(e) { notify('Error: ' + e.message, 'error'); });
   };
   window._queueMoveUp = function(id) {
@@ -1256,14 +1310,30 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
 
   // Auto health-check on load
   var _serversHealthChecked = false;
-  function checkServersHealth() {
+  function checkServersHealth(showNotifications) {
     api('GET', '/api/config/servers/health').then(function(results) {
+      var okCount = 0, failCount = 0;
       for (var i = 0; i < results.length; i++) {
-        serverHealth[results[i].id] = { success: results[i].success, message: results[i].message };
+        var r = results[i];
+        serverHealth[r.id] = { success: r.success, message: r.message };
+        if (showNotifications && r.message !== 'Disabled') {
+          if (r.success) okCount++; else failCount++;
+        }
+      }
+      if (showNotifications) {
+        if (failCount === 0 && okCount > 0) notify(okCount + ' server(s) OK', 'success');
+        else if (failCount > 0) {
+          notify(failCount + ' server(s) failed, ' + okCount + ' OK', 'error');
+          for (var j = 0; j < results.length; j++) {
+            if (!results[j].success && results[j].message !== 'Disabled') {
+              notify(results[j].name + ': ' + results[j].message, 'error');
+            }
+          }
+        }
       }
       // Re-render if servers tab is visible
       api('GET', '/api/config/servers').then(function(s) { renderServers(s); }).catch(function(){});
-    }).catch(function(){});
+    }).catch(function(e){ if (showNotifications) notify('Health check failed: ' + e.message, 'error'); });
   }
 
   // Server modal
@@ -1379,7 +1449,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
   // Test All servers button
   document.getElementById('btn-test-all-servers').addEventListener('click', function() {
     notify('Testing all servers...','info');
-    checkServersHealth();
+    checkServersHealth(true);
   });
 
   // ---- Categories ----
@@ -1541,7 +1611,11 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
     var grid = document.getElementById('settings-grid');
     var g = config.general || {};
 
-    function inp(id, val, placeholder) {
+    function inp(id, val, placeholder, browsable) {
+      if (browsable) {
+        return '<div class="setting-row-browse"><input type="text" id="'+id+'" value="'+esc(val||'')+'" placeholder="'+(placeholder||'')+'" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;">'+
+          '<button class="btn btn-sm btn-browse" onclick="window._browseDir(\''+id+'\')">Browse</button></div>';
+      }
       return '<div class="setting-input"><input type="text" id="'+id+'" value="'+esc(val||'')+'" placeholder="'+(placeholder||'')+'"></div>';
     }
     function sel(id, options, curVal) {
@@ -1560,10 +1634,10 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
 
     var html = '<div class="settings-form">' +
       '<div class="settings-section"><div class="settings-section-title">Directories</div>'+
-        '<div class="setting-row"><span class="setting-label">Incomplete Dir</span>'+inp('set-incomplete-dir', g.incomplete_dir, '/path/to/incomplete')+'</div>'+
-        '<div class="setting-row"><span class="setting-label">Complete Dir</span>'+inp('set-complete-dir', g.complete_dir, '/path/to/complete')+'</div>'+
-        '<div class="setting-row"><span class="setting-label">Data Dir</span>'+inp('set-data-dir', g.data_dir, '/path/to/data')+'</div>'+
-        '<div class="setting-row"><span class="setting-label">Watch Directory</span>'+inp('set-watch-dir', g.watch_dir || '', '/path/to/watch (optional)')+'</div>'+
+        '<div class="setting-row"><span class="setting-label">Incomplete Dir</span>'+inp('set-incomplete-dir', g.incomplete_dir, '/path/to/incomplete', true)+'</div>'+
+        '<div class="setting-row"><span class="setting-label">Complete Dir</span>'+inp('set-complete-dir', g.complete_dir, '/path/to/complete', true)+'</div>'+
+        '<div class="setting-row"><span class="setting-label">Data Dir</span>'+inp('set-data-dir', g.data_dir, '/path/to/data', true)+'</div>'+
+        '<div class="setting-row"><span class="setting-label">Watch Directory</span>'+inp('set-watch-dir', g.watch_dir || '', '/path/to/watch (optional)', true)+'</div>'+
       '</div>'+
       '<div class="settings-section"><div class="settings-section-title">Performance</div>'+
         '<div class="setting-row"><span class="setting-label">Concurrent Downloads</span>'+
@@ -1731,8 +1805,135 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
 
   // ---- Keyboard shortcuts ----
   document.addEventListener('keydown', function(e) {
-    if(e.key==='Escape'){modalEl.classList.remove('active');document.getElementById('modal-files').classList.remove('active');document.getElementById('modal-server').classList.remove('active');addUrlModal.classList.remove('active');document.getElementById('modal-category').classList.remove('active');document.getElementById('modal-rss').classList.remove('active');}
+    if(e.key==='Escape'){modalEl.classList.remove('active');document.getElementById('modal-files').classList.remove('active');document.getElementById('modal-server').classList.remove('active');addUrlModal.classList.remove('active');document.getElementById('modal-category').classList.remove('active');document.getElementById('modal-rss').classList.remove('active');document.getElementById('modal-dir-browser').classList.remove('active');}
     if(e.key===' '&&e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'&&e.target.tagName!=='SELECT'){e.preventDefault();if(globalPaused)document.getElementById('btn-resume-all').click();else{api('POST','/api/queue/pause').then(function(){globalPaused=true;notify('All paused');fetchQueue();}).catch(function(e){notify('Error: '+e.message,'error');});}}
+  });
+
+  // ---- Bulk Actions ----
+  function getSelectedJobIds() {
+    var ids = [];
+    document.querySelectorAll('.queue-row-cb:checked').forEach(function(cb) { ids.push(cb.value); });
+    return ids;
+  }
+
+  window.updateBulkBar = function() {
+    var ids = getSelectedJobIds();
+    var bar = document.getElementById('bulk-actions-bar');
+    if (ids.length > 0) {
+      bar.style.display = 'flex';
+      document.getElementById('bulk-count').textContent = ids.length + ' selected';
+      // Update bulk category dropdown
+      var bCat = document.getElementById('bulk-category');
+      var curVal = bCat.value;
+      bCat.innerHTML = '<option value="">Set Category...</option>';
+      for (var i = 0; i < cachedCategories.length; i++) bCat.innerHTML += '<option value="'+esc(cachedCategories[i].name)+'">'+esc(cachedCategories[i].name)+'</option>';
+      bCat.value = curVal;
+    } else {
+      bar.style.display = 'none';
+    }
+    // Sync select-all checkbox
+    var allCbs = document.querySelectorAll('.queue-row-cb');
+    var allEl = document.getElementById('queue-select-all');
+    if (allEl) allEl.checked = allCbs.length > 0 && ids.length === allCbs.length;
+  };
+
+  document.getElementById('queue-select-all').addEventListener('change', function() {
+    var checked = this.checked;
+    document.querySelectorAll('.queue-row-cb').forEach(function(cb) { cb.checked = checked; });
+    updateBulkBar();
+  });
+
+  window._bulkAction = function(action) {
+    var ids = getSelectedJobIds();
+    if (ids.length === 0) return;
+    if (action === 'delete' && !confirm('Delete ' + ids.length + ' selected job(s)?')) return;
+    api('POST', '/api/queue/bulk', { ids: ids, action: action })
+      .then(function(r) { notify(r.succeeded + ' job(s) ' + action + 'd', 'success'); fetchQueue(); })
+      .catch(function(e) { notify('Error: ' + e.message, 'error'); });
+  };
+
+  document.getElementById('bulk-priority').addEventListener('change', function() {
+    var val = this.value;
+    if (val === '') return;
+    var ids = getSelectedJobIds();
+    if (ids.length === 0) return;
+    api('POST', '/api/queue/bulk', { ids: ids, action: 'priority', value: parseInt(val) })
+      .then(function(r) { notify(r.succeeded + ' job(s) priority updated', 'success'); fetchQueue(); })
+      .catch(function(e) { notify('Error: ' + e.message, 'error'); });
+    this.value = '';
+  });
+
+  document.getElementById('bulk-category').addEventListener('change', function() {
+    var val = this.value;
+    if (val === '') return;
+    var ids = getSelectedJobIds();
+    if (ids.length === 0) return;
+    api('POST', '/api/queue/bulk', { ids: ids, action: 'category', value: val })
+      .then(function(r) { notify(r.succeeded + ' job(s) category updated', 'success'); fetchQueue(); })
+      .catch(function(e) { notify('Error: ' + e.message, 'error'); });
+    this.value = '';
+  });
+
+  // ---- Directory Browser ----
+  var _dirBrowserTargetInput = null;
+  var _dirBrowserCurrent = '/';
+
+  window._browseDir = function(inputId) {
+    _dirBrowserTargetInput = inputId;
+    var curVal = document.getElementById(inputId).value.trim();
+    _dirBrowserCurrent = curVal || '/';
+    loadDirBrowser(_dirBrowserCurrent);
+    document.getElementById('modal-dir-browser').classList.add('active');
+  };
+
+  function loadDirBrowser(path) {
+    var list = document.getElementById('dir-browser-list');
+    var curEl = document.getElementById('dir-browser-current');
+    list.innerHTML = '<div style="padding:16px;color:var(--text-muted);">Loading...</div>';
+    curEl.textContent = path;
+    api('GET', '/api/browse-directory?path=' + encodeURIComponent(path)).then(function(d) {
+      _dirBrowserCurrent = d.current;
+      curEl.textContent = d.current;
+      if (d.directories.length === 0) {
+        list.innerHTML = '<div style="padding:16px;color:var(--text-muted);">No subdirectories</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < d.directories.length; i++) {
+        var dirPath = d.directories[i];
+        var dirName = dirPath.split('/').pop() || dirPath;
+        html += '<div class="dir-item" data-path="'+esc(dirPath)+'"><span class="dir-icon">&#128193;</span>'+esc(dirName)+'</div>';
+      }
+      list.innerHTML = html;
+      list.querySelectorAll('.dir-item').forEach(function(el) {
+        el.addEventListener('click', function() { loadDirBrowser(this.dataset.path); });
+      });
+    }).catch(function(e) {
+      list.innerHTML = '<div style="padding:16px;color:var(--red);">'+esc(e.message)+'</div>';
+    });
+  }
+
+  document.getElementById('dir-browser-up').addEventListener('click', function() {
+    var parts = _dirBrowserCurrent.replace(/\/+$/, '').split('/');
+    if (parts.length > 1) {
+      parts.pop();
+      var parent = parts.join('/') || '/';
+      loadDirBrowser(parent);
+    }
+  });
+
+  document.getElementById('dir-browser-select').addEventListener('click', function() {
+    if (_dirBrowserTargetInput) {
+      document.getElementById(_dirBrowserTargetInput).value = _dirBrowserCurrent;
+    }
+    document.getElementById('modal-dir-browser').classList.remove('active');
+  });
+
+  document.getElementById('dir-browser-cancel').addEventListener('click', function() {
+    document.getElementById('modal-dir-browser').classList.remove('active');
+  });
+  document.getElementById('modal-dir-browser').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('active');
   });
 
   // ---- Polling ----
