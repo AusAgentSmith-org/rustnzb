@@ -142,6 +142,11 @@ tbody tr:hover { background: rgba(78,168,222,0.05); }
 .priority-high { background: rgba(255,152,0,0.15); color: var(--orange); }
 .priority-normal { background: rgba(160,160,184,0.1); color: var(--text-muted); }
 .priority-low { background: rgba(160,160,184,0.08); color: var(--text-muted); }
+.priority-select { font-size: 0.75rem; padding: 1px 4px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; appearance: auto; }
+select.priority-force { background: rgba(244,67,54,0.15); color: var(--red); border-color: rgba(244,67,54,0.3); }
+select.priority-high { background: rgba(255,152,0,0.15); color: var(--orange); border-color: rgba(255,152,0,0.3); }
+select.priority-normal { background: rgba(160,160,184,0.1); color: var(--text-muted); border-color: var(--border); }
+select.priority-low { background: rgba(160,160,184,0.08); color: var(--text-muted); border-color: var(--border); }
 
 /* ===== Server Cards ===== */
 .server-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
@@ -782,7 +787,12 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
         '<td><span class="speed-value" style="font-size:0.85rem;">'+(isActive && jobSpd > 0 ? formatSpeed(jobSpd) : '--')+'</span></td>' +
         '<td>'+formatBytes(j.total_bytes)+'</td>' +
         '<td class="col-hide-mobile">'+esc(j.category||'--')+'</td>' +
-        '<td class="col-hide-mobile"><span class="badge badge-priority priority-'+(j.priority||'normal')+'">'+pl(j.priority)+'</span></td>' +
+        '<td class="col-hide-mobile"><select class="priority-select priority-'+(j.priority||'normal')+'" onchange="window._changePriority(\''+j.id+'\', this.value, this)">' +
+          '<option value="0"'+((j.priority||'normal')==='low'?' selected':'')+'>Low</option>' +
+          '<option value="1"'+((j.priority||'normal')==='normal'?' selected':'')+'>Normal</option>' +
+          '<option value="2"'+((j.priority||'normal')==='high'?' selected':'')+'>High</option>' +
+          '<option value="3"'+((j.priority||'normal')==='force'?' selected':'')+'>Force</option>' +
+        '</select></td>' +
         '<td><div class="actions">' +
           (isPaused ? '<button class="btn btn-sm btn-icon" title="Resume" onclick="window._queueResume(\''+j.id+'\')">&#9654;</button>' :
            (isActive ? '<button class="btn btn-sm btn-icon" title="Pause" onclick="window._queuePause(\''+j.id+'\')">&#10074;&#10074;</button>' : '')) +
@@ -795,6 +805,11 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
   window._queuePause = function(id) { api('POST','/api/queue/'+id+'/pause').then(function(){ notify('Job paused'); fetchQueue(); }).catch(function(e){ notify('Error: '+e.message,'error'); }); };
   window._queueResume = function(id) { api('POST','/api/queue/'+id+'/resume').then(function(){ notify('Job resumed'); fetchQueue(); }).catch(function(e){ notify('Error: '+e.message,'error'); }); };
   window._queueDelete = function(id) { if(!confirm('Remove this job?')) return; api('DELETE','/api/queue/'+id).then(function(){ notify('Job removed'); fetchQueue(); }).catch(function(e){ notify('Error: '+e.message,'error'); }); };
+  window._changePriority = function(id, newPriority, el) {
+    api('PUT', '/api/queue/' + id + '/priority', { priority: parseInt(newPriority) })
+      .then(function() { notify('Priority updated'); fetchQueue(); })
+      .catch(function(e) { notify('Error: ' + e.message, 'error'); });
+  };
   window._queueMoveUp = function(id) { notify('Reorder not yet supported','info'); };
   window._queueMoveDown = function(id) { notify('Reorder not yet supported','info'); };
 

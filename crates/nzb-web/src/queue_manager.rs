@@ -689,6 +689,19 @@ impl QueueManager {
     // Job control
     // -----------------------------------------------------------------------
 
+    /// Change the priority of a specific job.
+    pub fn set_job_priority(&self, id: &str, priority: Priority) -> nzb_core::Result<()> {
+        let mut jobs = self.jobs.lock();
+        let job_state = jobs
+            .get_mut(id)
+            .ok_or_else(|| nzb_core::NzbError::JobNotFound(id.to_string()))?;
+        job_state.job.priority = priority;
+        let db = self.db.lock();
+        db.queue_update_priority(id, priority as i32)?;
+        info!(job_id = %id, ?priority, "Job priority changed");
+        Ok(())
+    }
+
     /// Pause a specific job.
     pub fn pause_job(&self, id: &str) -> nzb_core::Result<()> {
         let mut jobs = self.jobs.lock();
