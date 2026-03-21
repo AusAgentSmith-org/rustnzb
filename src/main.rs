@@ -37,6 +37,10 @@ struct Args {
     /// Log file path
     #[arg(long, env = "RUSTNZBD_LOG_FILE")]
     log_file: Option<PathBuf>,
+
+    /// Run smoke tests to verify external tools (par2, unrar, 7z) work, then exit
+    #[arg(long)]
+    smoke_test: bool,
 }
 
 fn init_otel_logging(
@@ -96,6 +100,95 @@ fn init_otel_metrics(
     Some(provider)
 }
 
+/// Verify that all external tools work in the current environment.
+/// Returns 0 on success, 1 on failure.
+fn run_smoke_tests() -> i32 {
+    use std::process::Command;
+
+    let mut passed = 0u32;
+    let mut failed = 0u32;
+
+    // --- par2cmdline-turbo (embedded) ---
+    print!("par2cmdline-turbo ... ");
+    match std::panic::catch_unwind(|| par2_sys::par2_bin_path().to_path_buf()) {
+        Ok(par2_path) => {
+            match Command::new(&par2_path).arg("--help").output() {
+                Ok(output) => {
+                    let text = format!(
+                        "{}{}",
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr),
+                    );
+                    if text.contains("par2") || text.contains("PAR") {
+                        println!("OK ({})", par2_path.display());
+                        passed += 1;
+                    } else {
+                        println!("FAIL - ran but output unexpected: {text}");
+                        failed += 1;
+                    }
+                }
+                Err(e) => {
+                    println!("FAIL - could not execute {}: {e}", par2_path.display());
+                    failed += 1;
+                }
+            }
+        }
+        Err(_) => {
+            println!("FAIL - could not extract embedded binary");
+            failed += 1;
+        }
+    }
+
+    // --- unrar ---
+    print!("unrar           ... ");
+    match Command::new("unrar").output() {
+        Ok(output) => {
+            let text = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+            if text.to_lowercase().contains("unrar") {
+                println!("OK");
+                passed += 1;
+            } else {
+                println!("FAIL - ran but output unexpected");
+                failed += 1;
+            }
+        }
+        Err(e) => {
+            println!("FAIL - {e}");
+            failed += 1;
+        }
+    }
+
+    // --- 7z ---
+    print!("7z              ... ");
+    match Command::new("7z").output() {
+        Ok(output) => {
+            let text = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+            if text.contains("7-Zip") {
+                println!("OK");
+                passed += 1;
+            } else {
+                println!("FAIL - ran but output unexpected");
+                failed += 1;
+            }
+        }
+        Err(e) => {
+            println!("FAIL - {e}");
+            failed += 1;
+        }
+    }
+
+    println!("\n{passed} passed, {failed} failed");
+    if failed > 0 { 1 } else { 0 }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Install the rustls crypto provider before any TLS operations.
@@ -104,6 +197,10 @@ async fn main() -> anyhow::Result<()> {
         .expect("Failed to install rustls CryptoProvider");
 
     let args = Args::parse();
+
+    if args.smoke_test {
+        std::process::exit(run_smoke_tests());
+    }
 
     // Create the log buffer for the GUI
     let log_buffer = LogBuffer::new();

@@ -92,6 +92,7 @@ nzb-nntp = { workspace = true }
 rustls = { workspace = true }
 nzb-decode = { workspace = true }
 nzb-postproc = { workspace = true }
+par2-sys = { path = "crates/par2-sys" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

@@ -57,9 +57,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
+  container-test:
     runs-on: [self-hosted, node-b]
     needs: build-and-publish
+
+    steps:
+      - name: Smoke test - external tools work in runtime image
+        run: |
+          set -e
+          IMAGE="ghcr.io/ausagentsmith/rustnzbd:${{ github.sha }}"
+          echo "==> Pulling image ${IMAGE}..."
+          docker pull "${IMAGE}"
+          echo "==> Running smoke tests inside container..."
+          docker run --rm "${IMAGE}" --smoke-test
+
+  deploy:
+    runs-on: [self-hosted, node-b]
+    needs: [build-and-publish, container-test]
 
     steps:
       - name: Deploy
