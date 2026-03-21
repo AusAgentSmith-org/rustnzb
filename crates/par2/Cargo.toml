@@ -11,3 +11,9 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+par2-sys = { workspace = true }
+rand = { workspace = true }
+
+[[example]]
+name = "par2_bench"
+required-features = []
