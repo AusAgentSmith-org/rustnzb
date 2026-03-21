@@ -9,6 +9,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
+par2-sys = { workspace = true }
 regex = { workspace = true }
 walkdir = { workspace = true }
 zip = "2"

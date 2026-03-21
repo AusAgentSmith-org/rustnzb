@@ -1,7 +1,8 @@
-//! Par2 verification and repair via external binary.
+//! Par2 verification and repair via bundled par2cmdline-turbo binary.
 //!
-//! We shell out to the `par2` command-line tool.
-//! Output is parsed to determine success/failure and block counts.
+//! The binary is downloaded at build time by the `par2-sys` crate and is
+//! guaranteed to be par2cmdline-turbo with SIMD and multi-threading support.
+//! No system-installed `par2` binary is required.
 
 use std::path::Path;
 use std::process::Stdio;
@@ -69,7 +70,6 @@ pub fn parse_par2_output(stdout: &str) -> (Par2Status, u32, u32) {
 
 /// Extract "You need N more recovery blocks" from par2 output.
 fn parse_blocks_needed(stdout: &str) -> u32 {
-    // Pattern: "You need N more recovery blocks"
     let re = Regex::new(r"You need (\d+) more recovery block").unwrap();
     re.captures(stdout)
         .and_then(|c| c.get(1))
@@ -79,8 +79,6 @@ fn parse_blocks_needed(stdout: &str) -> u32 {
 
 /// Extract available recovery block count from par2 output.
 fn parse_blocks_available(stdout: &str) -> u32 {
-    // Pattern: "There are N recovery blocks available"
-    // or:      "You have N out of N recovery blocks available"
     let re = Regex::new(r"(\d+) recovery blocks? available").unwrap();
     re.captures(stdout)
         .and_then(|c| c.get(1))
@@ -88,81 +86,24 @@ fn parse_blocks_available(stdout: &str) -> u32 {
         .unwrap_or(0)
 }
 
-/// Find the par2 binary on the system.
-pub fn find_par2() -> Option<String> {
-    // Check common locations
-    for name in &["par2", "par2repair", "phpar2"] {
-        if which_exists(name) {
-            return Some(name.to_string());
-        }
-    }
-    None
-}
-
-/// Detect whether the installed par2 binary supports the `-t` (threads) flag.
-/// par2cmdline-turbo supports it; vanilla par2cmdline does not.
-/// Result is cached after first probe.
-fn supports_threads() -> bool {
-    use std::sync::OnceLock;
-    static SUPPORTS: OnceLock<bool> = OnceLock::new();
-    *SUPPORTS.get_or_init(|| {
-        let Some(bin) = find_par2() else {
-            return false;
-        };
-        // Run `par2 --help` and check for thread-related flags
-        let output = std::process::Command::new(&bin)
-            .arg("--help")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output();
-        match output {
-            Ok(out) => {
-                let combined = format!(
-                    "{}{}",
-                    String::from_utf8_lossy(&out.stdout),
-                    String::from_utf8_lossy(&out.stderr),
-                );
-                let supported = combined.contains("-t<n>")
-                    || combined.contains("-t <")
-                    || combined.contains("number of threads")
-                    || combined.contains("par2cmdline-turbo");
-                if supported {
-                    tracing::info!("par2 binary supports -t (multi-threaded)");
-                } else {
-                    tracing::info!("par2 binary does not support -t (vanilla par2cmdline)");
-                }
-                supported
-            }
-            Err(_) => false,
-        }
-    })
-}
-
-/// Build the thread arguments for par2, if supported.
-fn thread_args() -> Vec<String> {
-    if supports_threads() {
-        let threads = std::thread::available_parallelism()
-            .map(|n| n.get().to_string())
-            .unwrap_or_else(|_| "0".to_string());
-        vec!["-t".to_string(), threads]
-    } else {
-        vec![]
-    }
+/// Number of threads to use for par2 operations.
+fn thread_count() -> String {
+    std::thread::available_parallelism()
+        .map(|n| n.get().to_string())
+        .unwrap_or_else(|_| "0".to_string())
 }
 
 /// Verify par2 integrity of files in a directory.
 pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
-    let par2_bin = find_par2().ok_or_else(|| anyhow::anyhow!("par2 binary not found on PATH"))?;
-    let t_args = thread_args();
+    let par2_bin = par2_sys::par2_bin_path();
+    let threads = thread_count();
 
-    info!(file = %par2_file.display(), threads = ?t_args, "Running par2 verify");
+    info!(file = %par2_file.display(), threads = %threads, "Running par2 verify");
 
-    let mut cmd = Command::new(&par2_bin);
-    cmd.arg("verify");
-    for arg in &t_args {
-        cmd.arg(arg);
-    }
-    let output = cmd
+    let output = Command::new(par2_bin)
+        .arg("verify")
+        .arg("-t")
+        .arg(&threads)
         .arg(par2_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -177,9 +118,6 @@ pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
     let (status, blocks_needed, blocks_available) = parse_par2_output(&stdout);
     info!(%status, blocks_needed, blocks_available, "par2 verify result");
 
-    // par2 verify succeeds (exit 0) when all files are correct.
-    // A non-zero exit doesn't necessarily mean total failure — it may mean
-    // repair is needed but possible.
     let effective_success = success || status == Par2Status::AllCorrect;
 
     Ok(Par2Result {
@@ -193,20 +131,18 @@ pub async fn par2_verify(par2_file: &Path) -> anyhow::Result<Par2Result> {
 
 /// Repair files using par2 recovery blocks.
 ///
-/// The `repair` command verifies first, then repairs if needed — so this
+/// The `repair` command verifies first, then repairs if needed — this
 /// is a single-pass alternative to calling verify + repair separately.
 pub async fn par2_repair(par2_file: &Path) -> anyhow::Result<Par2Result> {
-    let par2_bin = find_par2().ok_or_else(|| anyhow::anyhow!("par2 binary not found on PATH"))?;
-    let t_args = thread_args();
+    let par2_bin = par2_sys::par2_bin_path();
+    let threads = thread_count();
 
-    info!(file = %par2_file.display(), threads = ?t_args, "Running par2 repair");
+    info!(file = %par2_file.display(), threads = %threads, "Running par2 repair");
 
-    let mut cmd = Command::new(&par2_bin);
-    cmd.arg("repair");
-    for arg in &t_args {
-        cmd.arg(arg);
-    }
-    let output = cmd
+    let output = Command::new(par2_bin)
+        .arg("repair")
+        .arg("-t")
+        .arg(&threads)
         .arg(par2_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -235,16 +171,6 @@ pub async fn par2_repair(par2_file: &Path) -> anyhow::Result<Par2Result> {
     })
 }
 
-fn which_exists(name: &str) -> bool {
-    std::process::Command::new("which")
-        .arg(name)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -270,7 +196,8 @@ mod tests {
 
     #[test]
     fn test_parse_repair_not_possible() {
-        let output = "You need 5 more recovery blocks to be able to repair.\nRepair is not possible.\n";
+        let output =
+            "You need 5 more recovery blocks to be able to repair.\nRepair is not possible.\n";
         let (status, needed, _) = parse_par2_output(output);
         assert_eq!(status, Par2Status::RepairNotPossible);
         assert_eq!(needed, 5);
@@ -299,23 +226,10 @@ mod tests {
     }
 
     #[test]
-    fn test_thread_args_returns_valid_or_empty() {
-        let args = thread_args();
-        // Either empty (vanilla par2) or ["-t", "<number>"]
-        if args.len() == 2 {
-            assert_eq!(args[0], "-t");
-            let n: u32 = args[1].parse().expect("thread count should be a valid number");
-            assert!(n >= 1, "Expected at least 1 thread, got {n}");
-        } else {
-            assert!(args.is_empty(), "Expected empty or 2-element vec, got {args:?}");
-        }
-    }
-
-    #[test]
-    fn test_supports_threads_is_deterministic() {
-        // Calling twice should return the same result (cached)
-        let first = supports_threads();
-        let second = supports_threads();
-        assert_eq!(first, second);
+    fn test_bundled_binary_exists() {
+        assert!(
+            par2_sys::par2_bin_path().exists(),
+            "Bundled par2 binary should exist"
+        );
     }
 }

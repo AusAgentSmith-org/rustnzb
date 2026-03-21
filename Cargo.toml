@@ -6,6 +6,7 @@ members = [
     "crates/nzb-nntp",
     "crates/nzb-decode",
     "crates/nzb-postproc",
+    "crates/par2-sys",
 ]
 exclude = ["benchnzb"]
 
@@ -76,6 +77,7 @@ nzb-web = { path = "crates/nzb-web" }
 nzb-nntp = { path = "crates/nzb-nntp" }
 nzb-decode = { path = "crates/nzb-decode" }
 nzb-postproc = { path = "crates/nzb-postproc" }
+par2-sys = { path = "crates/par2-sys" }
 yenc-simd = "0.1"
 
 [package]
