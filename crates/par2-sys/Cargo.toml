@@ -1,0 +1,9 @@
+[package]
+name = "par2-sys"
+version = "0.1.0"
+edition = "2024"
+description = "Bundled par2cmdline-turbo binary for par2 verify/repair operations"
+
+[build-dependencies]
+reqwest = { version = "0.12", features = ["rustls-tls", "blocking"] }
+zip = "2"
