@@ -1,8 +1,8 @@
 //! Post-processing pipeline orchestrator.
 //!
 //! Stages:
-//! - **Verify** — native PAR2 verification (MD5 hash comparison, no external binary)
-//! - **Repair** — falls back to par2cmdline-turbo only when files are actually damaged
+//! - **Verify** — native PAR2 verification (skipped when articles_failed == 0)
+//! - **Repair** — native PAR2 repair when files are damaged
 //! - **Extract** — unpack RAR, 7z, ZIP archives
 //! - **Cleanup** — remove archive/par2 files
 
@@ -89,7 +89,10 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
     // This is pure Rust — no process spawn, no stdout parsing.
     //
     // If all files pass → done (no par2cmdline needed).
-    // If files are damaged → fall back to par2cmdline-turbo for repair.
+    // If files are damaged → attempt native repair.
+    //
+    // When articles_failed == 0 the files are known-good from CRC checks
+    // during yEnc decode, so we skip the expensive MD5 verification pass.
     let par2_files = find_par2_files(job_dir);
 
     if par2_files.is_empty() {
@@ -97,6 +100,14 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
             name: "Verify".to_string(),
             status: StageStatus::Skipped,
             message: Some("No par2 files found".to_string()),
+            duration_secs: 0.0,
+        });
+    } else if config.articles_failed == 0 {
+        info!("Skipping PAR2 verification — zero article failures (CRC-verified)");
+        stages.push(StageResult {
+            name: "Verify".to_string(),
+            status: StageStatus::Skipped,
+            message: Some("Skipped — zero article failures".to_string()),
             duration_secs: 0.0,
         });
     } else {
@@ -585,10 +596,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_verifies_even_with_zero_failures() {
-        // With par2 files present and articles_failed == 0, native verify
-        // still runs (it's cheap). Since these are dummy empty par2 files,
-        // the native parse will fail and verify will be skipped gracefully.
+    async fn test_pipeline_skips_verify_with_zero_failures() {
+        // With par2 files present and articles_failed == 0, verify is skipped
+        // because files are known-good from CRC checks during yEnc decode.
         let dir = make_test_dir(&[
             "movie.par2",
             "movie.vol00+01.par2",
@@ -603,11 +613,18 @@ mod tests {
         assert!(result.success);
 
         let verify_stage = result.stages.iter().find(|s| s.name == "Verify").unwrap();
-        // With dummy par2 files, native parse fails → skipped with fallback message
         assert_eq!(
             verify_stage.status,
             StageStatus::Skipped,
-            "Verify should be skipped when par2 parse fails and zero failures"
+            "Verify should be skipped when articles_failed == 0"
+        );
+        assert!(
+            verify_stage
+                .message
+                .as_deref()
+                .unwrap_or("")
+                .contains("zero article failures"),
+            "Skip message should indicate zero failures"
         );
     }
 

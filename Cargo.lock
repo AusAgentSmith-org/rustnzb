@@ -2479,7 +2479,7 @@ dependencies = [
 [[package]]
 name = "rust-par2"
 version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith/Rust-PAR2#b32956962252177aa2e42308eb6abc428c0e2148"
+source = "git+https://github.com/AusAgentSmith/Rust-PAR2#22a76dbf3b7b111672be2160c12df0efdd46be2a"
 dependencies = [
  "crc32fast",
  "md-5",
