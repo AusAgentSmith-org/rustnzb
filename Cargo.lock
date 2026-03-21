@@ -2518,7 +2518,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustnzbd"
+name = "rustnzb"
 version = "0.1.0"
 dependencies = [
  "anyhow",
