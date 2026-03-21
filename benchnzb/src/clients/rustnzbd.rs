@@ -176,7 +176,7 @@ impl RustnzbdClient {
                     chrono::DateTime::parse_from_rfc3339(added),
                     chrono::DateTime::parse_from_rfc3339(completed),
                 ) {
-                    let total = (c - a).num_seconds() as f64;
+                    let total = (c - a).num_milliseconds() as f64 / 1000.0;
                     timing.download_sec = total - timing.par2_sec - timing.unpack_sec;
                     if timing.download_sec < 0.0 {
                         timing.download_sec = 0.0;

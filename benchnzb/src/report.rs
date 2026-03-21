@@ -71,9 +71,9 @@ pub fn write_csv(
 pub fn build_summary(results: &[(ClientResult, ClientResult)]) -> String {
     let mut lines = Vec::new();
     lines.push(String::new());
-    lines.push("=".repeat(82));
+    lines.push("=".repeat(84));
     lines.push("  BENCHMARK RESULTS: SABnzbd vs rustnzbd".into());
-    lines.push("=".repeat(82));
+    lines.push("=".repeat(84));
 
     for (sab, rnzb) in results {
         lines.push(String::new());
@@ -81,12 +81,12 @@ pub fn build_summary(results: &[(ClientResult, ClientResult)]) -> String {
             "  Scenario: {} — {} [{}]",
             sab.scenario, sab.scenario_description, sab.test_type
         ));
-        lines.push("-".repeat(82));
+        lines.push("-".repeat(84));
         lines.push(format!(
-            "  {:24} {:>15} {:>15} {:>12}",
+            "  {:24} {:>15} {:>15} {:>14}",
             "Metric", "SABnzbd", "rustnzbd", "Delta"
         ));
-        lines.push("-".repeat(82));
+        lines.push("-".repeat(84));
 
         let metrics: Vec<(&str, String, String, f64, f64, bool)> = vec![
             (
@@ -185,17 +185,15 @@ pub fn build_summary(results: &[(ClientResult, ClientResult)]) -> String {
             }
             let delta = delta_str(*sab_v, *rnzb_v, *lower_better);
             lines.push(format!(
-                "  {:<24} {:>15} {:>15} {:>12}",
+                "  {:<24} {:>15} {:>15} {:>14}",
                 label, sab_s, rnzb_s, delta
             ));
         }
-        lines.push("-".repeat(82));
+        lines.push("-".repeat(84));
     }
 
     lines.push(String::new());
-    lines.push("  Lower-is-better: Time, CPU, Memory".into());
-    lines.push("  Higher-is-better: Speed, Disk Write".into());
-    lines.push("  Delta shows rustnzbd advantage: positive = rustnzbd wins".into());
+    lines.push("  Delta: ▲ = rustnzbd better, ▼ = rustnzbd worse".into());
     lines.push(String::new());
     lines.join("\n")
 }
@@ -218,6 +216,11 @@ fn delta_str(sab: f64, rnzb: f64, lower_better: bool) -> String {
     if !lower_better {
         pct = -pct;
     }
+    if pct.abs() < 0.5 {
+        return "~same".to_string();
+    }
     let prefix = if pct > 0.0 { "+" } else { "" };
-    format!("{prefix}{pct:.1}%")
+    // ▲ = rustnzbd better, ▼ = rustnzbd worse
+    let arrow = if pct > 0.0 { " \u{25B2}" } else { " \u{25BC}" };
+    format!("{prefix}{pct:.1}%{arrow}")
 }

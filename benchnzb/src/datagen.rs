@@ -265,9 +265,16 @@ async fn generate_par2(data_file: &Path, redundancy_pct: f64) -> Result<Vec<Path
     );
 
     // Spawn par2 — par2cmdline-turbo auto-detects thread count
+    // Set block size = article size so each missing article maps to exactly one par2
+    // source block.  Without this, par2 auto-selects a large block size for big files,
+    // producing too few recovery blocks to cover 3% missing articles at 8% redundancy.
     use tokio::process::Command;
     let mut child = Command::new("par2")
-        .args(["create", &format!("-r{redundancy}")])
+        .args([
+            "create",
+            &format!("-r{redundancy}"),
+            &format!("-s{}", config::ARTICLE_SIZE),
+        ])
         .arg(data_file)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())

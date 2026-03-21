@@ -360,9 +360,13 @@ async fn run_client(
         rnzb.get_stage_timing().await
     };
     if let Ok(stages) = stage_result {
-        result.download_sec = stages.download_sec;
         result.par2_sec = stages.par2_sec;
         result.unpack_sec = stages.unpack_sec;
+        // Derive download time from harness-measured total minus post-processing
+        // stages.  Client-reported download_time is integer-second granularity
+        // (SABnzbd API limitation), while total_sec has full precision.
+        result.download_sec =
+            (result.total_sec - stages.par2_sec - stages.unpack_sec).max(0.0);
     }
     if result.download_sec == 0.0 {
         result.download_sec = result.total_sec;

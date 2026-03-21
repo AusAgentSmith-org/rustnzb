@@ -123,10 +123,14 @@ impl SabnzbdClient {
         if let Some(slots) = history["history"]["slots"].as_array() {
             // Only read the most recent entry to avoid stale history contamination
             if let Some(slot) = slots.first() {
-                if let Some(dl) = slot["download_time"].as_u64() {
-                    timing.download_sec = dl as f64;
-                }
-                let pp = slot["postproc_time"].as_u64().unwrap_or(0) as f64;
+                timing.download_sec = slot["download_time"]
+                    .as_f64()
+                    .or_else(|| slot["download_time"].as_u64().map(|v| v as f64))
+                    .unwrap_or(0.0);
+                let pp = slot["postproc_time"]
+                    .as_f64()
+                    .or_else(|| slot["postproc_time"].as_u64().map(|v| v as f64))
+                    .unwrap_or(0.0);
                 if let Some(stages) = slot["stage_log"].as_array() {
                     for stage in stages {
                         let name = stage["name"].as_str().unwrap_or("");
