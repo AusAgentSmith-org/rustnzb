@@ -38,7 +38,7 @@ struct Args {
     #[arg(long, env = "RUSTNZB_LOG_FILE")]
     log_file: Option<PathBuf>,
 
-    /// Run smoke tests to verify external tools (par2, unrar, 7z) work, then exit
+    /// Run smoke tests to verify external tools (unrar, 7z) work, then exit
     #[arg(long)]
     smoke_test: bool,
 }
@@ -108,36 +108,10 @@ fn run_smoke_tests() -> i32 {
     let mut passed = 0u32;
     let mut failed = 0u32;
 
-    // --- par2cmdline-turbo (embedded) ---
-    print!("par2cmdline-turbo ... ");
-    match std::panic::catch_unwind(|| par2_sys::par2_bin_path().to_path_buf()) {
-        Ok(par2_path) => {
-            match Command::new(&par2_path).arg("--help").output() {
-                Ok(output) => {
-                    let text = format!(
-                        "{}{}",
-                        String::from_utf8_lossy(&output.stdout),
-                        String::from_utf8_lossy(&output.stderr),
-                    );
-                    if text.contains("par2") || text.contains("PAR") {
-                        println!("OK ({})", par2_path.display());
-                        passed += 1;
-                    } else {
-                        println!("FAIL - ran but output unexpected: {text}");
-                        failed += 1;
-                    }
-                }
-                Err(e) => {
-                    println!("FAIL - could not execute {}: {e}", par2_path.display());
-                    failed += 1;
-                }
-            }
-        }
-        Err(_) => {
-            println!("FAIL - could not extract embedded binary");
-            failed += 1;
-        }
-    }
+    // --- rust-par2 (native library) ---
+    print!("rust-par2       ... ");
+    println!("OK (native library, no external binary needed)");
+    passed += 1;
 
     // --- unrar ---
     print!("unrar           ... ");

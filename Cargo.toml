@@ -6,8 +6,6 @@ members = [
     "crates/nzb-nntp",
     "crates/nzb-decode",
     "crates/nzb-postproc",
-    "crates/par2-sys",
-    "crates/par2",
 ]
 exclude = ["benchnzb"]
 
@@ -78,8 +76,7 @@ nzb-web = { path = "crates/nzb-web" }
 nzb-nntp = { path = "crates/nzb-nntp" }
 nzb-decode = { path = "crates/nzb-decode" }
 nzb-postproc = { path = "crates/nzb-postproc" }
-par2-sys = { path = "crates/par2-sys" }
-par2 = { path = "crates/par2" }
+rust-par2 = { git = "https://github.com/AusAgentSmith/Rust-PAR2" }
 yenc-simd = "0.1"
 
 [package]
@@ -94,7 +91,6 @@ nzb-nntp = { workspace = true }
 rustls = { workspace = true }
 nzb-decode = { workspace = true }
 nzb-postproc = { workspace = true }
-par2-sys = { path = "crates/par2-sys" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

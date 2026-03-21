@@ -2,7 +2,7 @@
 //!
 //! This crate contains:
 //! - `detect` — File detection helpers (par2, RAR, 7z, ZIP, cleanup candidates)
-//! - `par2` — Shell out to par2 binary, parse output
+//! - `par2` — Native PAR2 verify/repair via `rust-par2`
 //! - `unpack` — RAR extraction (unrar), 7z (7z binary), ZIP (zip crate)
 //! - `pipeline` — Orchestrate: verify -> repair -> extract -> cleanup
 

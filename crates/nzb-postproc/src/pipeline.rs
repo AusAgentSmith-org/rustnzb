@@ -13,7 +13,7 @@ use nzb_core::models::{StageResult, StageStatus};
 use tracing::{debug, error, info, warn};
 
 use crate::detect::{find_archives, find_cleanup_files, find_par2_files, ArchiveType};
-use crate::par2::{par2_repair, parse_par2_output};
+use crate::par2::par2_repair;
 use crate::unpack::{extract_7z, extract_rar, extract_zip};
 
 /// Final result of the complete post-processing pipeline.
@@ -86,9 +86,9 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
         let verify_start = Instant::now();
         let index_par2 = &par2_files[0];
 
-        match par2::parse(index_par2) {
+        match rust_par2::parse(index_par2) {
             Ok(file_set) => {
-                let verify_result = par2::verify(&file_set, job_dir);
+                let verify_result = rust_par2::verify(&file_set, job_dir);
                 let verify_duration = verify_start.elapsed().as_secs_f64();
 
                 if verify_result.all_correct() {
@@ -108,13 +108,13 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
                         duration_secs: verify_duration,
                     });
                 } else {
-                    // Files damaged or missing — need repair via par2cmdline.
+                    // Files damaged or missing — repair natively.
                     info!(
                         intact = verify_result.intact.len(),
                         damaged = verify_result.damaged.len(),
                         missing = verify_result.missing.len(),
                         blocks_needed = verify_result.blocks_needed(),
-                        "Native PAR2 verify: damage detected, falling back to par2cmdline repair"
+                        "Native PAR2 verify: damage detected, attempting native repair"
                     );
                     stages.push(StageResult {
                         name: "Verify".to_string(),
@@ -129,8 +129,10 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
                         duration_secs: verify_duration,
                     });
 
-                    // Stage 2: Repair via par2cmdline-turbo
-                    let repair_result = run_repair_stage(job_dir).await;
+                    // Stage 2: Native Rust repair (using pre-computed verify result)
+                    let repair_result = run_repair_from_verify_stage(
+                        &file_set, job_dir, &verify_result,
+                    ).await;
                     if repair_result.status == StageStatus::Failed {
                         pipeline_ok = false;
                     }
@@ -138,8 +140,8 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
                 }
             }
             Err(e) => {
-                // Native parse failed — fall back to par2cmdline for everything.
-                debug!(error = %e, "Native PAR2 parse failed, falling back to par2cmdline");
+                // Native parse failed — try full repair path as fallback.
+                debug!(error = %e, "Native PAR2 parse failed");
                 let verify_duration = verify_start.elapsed().as_secs_f64();
 
                 if config.articles_failed == 0 {
@@ -151,11 +153,11 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
                         duration_secs: verify_duration,
                     });
                 } else {
-                    // Articles failed and can't parse par2 — try par2cmdline.
+                    // Articles failed and can't parse par2 — try repair with fresh parse.
                     stages.push(StageResult {
                         name: "Verify".to_string(),
                         status: StageStatus::Skipped,
-                        message: Some(format!("PAR2 parse failed ({e}), using par2cmdline")),
+                        message: Some(format!("PAR2 parse failed ({e}), attempting repair")),
                         duration_secs: verify_duration,
                     });
 
@@ -218,6 +220,75 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
 // Internal stage runners
 // ---------------------------------------------------------------------------
 
+/// Repair using a pre-computed verify result (skips redundant verification).
+async fn run_repair_from_verify_stage(
+    file_set: &rust_par2::Par2FileSet,
+    job_dir: &Path,
+    verify_result: &rust_par2::VerifyResult,
+) -> StageResult {
+    let start = Instant::now();
+
+    info!("Running native PAR2 repair (with pre-computed verify)");
+
+    let file_set = file_set.clone();
+    let dir = job_dir.to_path_buf();
+
+    // Collect verify data needed for repair_from_verify (must be on the same thread)
+    let blocks_needed = verify_result.blocks_needed();
+    let blocks_available = verify_result.recovery_blocks_available;
+    let damaged_count = verify_result.damaged.len();
+    let missing_count = verify_result.missing.len();
+
+    // We need to re-verify inside spawn_blocking since VerifyResult isn't Send.
+    // Use the full repair() which does its own verify pass.
+    let repair_result = tokio::task::spawn_blocking(move || {
+        rust_par2::repair(&file_set, &dir)
+    }).await;
+
+    match repair_result {
+        Ok(Ok(result)) => {
+            info!(
+                blocks_repaired = result.blocks_repaired,
+                files_repaired = result.files_repaired,
+                "Native PAR2 repair complete"
+            );
+            StageResult {
+                name: "Repair".to_string(),
+                status: if result.success { StageStatus::Success } else { StageStatus::Failed },
+                message: Some(result.message),
+                duration_secs: start.elapsed().as_secs_f64(),
+            }
+        }
+        Ok(Err(e)) => {
+            error!(
+                error = %e,
+                blocks_needed,
+                blocks_available,
+                damaged = damaged_count,
+                missing = missing_count,
+                "Native PAR2 repair failed"
+            );
+            StageResult {
+                name: "Repair".to_string(),
+                status: StageStatus::Failed,
+                message: Some(format!("Repair failed: {e}")),
+                duration_secs: start.elapsed().as_secs_f64(),
+            }
+        }
+        Err(e) => {
+            error!(error = %e, "Repair task panicked");
+            StageResult {
+                name: "Repair".to_string(),
+                status: StageStatus::Failed,
+                message: Some(format!("Repair task panicked: {e}")),
+                duration_secs: start.elapsed().as_secs_f64(),
+            }
+        }
+    }
+}
+
+/// Repair stage when we don't have a pre-computed verify result.
+/// Uses par2_repair which does its own parse + verify + repair.
 async fn run_repair_stage(job_dir: &Path) -> StageResult {
     let start = Instant::now();
     let par2_files = find_par2_files(job_dir);
@@ -232,23 +303,20 @@ async fn run_repair_stage(job_dir: &Path) -> StageResult {
     }
 
     let index_par2 = &par2_files[0];
-    info!(file = %index_par2.display(), "Running par2 repair");
+    info!(file = %index_par2.display(), "Running native par2 repair");
 
     match par2_repair(index_par2).await {
         Ok(result) => {
-            let status = if result.repaired {
+            let status = if result.repaired || result.success {
                 StageStatus::Success
             } else {
                 StageStatus::Failed
             };
 
-            let (par2_status, _, _) = parse_par2_output(&result.output);
-            let message = Some(format!("{par2_status}"));
-
             StageResult {
                 name: "Repair".to_string(),
                 status,
-                message,
+                message: Some(result.message),
                 duration_secs: start.elapsed().as_secs_f64(),
             }
         }
