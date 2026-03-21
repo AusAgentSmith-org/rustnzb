@@ -247,6 +247,20 @@ async fn main() -> anyhow::Result<()> {
         info!(dir = %watch_dir.display(), "Directory watcher started");
     }
 
+    // Start RSS monitor if feeds are configured
+    if !config.rss_feeds.is_empty() {
+        let monitor = nzb_web::rss_monitor::RssMonitor::new(
+            config.rss_feeds.clone(),
+            Arc::clone(&queue_manager),
+            config.general.data_dir.clone(),
+        );
+        tokio::spawn(async move { monitor.run().await });
+        info!(
+            feeds = config.rss_feeds.len(),
+            "RSS monitor started"
+        );
+    }
+
     info!(servers = config.servers.len(), "Queue manager initialized");
 
     // Build shared application state

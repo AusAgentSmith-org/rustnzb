@@ -68,6 +68,7 @@ quick-xml = "0.37"
 regex = "1"
 walkdir = "2"
 notify = "7"
+feed-rs = "2"
 
 # Internal crates
 nzb-core = { path = "crates/nzb-core" }

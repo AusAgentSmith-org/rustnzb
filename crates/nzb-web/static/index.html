@@ -324,6 +324,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
   <button class="nav-tab" data-tab="history">History</button>
   <button class="nav-tab" data-tab="servers">Servers</button>
   <button class="nav-tab" data-tab="categories">Categories</button>
+  <button class="nav-tab" data-tab="rss">RSS</button>
   <button class="nav-tab" data-tab="settings">Settings</button>
   <button class="nav-tab" data-tab="logs">Logs</button>
 </nav>
@@ -442,6 +443,21 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
     </div>
   </div>
 
+  <!-- RSS Tab -->
+  <div class="tab-content" id="tab-rss">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span style="font-size:0.9rem;color:var(--text-secondary)">RSS Feeds</span>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="btn-add-rss">+ Add Feed</button>
+      </div>
+    </div>
+    <div class="server-grid" id="rss-grid">
+      <div class="table-empty" style="grid-column:1/-1;">No RSS feeds configured</div>
+    </div>
+  </div>
+
   <!-- Settings Tab -->
   <div class="tab-content" id="tab-settings">
     <div class="toolbar">
@@ -536,6 +552,43 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
     <div class="modal-actions">
       <button class="btn" id="btn-addurl-cancel">Cancel</button>
       <button class="btn btn-primary" id="btn-addurl-submit">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RSS Feed Modal ===== -->
+<div class="modal-overlay" id="modal-rss">
+  <div class="modal">
+    <h2 id="rss-modal-title">Add RSS Feed</h2>
+    <input type="hidden" id="rss-edit-name" value="">
+    <div class="modal-field">
+      <label for="rss-name">Name</label>
+      <input type="text" id="rss-name" placeholder="My Feed">
+    </div>
+    <div class="modal-field">
+      <label for="rss-url">URL</label>
+      <input type="text" id="rss-url" placeholder="https://example.com/rss">
+    </div>
+    <div class="modal-field-row">
+      <div class="modal-field">
+        <label for="rss-interval">Poll Interval (minutes)</label>
+        <input type="number" id="rss-interval" value="15" min="1">
+      </div>
+      <div class="modal-field">
+        <label for="rss-category">Category</label>
+        <select id="rss-category"><option value="">Default</option></select>
+      </div>
+    </div>
+    <div class="modal-field">
+      <label for="rss-filter">Filter Regex (optional)</label>
+      <input type="text" id="rss-filter" placeholder="e.g. .*1080p.*">
+    </div>
+    <div class="modal-field">
+      <label class="checkbox-label"><input type="checkbox" id="rss-enabled" checked> Enabled</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="btn-rss-cancel">Cancel</button>
+      <button class="btn btn-primary" id="btn-rss-save">Save</button>
     </div>
   </div>
 </div>
@@ -784,6 +837,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
     if (tab === 'history') fetchHistory();
     if (tab === 'servers') fetchServers();
     if (tab === 'categories') fetchCategories();
+    if (tab === 'rss') fetchRssFeeds();
     if (tab === 'settings') fetchSettings();
     if (tab === 'logs') fetchLogs();
   }
@@ -1335,6 +1389,90 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
     api('DELETE','/api/config/categories/'+encodeURIComponent(name)).then(function(){ notify('Category deleted'); fetchCategories(); }).catch(function(e){ notify('Error: '+e.message,'error'); });
   };
 
+  // ---- RSS Feeds ----
+  function fetchRssFeeds() {
+    api('GET','/api/config/rss-feeds').then(function(feeds){ renderRssFeeds(feeds); }).catch(function(){});
+  }
+  function renderRssFeeds(feeds) {
+    var grid = document.getElementById('rss-grid');
+    if (!feeds || feeds.length === 0) { grid.innerHTML = '<div class="table-empty" style="grid-column:1/-1;">No RSS feeds configured. Click "Add Feed" to get started.</div>'; return; }
+    var html = '';
+    for (var i=0;i<feeds.length;i++) {
+      var f = feeds[i];
+      var intervalMin = Math.round((f.poll_interval_secs || 900) / 60);
+      html += '<div class="server-card"><div class="server-card-header">'+
+        '<span class="server-card-name">'+esc(f.name)+'</span>'+
+        '<span class="server-card-status"><span class="status-dot '+(f.enabled?'enabled':'disabled')+'"></span>'+(f.enabled?'Enabled':'Disabled')+'</span></div>'+
+        '<div class="server-details">'+
+          '<div class="server-detail" style="grid-column:1/-1;"><span class="server-detail-label">URL</span><span class="server-detail-value" style="word-break:break-all;font-size:0.8rem;">'+esc(f.url)+'</span></div>'+
+          '<div class="server-detail"><span class="server-detail-label">Interval</span><span class="server-detail-value">'+intervalMin+' min</span></div>'+
+          '<div class="server-detail"><span class="server-detail-label">Category</span><span class="server-detail-value">'+(f.category?esc(f.category):'Default')+'</span></div>'+
+          (f.filter_regex?'<div class="server-detail" style="grid-column:1/-1;"><span class="server-detail-label">Filter</span><span class="server-detail-value" style="font-family:monospace;font-size:0.8rem;">'+esc(f.filter_regex)+'</span></div>':'')+
+        '</div>'+
+        '<div class="server-card-actions">'+
+          '<button class="btn btn-sm" onclick="window._rssFeedEdit(\''+esc(f.name).replace(/'/g,"\\'")+'\')">Edit</button>'+
+          '<button class="btn btn-sm btn-danger" onclick="window._rssFeedDelete(\''+esc(f.name).replace(/'/g,"\\'")+'\')">Delete</button>'+
+        '</div></div>';
+    }
+    grid.innerHTML = html;
+  }
+
+  function openRssFeedModal(feed) {
+    var isEdit = !!feed;
+    document.getElementById('rss-modal-title').textContent = isEdit ? 'Edit RSS Feed' : 'Add RSS Feed';
+    document.getElementById('rss-edit-name').value = isEdit ? feed.name : '';
+    document.getElementById('rss-name').value = isEdit ? (feed.name||'') : '';
+    document.getElementById('rss-url').value = isEdit ? (feed.url||'') : '';
+    document.getElementById('rss-interval').value = isEdit ? Math.round((feed.poll_interval_secs||900)/60) : 15;
+    document.getElementById('rss-filter').value = isEdit ? (feed.filter_regex||'') : '';
+    document.getElementById('rss-enabled').checked = isEdit ? feed.enabled : true;
+    api('GET','/api/config/categories').then(function(cats) {
+      var sel = document.getElementById('rss-category');
+      sel.innerHTML = '<option value="">Default</option>';
+      for (var j=0;j<cats.length;j++) sel.innerHTML += '<option value="'+esc(cats[j].name)+'">'+esc(cats[j].name)+'</option>';
+      if (isEdit && feed.category) sel.value = feed.category;
+    }).catch(function(){});
+    document.getElementById('modal-rss').classList.add('active');
+  }
+
+  document.getElementById('btn-add-rss').addEventListener('click', function() { openRssFeedModal(null); });
+  document.getElementById('btn-rss-cancel').addEventListener('click', function() { document.getElementById('modal-rss').classList.remove('active'); });
+  document.getElementById('modal-rss').addEventListener('click', function(e) { if(e.target===this) this.classList.remove('active'); });
+
+  document.getElementById('btn-rss-save').addEventListener('click', function() {
+    var editName = document.getElementById('rss-edit-name').value;
+    var feed = {
+      name: document.getElementById('rss-name').value.trim(),
+      url: document.getElementById('rss-url').value.trim(),
+      poll_interval_secs: (parseInt(document.getElementById('rss-interval').value) || 15) * 60,
+      category: document.getElementById('rss-category').value || null,
+      filter_regex: document.getElementById('rss-filter').value.trim() || null,
+      enabled: document.getElementById('rss-enabled').checked
+    };
+    if (!feed.name) { notify('Name is required','error'); return; }
+    if (!feed.url) { notify('URL is required','error'); return; }
+
+    var method = editName ? 'PUT' : 'POST';
+    var url = editName ? '/api/config/rss-feeds/' + encodeURIComponent(editName) : '/api/config/rss-feeds';
+    api(method, url, feed).then(function() {
+      notify(editName ? 'Feed updated' : 'Feed added','success');
+      document.getElementById('modal-rss').classList.remove('active');
+      fetchRssFeeds();
+    }).catch(function(e) { notify('Error: '+e.message,'error'); });
+  });
+
+  window._rssFeedEdit = function(name) {
+    api('GET','/api/config/rss-feeds').then(function(feeds) {
+      var feed = null;
+      for (var i=0;i<feeds.length;i++) if(feeds[i].name===name){feed=feeds[i];break;}
+      if (feed) openRssFeedModal(feed);
+    }).catch(function(e){ notify('Error: '+e.message,'error'); });
+  };
+  window._rssFeedDelete = function(name) {
+    if(!confirm('Delete this RSS feed?')) return;
+    api('DELETE','/api/config/rss-feeds/'+encodeURIComponent(name)).then(function(){ notify('Feed deleted'); fetchRssFeeds(); }).catch(function(e){ notify('Error: '+e.message,'error'); });
+  };
+
   // ---- Settings ----
   function fetchSettings() {
     api('GET','/api/config').then(function(c){ renderSettings(c); }).catch(function(){});
@@ -1548,7 +1686,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
 
   // ---- Keyboard shortcuts ----
   document.addEventListener('keydown', function(e) {
-    if(e.key==='Escape'){modalEl.classList.remove('active');document.getElementById('modal-files').classList.remove('active');document.getElementById('modal-server').classList.remove('active');addUrlModal.classList.remove('active');document.getElementById('modal-category').classList.remove('active');}
+    if(e.key==='Escape'){modalEl.classList.remove('active');document.getElementById('modal-files').classList.remove('active');document.getElementById('modal-server').classList.remove('active');addUrlModal.classList.remove('active');document.getElementById('modal-category').classList.remove('active');document.getElementById('modal-rss').classList.remove('active');}
     if(e.key===' '&&e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'&&e.target.tagName!=='SELECT'){e.preventDefault();if(globalPaused)document.getElementById('btn-resume-all').click();else{api('POST','/api/queue/pause').then(function(){globalPaused=true;notify('All paused');fetchQueue();}).catch(function(e){notify('Error: '+e.message,'error');});}}
   });
 
@@ -1557,6 +1695,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
   fetchQueue(); setInterval(function(){ if(activeTab==='queue') fetchQueue(); }, 2000);
   setInterval(function(){ if(activeTab==='history') fetchHistory(); }, 10000);
   setInterval(function(){ if(activeTab==='categories') fetchCategories(); }, 10000);
+  setInterval(function(){ if(activeTab==='rss') fetchRssFeeds(); }, 30000);
   setInterval(function(){ if(activeTab==='logs') fetchLogs(); }, 2000);
   drawSpeedGraph();
 

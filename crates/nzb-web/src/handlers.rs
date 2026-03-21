@@ -6,7 +6,7 @@ use axum::Json;
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use nzb_core::config::{CategoryConfig, ServerConfig};
+use nzb_core::config::{CategoryConfig, RssFeedConfig, ServerConfig};
 use nzb_core::models::*;
 use nzb_core::nzb_parser;
 
@@ -923,6 +923,67 @@ pub async fn h_set_speed_limit(
     // Also update config and persist
     let mut config = (*state.config()).clone();
     config.general.speed_limit_bps = body.speed_limit_bps;
+    state.update_config(config).map_err(ApiError::from)?;
+    Ok(Json(serde_json::json!({"status": true})))
+}
+
+// ---------------------------------------------------------------------------
+// RSS feed handlers
+// ---------------------------------------------------------------------------
+
+/// GET /api/config/rss-feeds -- List RSS feeds.
+pub async fn h_rss_feeds_list(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<RssFeedConfig>>, ApiError> {
+    let config = state.config();
+    Ok(Json(config.rss_feeds.clone()))
+}
+
+/// POST /api/config/rss-feeds -- Add an RSS feed.
+pub async fn h_rss_feed_add(
+    State(state): State<Arc<AppState>>,
+    Json(feed): Json<RssFeedConfig>,
+) -> Result<impl IntoResponse, ApiError> {
+    let mut config = (*state.config()).clone();
+    if config.rss_feeds.iter().any(|f| f.name == feed.name) {
+        return Err(ApiError::from(anyhow::anyhow!(
+            "Feed '{}' already exists",
+            feed.name
+        )));
+    }
+    config.rss_feeds.push(feed);
+    state.update_config(config).map_err(ApiError::from)?;
+    Ok(Json(serde_json::json!({"status": true})))
+}
+
+/// PUT /api/config/rss-feeds/{name} -- Update an RSS feed.
+pub async fn h_rss_feed_update(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+    Json(feed): Json<RssFeedConfig>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mut config = (*state.config()).clone();
+    let idx = config
+        .rss_feeds
+        .iter()
+        .position(|f| f.name == name)
+        .ok_or_else(|| ApiError::from(anyhow::anyhow!("Feed not found")))?;
+    config.rss_feeds[idx] = feed;
+    state.update_config(config).map_err(ApiError::from)?;
+    Ok(Json(serde_json::json!({"status": true})))
+}
+
+/// DELETE /api/config/rss-feeds/{name} -- Delete an RSS feed.
+pub async fn h_rss_feed_delete(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mut config = (*state.config()).clone();
+    let len = config.rss_feeds.len();
+    config.rss_feeds.retain(|f| f.name != name);
+    if config.rss_feeds.len() == len {
+        return Err(ApiError::from(anyhow::anyhow!("Feed not found")));
+    }
     state.update_config(config).map_err(ApiError::from)?;
     Ok(Json(serde_json::json!({"status": true})))
 }

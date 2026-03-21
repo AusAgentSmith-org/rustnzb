@@ -110,6 +110,22 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             delete(handlers::h_category_delete),
         )
         .route(
+            "/config/rss-feeds",
+            get(handlers::h_rss_feeds_list),
+        )
+        .route(
+            "/config/rss-feeds",
+            post(handlers::h_rss_feed_add),
+        )
+        .route(
+            "/config/rss-feeds/{name}",
+            put(handlers::h_rss_feed_update),
+        )
+        .route(
+            "/config/rss-feeds/{name}",
+            delete(handlers::h_rss_feed_delete),
+        )
+        .route(
             "/config/history-retention",
             get(handlers::h_history_retention_get),
         )
