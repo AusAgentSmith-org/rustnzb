@@ -76,6 +76,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/queue/{id}/pause", post(handlers::h_queue_pause))
         .route("/queue/{id}/resume", post(handlers::h_queue_resume))
         .route("/queue/{id}/move", post(handlers::h_queue_move))
+        .route("/queue/{id}/priority", put(handlers::h_queue_set_priority))
         .route("/queue/{id}", delete(handlers::h_queue_delete))
         // History
         .route("/history", get(handlers::h_history_list))

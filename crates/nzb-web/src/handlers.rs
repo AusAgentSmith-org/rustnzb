@@ -64,6 +64,11 @@ pub struct MaxActiveDownloadsBody {
     pub max_active_downloads: usize,
 }
 
+#[derive(Deserialize)]
+pub struct SetPriorityBody {
+    pub priority: i32,
+}
+
 // ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------
@@ -251,6 +256,26 @@ pub async fn h_queue_add(
             nzo_ids,
         }),
     ))
+}
+
+/// PUT /api/queue/{id}/priority -- Change job priority.
+pub async fn h_queue_set_priority(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<SetPriorityBody>,
+) -> Result<Json<SimpleResponse>, ApiError> {
+    let priority = match body.priority {
+        0 => Priority::Low,
+        1 => Priority::Normal,
+        2 => Priority::High,
+        3 => Priority::Force,
+        _ => return Err(ApiError::from(anyhow::anyhow!("Invalid priority value"))),
+    };
+    state
+        .queue_manager
+        .set_job_priority(&id, priority)
+        .map_err(ApiError::from)?;
+    Ok(Json(SimpleResponse { status: true }))
 }
 
 /// POST /api/queue/{id}/pause -- Pause a job.
