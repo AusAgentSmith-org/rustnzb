@@ -136,10 +136,8 @@ pub fn parse_nzb(name: &str, data: &[u8]) -> Result<NzbJob, NzbError> {
                     reading_password_meta = false;
                 } else if in_groups {
                     current_groups.push(text);
-                } else if in_segments {
-                    if let Some(seg) = current_segments.last_mut() {
-                        seg.message_id = text;
-                    }
+                } else if in_segments && let Some(seg) = current_segments.last_mut() {
+                    seg.message_id = text;
                 }
             }
             Ok(Event::Eof) => break,
@@ -211,10 +209,8 @@ struct SegmentBuilder {
 /// Common pattern: `"Some Post" filename.ext (01/10)`
 fn extract_filename(subject: &str) -> String {
     // Try to find quoted filename first
-    if let Some(start) = subject.find('"') {
-        if let Some(end) = subject[start + 1..].find('"') {
-            return subject[start + 1..start + 1 + end].to_string();
-        }
+    if let Some(start) = subject.find('"') && let Some(end) = subject[start + 1..].find('"') {
+        return subject[start + 1..start + 1 + end].to_string();
     }
 
     // Try to find filename before (xx/yy) pattern

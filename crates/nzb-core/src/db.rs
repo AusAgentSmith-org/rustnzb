@@ -7,6 +7,7 @@ use tracing::info;
 use crate::error::NzbError;
 use crate::models::*;
 
+#[allow(dead_code)]
 const SCHEMA_VERSION: u32 = 1;
 
 /// Database handle for queue and history persistence.

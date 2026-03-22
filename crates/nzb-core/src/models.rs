@@ -41,19 +41,14 @@ impl std::fmt::Display for JobStatus {
 // Priority
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Priority {
     Low = 0,
+    #[default]
     Normal = 1,
     High = 2,
     Force = 3,
-}
-
-impl Default for Priority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 // ---------------------------------------------------------------------------
