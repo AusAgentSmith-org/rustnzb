@@ -147,7 +147,7 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
                         // Repair using the pre-computed verify result — no second verify pass
                         info!("Running native PAR2 repair (with pre-computed verify)");
                         let repair_result =
-                            rust_par2::repair_from_verify(&file_set, &dir, &verify_result);
+                            rust_par2::repair_from_verify(&file_set, &dir, &verify_result, false);
 
                         VerifyRepairOutcome::Damaged {
                             intact,

@@ -48,7 +48,7 @@ pub fn par2_repair_blocking(par2_file: &Path) -> anyhow::Result<Par2Result> {
         "Damage detected, attempting native repair"
     );
 
-    match rust_par2::repair_from_verify(&file_set, dir, &verify_result) {
+    match rust_par2::repair_from_verify(&file_set, dir, &verify_result, false) {
         Ok(repair_result) => {
             info!(
                 blocks_repaired = repair_result.blocks_repaired,
