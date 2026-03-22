@@ -74,6 +74,10 @@ fn find_test_nzb() -> Option<std::path::PathBuf> {
 
 #[tokio::test]
 async fn test_upload_nzb_and_verify_queue() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
     let nzb_path = match find_test_nzb() {
         Some(p) => p,
         None => {

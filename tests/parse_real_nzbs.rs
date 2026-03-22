@@ -3,6 +3,10 @@ use std::path::Path;
 
 #[test]
 fn parse_all_test_nzbs() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
     let dir = Path::new("TestData");
     if !dir.exists() {
         eprintln!("TestData directory not found, skipping");

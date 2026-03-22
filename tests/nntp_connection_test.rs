@@ -76,6 +76,11 @@ async fn test_connection(config: &ServerConfig) -> Result<String, String> {
 
 #[tokio::test]
 async fn test_usenet_farm_ssl_563() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let config = make_config(
         "uf-ssl-563",
         "news.usenet.farm",
@@ -92,6 +97,11 @@ async fn test_usenet_farm_ssl_563() {
 
 #[tokio::test]
 async fn test_usenet_farm_ssl_443() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let config = make_config(
         "uf-ssl-443",
         "news.usenet.farm",
@@ -108,6 +118,10 @@ async fn test_usenet_farm_ssl_443() {
 
 #[tokio::test]
 async fn test_usenet_farm_plain_119() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
     let config = make_config(
         "uf-plain-119",
         "news.usenet.farm",
@@ -124,6 +138,10 @@ async fn test_usenet_farm_plain_119() {
 
 #[tokio::test]
 async fn test_usenet_farm_plain_80() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
     let config = make_config(
         "uf-plain-80",
         "news.usenet.farm",
@@ -140,6 +158,11 @@ async fn test_usenet_farm_plain_80() {
 
 #[tokio::test]
 async fn test_frugal_ssl_563() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let config = make_config(
         "frugal-ssl-563",
         "news.frugalusenet.com",
@@ -162,6 +185,11 @@ async fn test_frugal_ssl_563() {
 
 #[tokio::test]
 async fn test_frugal_eu_ssl_563() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let config = make_config(
         "frugal-eu-ssl-563",
         "aunews.frugalusenet.com",
@@ -184,6 +212,11 @@ async fn test_frugal_eu_ssl_563() {
 /// Run all variants and print a summary table.
 #[tokio::test]
 async fn test_all_connections_summary() {
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping on CI");
+        return;
+    }
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let configs = vec![
         make_config("uf-ssl-563", "news.usenet.farm", 563, true, "uf8ea2a82f370952aa92", "ff24a05910fd23cb0040ff", 1),
         make_config("uf-ssl-443", "news.usenet.farm", 443, true, "uf8ea2a82f370952aa92", "ff24a05910fd23cb0040ff", 1),
