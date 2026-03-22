@@ -124,7 +124,7 @@ impl ServerState {
     /// Check if the server is available (active and not penalized).
     pub fn is_available(&self) -> bool {
         self.active
-            && self.penalty_until.map_or(true, |until| Instant::now() > until)
+            && self.penalty_until.is_none_or(|until| Instant::now() > until)
     }
 
     /// Apply a penalty to the server.

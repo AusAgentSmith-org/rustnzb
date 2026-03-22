@@ -15,7 +15,7 @@ pub mod pipeline;
 pub mod pool;
 pub mod server;
 
-pub use connection::{ConnectionState, NntpConnection, NntpResponse};
+pub use connection::{ConnectionState, GroupResponse, NntpConnection, NntpResponse, XoverEntry};
 pub use downloader::{ArticleResult, Downloader};
 pub use error::{NntpError, NntpResult};
 pub use pipeline::Pipeline;

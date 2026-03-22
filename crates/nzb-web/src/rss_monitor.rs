@@ -122,14 +122,12 @@ impl RssMonitor {
     fn prune_items(&self) {
         // Use the rss_history_limit from config, default 500
         let limit = self.rss_history_limit.unwrap_or(500);
-        if let Ok(count) = self.queue_manager.rss_item_count() {
-            if count > limit {
-                if let Ok(pruned) = self.queue_manager.rss_items_prune(limit) {
-                    if pruned > 0 {
-                        info!(pruned, "Pruned old RSS items");
-                    }
-                }
-            }
+        if let Ok(count) = self.queue_manager.rss_item_count()
+            && count > limit
+            && let Ok(pruned) = self.queue_manager.rss_items_prune(limit)
+            && pruned > 0
+        {
+            info!(pruned, "Pruned old RSS items");
         }
     }
 
@@ -195,7 +193,7 @@ impl RssMonitor {
                     downloaded: false,
                     downloaded_at: None,
                     category: feed.category.clone(),
-                    size_bytes: size_bytes as u64,
+                    size_bytes,
                 },
                 title,
                 nzb_url,
@@ -259,10 +257,10 @@ impl RssMonitor {
                 // Item existed before this batch — already processed previously
                 // Check if it was newly inserted by seeing if it's in our new count
                 // Actually, we can just check the downloaded flag
-                if let Ok(Some(existing)) = self.queue_manager.rss_item_get(&p.item.id) {
-                    if existing.downloaded {
-                        continue;
-                    }
+                if let Ok(Some(existing)) = self.queue_manager.rss_item_get(&p.item.id)
+                    && existing.downloaded
+                {
+                    continue;
                 }
             }
 

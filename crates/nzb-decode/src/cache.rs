@@ -311,7 +311,7 @@ impl ArticleCache {
         let base = work_dirs
             .get(&key.job_id)
             .cloned()
-            .unwrap_or_else(|| std::env::temp_dir());
+            .unwrap_or_else(std::env::temp_dir);
         base.join(format!(
             ".cache_{}_{}.tmp",
             key.file_id, key.segment_number

@@ -41,6 +41,12 @@ fn generate_token() -> String {
     hex::encode(bytes)
 }
 
+impl Default for TokenStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TokenStore {
     pub fn new() -> Self {
         Self {
@@ -149,7 +155,7 @@ impl CredentialStore {
 
     pub fn set_credentials(&self, creds: StoredCredentials) -> Result<(), std::io::Error> {
         let json = serde_json::to_string_pretty(&creds)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
         if let Some(parent) = self.file_path.parent() {
             std::fs::create_dir_all(parent)?;
         }

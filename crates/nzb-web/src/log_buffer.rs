@@ -40,6 +40,12 @@ struct LogBufferInner {
     next_seq: u64,
 }
 
+impl Default for LogBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LogBuffer {
     pub fn new() -> Self {
         Self {
@@ -75,20 +81,20 @@ impl LogBuffer {
             .entries
             .iter()
             .filter(|e| {
-                if let Some(after) = after_seq {
-                    if e.seq <= after {
-                        return false;
-                    }
+                if let Some(after) = after_seq
+                    && e.seq <= after
+                {
+                    return false;
                 }
-                if let Some(jid) = job_id {
-                    if e.job_id.as_deref() != Some(jid) {
-                        return false;
-                    }
+                if let Some(jid) = job_id
+                    && e.job_id.as_deref() != Some(jid)
+                {
+                    return false;
                 }
-                if let Some(lvl) = level {
-                    if !e.level.eq_ignore_ascii_case(lvl) {
-                        return false;
-                    }
+                if let Some(lvl) = level
+                    && !e.level.eq_ignore_ascii_case(lvl)
+                {
+                    return false;
                 }
                 true
             })
@@ -172,15 +178,15 @@ where
         event.record(&mut visitor);
 
         // Also check parent spans for job_id
-        if visitor.job_id.is_none() {
-            if let Some(scope) = ctx.event_scope(event) {
-                for span in scope {
-                    let extensions = span.extensions();
-                    if let Some(fields) = extensions.get::<SpanFields>() {
-                        if visitor.job_id.is_none() {
-                            visitor.job_id = fields.job_id.clone();
-                        }
-                    }
+        if visitor.job_id.is_none()
+            && let Some(scope) = ctx.event_scope(event)
+        {
+            for span in scope {
+                let extensions = span.extensions();
+                if let Some(fields) = extensions.get::<SpanFields>()
+                    && visitor.job_id.is_none()
+                {
+                    visitor.job_id = fields.job_id.clone();
                 }
             }
         }
@@ -209,13 +215,13 @@ where
         };
         attrs.record(&mut visitor);
 
-        if visitor.job_id.is_some() {
-            if let Some(span) = ctx.span(id) {
-                let mut extensions = span.extensions_mut();
-                extensions.insert(SpanFields {
-                    job_id: visitor.job_id,
-                });
-            }
+        if visitor.job_id.is_some()
+            && let Some(span) = ctx.span(id)
+        {
+            let mut extensions = span.extensions_mut();
+            extensions.insert(SpanFields {
+                job_id: visitor.job_id,
+            });
         }
     }
 }

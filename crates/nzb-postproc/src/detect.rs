@@ -102,24 +102,25 @@ pub fn find_rar_files(dir: &Path) -> Vec<PathBuf> {
         let name_lower = name.to_lowercase();
 
         // New-style: .part001.rar is the first volume
-        if name_lower.ends_with(".rar") {
-            if let Some(stem) = name_lower.strip_suffix(".rar") {
-                // Check for .partNNN pattern
-                if let Some(dot_pos) = stem.rfind(".part") {
-                    let part_num_str = &stem[dot_pos + 5..];
-                    if !part_num_str.is_empty() && part_num_str.chars().all(|c| c.is_ascii_digit()) {
-                        if let Ok(part_num) = part_num_str.parse::<u32>() {
-                            if part_num == 1 {
-                                first_volumes.push(path.to_path_buf());
-                            }
-                            // part > 1 is not a first volume
-                            continue;
-                        }
+        if name_lower.ends_with(".rar")
+            && let Some(stem) = name_lower.strip_suffix(".rar")
+        {
+            // Check for .partNNN pattern
+            if let Some(dot_pos) = stem.rfind(".part") {
+                let part_num_str = &stem[dot_pos + 5..];
+                if !part_num_str.is_empty()
+                    && part_num_str.chars().all(|c| c.is_ascii_digit())
+                    && let Ok(part_num) = part_num_str.parse::<u32>()
+                {
+                    if part_num == 1 {
+                        first_volumes.push(path.to_path_buf());
                     }
+                    // part > 1 is not a first volume
+                    continue;
                 }
-                // Plain .rar with no .partNNN — this is the first volume in old-style
-                first_volumes.push(path.to_path_buf());
             }
+            // Plain .rar with no .partNNN — this is the first volume in old-style
+            first_volumes.push(path.to_path_buf());
         }
         // Old-style: .r00, .r01, etc. — we do NOT add these; the .rar file
         // is the first volume in old-style sets.

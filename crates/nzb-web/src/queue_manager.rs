@@ -39,7 +39,7 @@ fn get_disk_free(path: &std::path::Path) -> u64 {
             let mut stat = MaybeUninit::<libc::statvfs>::uninit();
             if libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) == 0 {
                 let stat = stat.assume_init();
-                return stat.f_bavail as u64 * stat.f_frsize as u64;
+                return stat.f_bavail * stat.f_frsize;
             }
         }
         0
@@ -167,6 +167,7 @@ pub struct QueueManager {
 
 impl QueueManager {
     /// Create a new queue manager.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         servers: Vec<ServerConfig>,
         db: Database,
@@ -270,12 +271,12 @@ impl QueueManager {
                 let order = self.job_order.lock();
                 let mut best: Option<(String, u8)> = None;
                 for id in order.iter() {
-                    if let Some(s) = jobs.get(id) {
-                        if s.job.status == JobStatus::Queued {
-                            let p = s.job.priority as u8;
-                            if best.as_ref().map_or(true, |(_, bp)| p > *bp) {
-                                best = Some((id.clone(), p));
-                            }
+                    if let Some(s) = jobs.get(id)
+                        && s.job.status == JobStatus::Queued
+                    {
+                        let p = s.job.priority as u8;
+                        if best.as_ref().is_none_or(|(_, bp)| p > *bp) {
+                            best = Some((id.clone(), p));
                         }
                     }
                 }
@@ -670,11 +671,11 @@ impl QueueManager {
             // Update job status based on pipeline result
             {
                 let mut jobs = self.jobs.lock();
-                if let Some(state) = jobs.get_mut(job_id) {
-                    if !result.success {
-                        state.job.status = JobStatus::Failed;
-                        state.job.error_message = result.error.clone();
-                    }
+                if let Some(state) = jobs.get_mut(job_id)
+                    && !result.success
+                {
+                    state.job.status = JobStatus::Failed;
+                    state.job.error_message = result.error.clone();
                 }
             }
 
@@ -801,10 +802,10 @@ impl QueueManager {
         }
 
         // Enforce retention
-        if let Some(max) = *self.history_retention.lock() {
-            if let Err(e) = db.history_enforce_retention(max) {
-                warn!("Failed to enforce history retention: {e}");
-            }
+        if let Some(max) = *self.history_retention.lock()
+            && let Err(e) = db.history_enforce_retention(max)
+        {
+            warn!("Failed to enforce history retention: {e}");
         }
     }
 
@@ -847,10 +848,10 @@ impl QueueManager {
                 files_completed: state.job.files_completed,
             };
 
-            if let Ok(data) = serde_json::to_vec(&checkpoint) {
-                if let Err(e) = db.queue_store_job_data(job_id, &data) {
-                    warn!(job_id = %job_id, "Failed to persist checkpoint: {e}");
-                }
+            if let Ok(data) = serde_json::to_vec(&checkpoint)
+                && let Err(e) = db.queue_store_job_data(job_id, &data)
+            {
+                warn!(job_id = %job_id, "Failed to persist checkpoint: {e}");
             }
         }
     }
@@ -930,14 +931,14 @@ impl QueueManager {
                     if let Some(s) = jobs.get(id) {
                         let p = s.job.priority as u8;
                         let name = s.job.name.clone();
-                        if s.job.status == JobStatus::Queued {
-                            if best_q.as_ref().map_or(true, |(_, bp, _)| p > *bp) {
-                                best_q = Some((id.clone(), p, name));
-                            }
-                        } else if s.job.status == JobStatus::Downloading {
-                            if worst_d.as_ref().map_or(true, |(_, wp, _)| p < *wp) {
-                                worst_d = Some((id.clone(), p, name));
-                            }
+                        if s.job.status == JobStatus::Queued
+                            && best_q.as_ref().is_none_or(|(_, bp, _)| p > *bp)
+                        {
+                            best_q = Some((id.clone(), p, name));
+                        } else if s.job.status == JobStatus::Downloading
+                            && worst_d.as_ref().is_none_or(|(_, wp, _)| p < *wp)
+                        {
+                            worst_d = Some((id.clone(), p, name));
                         }
                     }
                 }
@@ -1300,37 +1301,37 @@ impl QueueManager {
     /// List history entries.
     pub fn history_list(&self, limit: usize) -> nzb_core::Result<Vec<HistoryEntry>> {
         let db = self.db.lock();
-        db.history_list(limit).map_err(Into::into)
+        db.history_list(limit)
     }
 
     /// Get a single history entry.
     pub fn history_get(&self, id: &str) -> nzb_core::Result<Option<HistoryEntry>> {
         let db = self.db.lock();
-        db.history_get(id).map_err(Into::into)
+        db.history_get(id)
     }
 
     /// Get raw NZB data for retry.
     pub fn history_get_nzb_data(&self, id: &str) -> nzb_core::Result<Option<Vec<u8>>> {
         let db = self.db.lock();
-        db.history_get_nzb_data(id).map_err(Into::into)
+        db.history_get_nzb_data(id)
     }
 
     /// Remove a history entry.
     pub fn history_remove(&self, id: &str) -> nzb_core::Result<()> {
         let db = self.db.lock();
-        db.history_remove(id).map_err(Into::into)
+        db.history_remove(id)
     }
 
     /// Clear all history.
     pub fn history_clear(&self) -> nzb_core::Result<()> {
         let db = self.db.lock();
-        db.history_clear().map_err(Into::into)
+        db.history_clear()
     }
 
     /// Get persisted logs for a history entry.
     pub fn history_get_logs(&self, id: &str) -> nzb_core::Result<Option<String>> {
         let db = self.db.lock();
-        db.history_get_logs(id).map_err(Into::into)
+        db.history_get_logs(id)
     }
 
     // -----------------------------------------------------------------------
@@ -1344,13 +1345,13 @@ impl QueueManager {
         limit: usize,
     ) -> nzb_core::Result<Vec<RssItem>> {
         let db = self.db.lock();
-        db.rss_items_list(feed_name, limit).map_err(Into::into)
+        db.rss_items_list(feed_name, limit)
     }
 
     /// Get a single RSS item by ID.
     pub fn rss_item_get(&self, id: &str) -> nzb_core::Result<Option<RssItem>> {
         let db = self.db.lock();
-        db.rss_item_get(id).map_err(Into::into)
+        db.rss_item_get(id)
     }
 
     /// Mark an RSS item as downloaded.
@@ -1361,61 +1362,60 @@ impl QueueManager {
     ) -> nzb_core::Result<()> {
         let db = self.db.lock();
         db.rss_item_mark_downloaded(id, category)
-            .map_err(Into::into)
     }
 
     /// Upsert an RSS feed item.
     pub fn rss_item_upsert(&self, item: &RssItem) -> nzb_core::Result<()> {
         let db = self.db.lock();
-        db.rss_item_upsert(item).map_err(Into::into)
+        db.rss_item_upsert(item)
     }
 
     /// Batch upsert RSS feed items (single DB lock + transaction).
     pub fn rss_items_batch_upsert(&self, items: &[RssItem]) -> nzb_core::Result<usize> {
         let db = self.db.lock();
-        db.rss_items_batch_upsert(items).map_err(Into::into)
+        db.rss_items_batch_upsert(items)
     }
 
     /// Check if an RSS item exists.
     pub fn rss_item_exists(&self, id: &str) -> nzb_core::Result<bool> {
         let db = self.db.lock();
-        db.rss_item_exists(id).map_err(Into::into)
+        db.rss_item_exists(id)
     }
 
     /// Count total RSS items.
     pub fn rss_item_count(&self) -> nzb_core::Result<usize> {
         let db = self.db.lock();
-        db.rss_item_count().map_err(Into::into)
+        db.rss_item_count()
     }
 
     /// Prune RSS items to keep only N most recent.
     pub fn rss_items_prune(&self, keep: usize) -> nzb_core::Result<usize> {
         let db = self.db.lock();
-        db.rss_items_prune(keep).map_err(Into::into)
+        db.rss_items_prune(keep)
     }
 
     /// List all RSS download rules.
     pub fn rss_rule_list(&self) -> nzb_core::Result<Vec<RssRule>> {
         let db = self.db.lock();
-        db.rss_rule_list().map_err(Into::into)
+        db.rss_rule_list()
     }
 
     /// Insert a new RSS download rule.
     pub fn rss_rule_insert(&self, rule: &RssRule) -> nzb_core::Result<()> {
         let db = self.db.lock();
-        db.rss_rule_insert(rule).map_err(Into::into)
+        db.rss_rule_insert(rule)
     }
 
     /// Update an RSS download rule.
     pub fn rss_rule_update(&self, rule: &RssRule) -> nzb_core::Result<()> {
         let db = self.db.lock();
-        db.rss_rule_update(rule).map_err(Into::into)
+        db.rss_rule_update(rule)
     }
 
     /// Delete an RSS download rule.
     pub fn rss_rule_delete(&self, id: &str) -> nzb_core::Result<()> {
         let db = self.db.lock();
-        db.rss_rule_delete(id).map_err(Into::into)
+        db.rss_rule_delete(id)
     }
 
     // -----------------------------------------------------------------------
@@ -1618,7 +1618,7 @@ impl QueueManager {
 
                 // Periodic disk space check (every 30 seconds)
                 tick_count += 1;
-                if tick_count % 30 == 0 && qm.min_free_space > 0 {
+                if tick_count.is_multiple_of(30) && qm.min_free_space > 0 {
                     let free = get_disk_free(&qm.incomplete_dir);
                     if free > 0
                         && free < qm.min_free_space

@@ -208,10 +208,9 @@ impl ConnectionPool {
         debug!(server = %self.config.name, conn_id = %conn_id, "Creating new connection");
 
         let mut conn = NntpConnection::new(conn_id);
-        conn.connect(&self.config).await.map_err(|e| {
+        conn.connect(&self.config).await.inspect_err(|_| {
             // Free the semaphore slot since we failed
             self.semaphore.add_permits(1);
-            e
         })?;
 
         Ok(conn)

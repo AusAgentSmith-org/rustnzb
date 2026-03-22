@@ -83,7 +83,7 @@ pub async fn initialize(
     info!(path = %db_path.display(), "Database opened");
 
     // Use provided log buffer or create a new one
-    let log_buffer = log_buffer.unwrap_or_else(LogBuffer::new);
+    let log_buffer = log_buffer.unwrap_or_default();
 
     // Create the queue manager
     let queue_manager = QueueManager::new(

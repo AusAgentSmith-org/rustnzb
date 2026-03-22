@@ -87,10 +87,10 @@ pub async fn h_sabnzbd_api_post(
         let field_name = field.name().unwrap_or("").to_string();
         match field_name.as_str() {
             "mode" => {
-                if let Ok(text) = field.text().await {
-                    if !text.is_empty() {
-                        mode = text;
-                    }
+                if let Ok(text) = field.text().await
+                    && !text.is_empty()
+                {
+                    mode = text;
                 }
             }
             "apikey" => {
@@ -161,10 +161,10 @@ pub async fn h_sabnzbd_api_post(
 
             match nzb_parser::parse_nzb(&job_name, &data) {
                 Ok(mut job) => {
-                    if let Some(ref c) = cat {
-                        if !c.is_empty() {
-                            job.category = c.clone();
-                        }
+                    if let Some(ref c) = cat
+                        && !c.is_empty()
+                    {
+                        job.category = c.clone();
                     }
                     if let Some(ref p) = priority {
                         job.priority = sab_priority_to_priority(p);
@@ -253,10 +253,10 @@ pub async fn h_sabnzbd_api_post(
 
             match nzb_parser::parse_nzb(&job_name, &data) {
                 Ok(mut job) => {
-                    if let Some(ref c) = cat {
-                        if !c.is_empty() {
-                            job.category = c.clone();
-                        }
+                    if let Some(ref c) = cat
+                        && !c.is_empty()
+                    {
+                        job.category = c.clone();
                     }
                     if let Some(ref p) = priority {
                         job.priority = sab_priority_to_priority(p);
@@ -463,24 +463,24 @@ fn handle_pause(state: &AppState, req: &SabApiRequest) -> Json<serde_json::Value
     // If `name` or `value` contains a specific nzo_id, pause just that job
     let target_id = req.name.as_deref().or(req.value.as_deref());
 
-    if let Some(nzo_id) = target_id {
-        if !nzo_id.is_empty() {
-            let search_id = nzo_id
-                .strip_prefix("SABnzbd_nzo_")
-                .unwrap_or(nzo_id);
+    if let Some(nzo_id) = target_id
+        && !nzo_id.is_empty()
+    {
+        let search_id = nzo_id
+            .strip_prefix("SABnzbd_nzo_")
+            .unwrap_or(nzo_id);
 
-            // Try to find and pause the job
-            let jobs = qm.get_jobs();
-            for job in &jobs {
-                if job.id == search_id || job.id.starts_with(search_id) {
-                    let _ = qm.pause_job(&job.id);
-                    tracing::info!(id = %job.id, "Job paused via arr API");
-                    break;
-                }
+        // Try to find and pause the job
+        let jobs = qm.get_jobs();
+        for job in &jobs {
+            if job.id == search_id || job.id.starts_with(search_id) {
+                let _ = qm.pause_job(&job.id);
+                tracing::info!(id = %job.id, "Job paused via arr API");
+                break;
             }
-
-            return Json(serde_json::json!({ "status": true }));
         }
+
+        return Json(serde_json::json!({ "status": true }));
     }
 
     // No specific ID -- pause all
@@ -495,23 +495,23 @@ fn handle_resume(state: &AppState, req: &SabApiRequest) -> Json<serde_json::Valu
 
     let target_id = req.name.as_deref().or(req.value.as_deref());
 
-    if let Some(nzo_id) = target_id {
-        if !nzo_id.is_empty() {
-            let search_id = nzo_id
-                .strip_prefix("SABnzbd_nzo_")
-                .unwrap_or(nzo_id);
+    if let Some(nzo_id) = target_id
+        && !nzo_id.is_empty()
+    {
+        let search_id = nzo_id
+            .strip_prefix("SABnzbd_nzo_")
+            .unwrap_or(nzo_id);
 
-            let jobs = qm.get_jobs();
-            for job in &jobs {
-                if job.id == search_id || job.id.starts_with(search_id) {
-                    let _ = qm.resume_job(&job.id);
-                    tracing::info!(id = %job.id, "Job resumed via arr API");
-                    break;
-                }
+        let jobs = qm.get_jobs();
+        for job in &jobs {
+            if job.id == search_id || job.id.starts_with(search_id) {
+                let _ = qm.resume_job(&job.id);
+                tracing::info!(id = %job.id, "Job resumed via arr API");
+                break;
             }
-
-            return Json(serde_json::json!({ "status": true }));
         }
+
+        return Json(serde_json::json!({ "status": true }));
     }
 
     // Resume all

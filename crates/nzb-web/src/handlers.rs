@@ -351,10 +351,10 @@ pub async fn h_queue_add_url(
     let nzb_data = data.to_vec();
     let mut job = nzb_parser::parse_nzb(&job_name, &data).map_err(ApiError::from)?;
 
-    if let Some(ref cat) = body.category {
-        if !cat.is_empty() {
-            job.category = cat.clone();
-        }
+    if let Some(ref cat) = body.category
+        && !cat.is_empty()
+    {
+        job.category = cat.clone();
     }
 
     if let Some(prio) = body.priority {
@@ -1318,7 +1318,7 @@ fn get_disk_space_free(path: &std::path::Path) -> u64 {
             let mut stat = MaybeUninit::<libc::statvfs>::uninit();
             if libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) == 0 {
                 let stat = stat.assume_init();
-                return stat.f_bavail as u64 * stat.f_frsize as u64;
+                return stat.f_bavail * stat.f_frsize;
             }
         }
         0
@@ -1375,15 +1375,14 @@ pub async fn h_browse_directory(
     let mut directories = Vec::new();
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
-            if let Ok(ft) = entry.file_type() {
-                if ft.is_dir() {
-                    if let Some(name) = entry.file_name().to_str() {
-                        // Skip hidden directories
-                        if !name.starts_with('.') {
-                            directories
-                                .push(entry.path().to_string_lossy().to_string());
-                        }
-                    }
+            if let Ok(ft) = entry.file_type()
+                && ft.is_dir()
+                && let Some(name) = entry.file_name().to_str()
+            {
+                // Skip hidden directories
+                if !name.starts_with('.') {
+                    directories
+                        .push(entry.path().to_string_lossy().to_string());
                 }
             }
         }

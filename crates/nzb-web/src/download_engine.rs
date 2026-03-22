@@ -104,6 +104,12 @@ pub struct DownloadEngine {
     pub total_articles_decoded: Arc<AtomicU64>,
 }
 
+impl Default for DownloadEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DownloadEngine {
     pub fn new() -> Self {
         Self {

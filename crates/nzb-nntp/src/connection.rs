@@ -112,7 +112,7 @@ pub enum ConnectionState {
 /// We box-erase so `NntpConnection` has a single concrete type.
 enum Transport {
     Plain(BufReader<TcpStream>),
-    Tls(BufReader<tokio_rustls::client::TlsStream<TcpStream>>),
+    Tls(Box<BufReader<tokio_rustls::client::TlsStream<TcpStream>>>),
 }
 
 impl Transport {
@@ -214,7 +214,7 @@ impl NntpConnection {
                 NntpError::Tls(format!("TLS handshake with {addr}: {e}"))
             })?;
 
-            self.transport = Some(Transport::Tls(BufReader::with_capacity(256 * 1024, tls_stream)));
+            self.transport = Some(Transport::Tls(Box::new(BufReader::with_capacity(256 * 1024, tls_stream))));
         } else {
             self.transport = Some(Transport::Plain(BufReader::with_capacity(256 * 1024, tcp)));
         }
@@ -633,7 +633,7 @@ impl NntpConnection {
         transport
             .write_all(line.as_bytes())
             .await
-            .map_err(|e| NntpError::Io(e))?;
+            .map_err(NntpError::Io)?;
         Ok(())
     }
 
@@ -648,7 +648,7 @@ impl NntpConnection {
         let n = transport
             .read_line(&mut line)
             .await
-            .map_err(|e| NntpError::Io(e))?;
+            .map_err(NntpError::Io)?;
 
         if n == 0 {
             return Err(NntpError::Connection("Server closed connection".into()));
@@ -673,7 +673,7 @@ impl NntpConnection {
             let n = transport
                 .read_line_bytes(&mut line_buf)
                 .await
-                .map_err(|e| NntpError::Io(e))?;
+                .map_err(NntpError::Io)?;
 
             if n == 0 {
                 return Err(NntpError::Connection(
