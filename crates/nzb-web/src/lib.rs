@@ -9,9 +9,11 @@ pub mod queue_manager;
 pub mod rss_monitor;
 pub mod sabnzbd_compat;
 pub mod server;
+pub mod startup;
 pub mod state;
 
 pub use log_buffer::{LogBuffer, LogBufferLayer};
 pub use queue_manager::QueueManager;
 pub use server::run;
+pub use startup::{StartupConfig, StartupResult};
 pub use state::AppState;

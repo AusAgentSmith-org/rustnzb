@@ -1,0 +1,48 @@
+# benchnzb v2: Stress test (RustNZB only)
+#
+# Single Rust binary serves as:
+#   benchnzb synth-nntp  — synthetic NNTP server (generates articles on-the-fly)
+#   benchnzb stress      — stress test orchestrator (duration-based, continuous load)
+
+services:
+  synth-nntp:
+    build: .
+    command: ["synth-nntp", "--port", "119", "--health-port", "8080"]
+    networks: [bench]
+
+  rustnzb:
+    build:
+      context: ${RUSTNZB_DIR:-..}
+      dockerfile: Dockerfile
+    command: ["--config", "/config/config.toml"]
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+    volumes:
+      - ./state/rustnzb:/config
+      - downloads:/downloads
+    networks: [bench]
+    depends_on: [synth-nntp]
+
+  stress-runner:
+    build: .
+    command:
+      - stress
+      - --duration=${DURATION:-1h}
+      - --nzb-size=${NZB_SIZE:-5gb}
+      - --concurrency=${CONCURRENCY:-5}
+      - --poll-interval=${POLL_INTERVAL:-5}
+      - --cleanup-interval=${CLEANUP_INTERVAL:-30}
+    volumes:
+      - ./results:/results
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [bench]
+    depends_on:
+      - synth-nntp
+      - rustnzb
+
+networks:
+  bench:
+    driver: bridge
+
+volumes:
+  downloads:

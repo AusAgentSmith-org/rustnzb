@@ -8,6 +8,10 @@ mod mock_nntp;
 mod nzb;
 mod report;
 mod runner;
+mod stress;
+mod stress_charts;
+mod stress_report;
+mod synth_nntp;
 mod yenc;
 
 use clap::{Parser, Subcommand};
@@ -22,7 +26,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run the benchmark orchestrator
+    /// Run the benchmark orchestrator (v1: SABnzbd vs rustnzb comparison)
     Run {
         #[arg(long, default_value = "quick", env = "SCENARIOS")]
         scenarios: String,
@@ -31,7 +35,7 @@ enum Command {
         #[arg(long, default_value = "/results")]
         results_dir: PathBuf,
     },
-    /// Run the mock NNTP server
+    /// Run the mock NNTP server (file-backed, for v1 benchmarks)
     MockNntp {
         #[arg(long, default_value = "119")]
         port: u16,
@@ -46,6 +50,34 @@ enum Command {
         json: PathBuf,
         #[arg(long)]
         out: PathBuf,
+    },
+    /// Run synthetic NNTP server (generates articles on-the-fly, for v2 stress tests)
+    SynthNntp {
+        #[arg(long, default_value = "119")]
+        port: u16,
+        #[arg(long, default_value = "8080")]
+        health_port: u16,
+    },
+    /// Run stress-test benchmark (v2: RustNZB only, duration-based, continuous load)
+    Stress {
+        /// How long to run (e.g. "1h", "4h30m", "30m")
+        #[arg(long, default_value = "1h", env = "DURATION")]
+        duration: String,
+        /// Size of each NZB download (e.g. "5gb", "1gb", "500mb")
+        #[arg(long, default_value = "5gb", env = "NZB_SIZE")]
+        nzb_size: String,
+        /// Number of NZBs to keep queued (feeder maintains this depth)
+        #[arg(long, default_value = "5", env = "CONCURRENCY")]
+        concurrency: usize,
+        /// Seconds between metrics samples
+        #[arg(long, default_value = "5")]
+        poll_interval: u64,
+        /// Seconds between completed-download cleanup sweeps
+        #[arg(long, default_value = "30")]
+        cleanup_interval: u64,
+        /// Results output directory
+        #[arg(long, default_value = "/results")]
+        results_dir: PathBuf,
     },
 }
 
@@ -97,6 +129,27 @@ fn main() -> anyhow::Result<()> {
                 charts::generate_all(&results, &out)?;
                 tracing::info!("Charts written to {}", out.display());
                 Ok(())
+            }
+            Command::SynthNntp { port, health_port } => {
+                synth_nntp::run(port, health_port).await
+            }
+            Command::Stress {
+                duration,
+                nzb_size,
+                concurrency,
+                poll_interval,
+                cleanup_interval,
+                results_dir,
+            } => {
+                stress::run(stress::StressConfig {
+                    duration,
+                    nzb_size,
+                    concurrency,
+                    poll_interval_secs: poll_interval,
+                    cleanup_interval_secs: cleanup_interval,
+                    results_dir,
+                })
+                .await
             }
         }
     });

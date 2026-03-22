@@ -106,6 +106,90 @@ fn generate_all() -> Vec<Scenario> {
     scenarios
 }
 
+/// Window size for stress test analysis (seconds).
+pub const STRESS_WINDOW_SECS: u64 = 300;
+
+/// Parse a human-readable duration string like "1h", "30m", "2h30m", "4h15m".
+pub fn parse_duration(s: &str) -> anyhow::Result<std::time::Duration> {
+    let s = s.trim().to_lowercase();
+    let mut total_secs: u64 = 0;
+    let mut num_buf = String::new();
+
+    for c in s.chars() {
+        if c.is_ascii_digit() {
+            num_buf.push(c);
+        } else {
+            let n: u64 = num_buf
+                .parse()
+                .map_err(|_| anyhow::anyhow!("Invalid duration: {s}"))?;
+            num_buf.clear();
+            match c {
+                'h' => total_secs += n * 3600,
+                'm' => total_secs += n * 60,
+                's' => total_secs += n,
+                _ => anyhow::bail!("Unknown duration unit '{c}' in: {s}"),
+            }
+        }
+    }
+
+    // Handle bare number (no unit) — treat as seconds
+    if !num_buf.is_empty() {
+        let n: u64 = num_buf
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Invalid duration: {s}"))?;
+        total_secs += n;
+    }
+
+    if total_secs == 0 {
+        anyhow::bail!("Duration must be > 0: {s}");
+    }
+
+    Ok(std::time::Duration::from_secs(total_secs))
+}
+
+/// Parse a human-readable size string like "1gb", "500mb", "10gb".
+pub fn parse_size(s: &str) -> anyhow::Result<u64> {
+    let s = s.trim().to_lowercase();
+
+    if let Some(n) = s.strip_suffix("gb") {
+        let v: u64 = n.parse().map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
+        Ok(v * GB)
+    } else if let Some(n) = s.strip_suffix("mb") {
+        let v: u64 = n.parse().map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
+        Ok(v * MB)
+    } else {
+        // Try as raw bytes
+        let v: u64 = s.parse().map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
+        Ok(v)
+    }
+}
+
+/// Format bytes as a human-readable size string.
+pub fn format_size(bytes: u64) -> String {
+    if bytes >= GB {
+        format!("{:.1} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+/// Format a Duration as a human-readable string like "2h 30m 15s".
+pub fn format_duration(d: std::time::Duration) -> String {
+    let secs = d.as_secs();
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    if h > 0 {
+        format!("{h}h {m:02}m {s:02}s")
+    } else if m > 0 {
+        format!("{m}m {s:02}s")
+    } else {
+        format!("{s}s")
+    }
+}
+
 pub fn resolve_scenarios(selector: &str) -> Vec<Scenario> {
     let all = generate_all();
     let sel = selector.trim().to_lowercase();

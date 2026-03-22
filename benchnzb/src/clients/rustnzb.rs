@@ -1,6 +1,12 @@
 use super::StageTiming;
 use anyhow::Result;
 
+pub struct StatusSummary {
+    pub speed_bps: u64,
+    pub queue_size: usize,
+    pub active_downloads: usize,
+}
+
 pub struct RustnzbClient {
     url: String,
     http: reqwest::Client,
@@ -259,6 +265,94 @@ impl RustnzbClient {
         }
 
         Ok(metrics)
+    }
+
+    /// Clone client for use in spawned tasks.
+    pub fn clone_client(&self) -> Self {
+        Self {
+            url: self.url.clone(),
+            http: self.http.clone(),
+        }
+    }
+
+    /// Get queue size (number of jobs in queue).
+    pub async fn queue_size(&self) -> Result<usize> {
+        let queue: serde_json::Value = self
+            .http
+            .get(format!("{}/api/queue", self.url))
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        Ok(queue["jobs"]
+            .as_array()
+            .map(|a| a.len())
+            .unwrap_or(0))
+    }
+
+    /// Get status summary from the API.
+    pub async fn get_status(&self) -> Result<StatusSummary> {
+        let status: serde_json::Value = self
+            .http
+            .get(format!("{}/api/status", self.url))
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        let queue: serde_json::Value = self
+            .http
+            .get(format!("{}/api/queue", self.url))
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        let jobs = queue["jobs"].as_array().cloned().unwrap_or_default();
+        let active = jobs
+            .iter()
+            .filter(|j| {
+                j["status"]
+                    .as_str()
+                    .map_or(false, |s| s == "downloading")
+            })
+            .count();
+
+        Ok(StatusSummary {
+            speed_bps: status["speed_bps"].as_u64().unwrap_or(0),
+            queue_size: jobs.len(),
+            active_downloads: active,
+        })
+    }
+
+    /// Get count of history entries.
+    pub async fn history_count(&self) -> Result<u64> {
+        let history: serde_json::Value = self
+            .http
+            .get(format!("{}/api/history", self.url))
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        Ok(history["entries"]
+            .as_array()
+            .map(|a| a.len() as u64)
+            .unwrap_or(0))
+    }
+
+    /// Clear history only (not queue).
+    pub async fn clear_history(&self) -> Result<()> {
+        self.http
+            .delete(format!("{}/api/history", self.url))
+            .send()
+            .await?;
+        Ok(())
     }
 
     pub async fn clear_all(&self) {

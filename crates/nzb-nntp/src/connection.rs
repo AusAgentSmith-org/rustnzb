@@ -48,6 +48,42 @@ impl NntpResponse {
 }
 
 // ---------------------------------------------------------------------------
+// GROUP response
+// ---------------------------------------------------------------------------
+
+/// Response from the GROUP command (RFC 3977 Section 6.1.1).
+#[derive(Debug, Clone)]
+pub struct GroupResponse {
+    /// Estimated number of articles in the group.
+    pub count: u64,
+    /// Lowest article number.
+    pub first: u64,
+    /// Highest article number.
+    pub last: u64,
+    /// Group name (echoed back by server).
+    pub name: String,
+}
+
+// ---------------------------------------------------------------------------
+// XOVER entry
+// ---------------------------------------------------------------------------
+
+/// A single entry from an XOVER/OVER response.
+/// Fields correspond to the overview.fmt standard (RFC 2980 Section 3.1.1):
+/// article_num \t subject \t from \t date \t message-id \t references \t bytes \t lines
+#[derive(Debug, Clone)]
+pub struct XoverEntry {
+    pub article_num: u64,
+    pub subject: String,
+    pub from: String,
+    pub date: String,
+    pub message_id: String,
+    pub references: String,
+    pub bytes: u64,
+    pub lines: u64,
+}
+
+// ---------------------------------------------------------------------------
 // Connection state enum
 // ---------------------------------------------------------------------------
 
@@ -392,6 +428,161 @@ impl NntpConnection {
     }
 
     // ------------------------------------------------------------------
+    // GROUP command (RFC 3977 Section 6.1.1)
+    // ------------------------------------------------------------------
+
+    /// Select a newsgroup and return its article range.
+    ///
+    /// Sends `GROUP <name>` and parses the `211` response:
+    /// `211 count first last name`
+    pub async fn group(&mut self, name: &str) -> NntpResult<GroupResponse> {
+        if self.state != ConnectionState::Ready {
+            return Err(NntpError::Protocol(format!(
+                "Cannot GROUP in state {:?}",
+                self.state
+            )));
+        }
+        self.state = ConnectionState::Busy;
+
+        self.send_command(&format!("GROUP {name}")).await?;
+        let resp = self.read_response_line().await?;
+
+        self.state = ConnectionState::Ready;
+
+        match resp.code {
+            211 => {
+                let parts: Vec<&str> = resp.message.split_whitespace().collect();
+                if parts.len() < 3 {
+                    return Err(NntpError::Protocol(format!(
+                        "Malformed GROUP response: {}",
+                        resp.message
+                    )));
+                }
+                Ok(GroupResponse {
+                    count: parts[0].parse().unwrap_or(0),
+                    first: parts[1].parse().unwrap_or(0),
+                    last: parts[2].parse().unwrap_or(0),
+                    name: parts.get(3).unwrap_or(&name).to_string(),
+                })
+            }
+            411 => Err(NntpError::NoSuchGroup(name.to_string())),
+            480 => {
+                self.state = ConnectionState::Error;
+                Err(NntpError::AuthRequired(resp.message))
+            }
+            502 => {
+                self.state = ConnectionState::Error;
+                Err(NntpError::ServiceUnavailable(resp.message))
+            }
+            _ => {
+                self.state = ConnectionState::Error;
+                Err(NntpError::Protocol(format!(
+                    "Unexpected GROUP response {}: {}",
+                    resp.code, resp.message
+                )))
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // XOVER command (RFC 2980 Section 2.8)
+    // ------------------------------------------------------------------
+
+    /// Fetch overview data for a range of article numbers.
+    ///
+    /// Sends `XOVER start-end` and parses the tab-delimited multi-line response.
+    /// Response code 224 means overview data follows (dot-terminated).
+    pub async fn xover(&mut self, start: u64, end: u64) -> NntpResult<Vec<XoverEntry>> {
+        if self.state != ConnectionState::Ready {
+            return Err(NntpError::Protocol(format!(
+                "Cannot XOVER in state {:?}",
+                self.state
+            )));
+        }
+        self.state = ConnectionState::Busy;
+
+        self.send_command(&format!("XOVER {start}-{end}")).await?;
+        let status = self.read_response_line().await?;
+
+        match status.code {
+            224 => {
+                let data = self.read_multiline_body().await?;
+                self.state = ConnectionState::Ready;
+                Ok(parse_xover_data(&data))
+            }
+            420 => {
+                self.state = ConnectionState::Ready;
+                Ok(Vec::new()) // No articles in range
+            }
+            412 => {
+                self.state = ConnectionState::Ready;
+                Err(NntpError::NoSuchGroup(
+                    "No newsgroup selected (send GROUP first)".into(),
+                ))
+            }
+            502 => {
+                self.state = ConnectionState::Error;
+                Err(NntpError::ServiceUnavailable(status.message))
+            }
+            _ => {
+                self.state = ConnectionState::Error;
+                Err(NntpError::Protocol(format!(
+                    "Unexpected XOVER response {}: {}",
+                    status.code, status.message
+                )))
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // BODY command
+    // ------------------------------------------------------------------
+
+    /// Fetch article body by message-id (headers excluded).
+    ///
+    /// Sends `BODY <message-id>` and returns the raw body data.
+    pub async fn fetch_body(&mut self, message_id: &str) -> NntpResult<NntpResponse> {
+        if self.state != ConnectionState::Ready {
+            return Err(NntpError::Protocol(format!(
+                "Cannot BODY in state {:?}",
+                self.state
+            )));
+        }
+        self.state = ConnectionState::Busy;
+
+        let mid = normalize_message_id(message_id);
+        self.send_command(&format!("BODY {mid}")).await?;
+        let status = self.read_response_line().await?;
+
+        match status.code {
+            222 => {
+                let data = self.read_multiline_body().await?;
+                self.state = ConnectionState::Ready;
+                Ok(NntpResponse {
+                    code: status.code,
+                    message: status.message,
+                    data: Some(data),
+                })
+            }
+            430 => {
+                self.state = ConnectionState::Ready;
+                Err(NntpError::ArticleNotFound(mid))
+            }
+            412 | 420 => {
+                self.state = ConnectionState::Ready;
+                Err(NntpError::NoArticleSelected(status.message))
+            }
+            _ => {
+                self.state = ConnectionState::Error;
+                Err(NntpError::Protocol(format!(
+                    "Unexpected BODY response {}: {}",
+                    status.code, status.message
+                )))
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // QUIT
     // ------------------------------------------------------------------
 
@@ -551,6 +742,36 @@ fn normalize_message_id(mid: &str) -> String {
     }
 }
 
+/// Parse XOVER multi-line body into structured entries.
+/// Each line is tab-delimited:
+/// article_num \t subject \t from \t date \t message-id \t references \t bytes \t lines
+fn parse_xover_data(data: &[u8]) -> Vec<XoverEntry> {
+    let text = String::from_utf8_lossy(data);
+    let mut entries = Vec::new();
+
+    for line in text.lines() {
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() < 8 {
+            continue; // Malformed line, skip
+        }
+        let message_id = parts[4]
+            .trim_matches(|c| c == '<' || c == '>')
+            .to_string();
+        entries.push(XoverEntry {
+            article_num: parts[0].parse().unwrap_or(0),
+            subject: parts[1].to_string(),
+            from: parts[2].to_string(),
+            date: parts[3].to_string(),
+            message_id,
+            references: parts[5].to_string(),
+            bytes: parts[6].parse().unwrap_or(0),
+            lines: parts[7].trim().parse().unwrap_or(0),
+        });
+    }
+
+    entries
+}
+
 /// Build a `rustls::ClientConfig` for NNTP TLS connections.
 fn build_tls_config(verify_certs: bool) -> NntpResult<rustls::ClientConfig> {
     if verify_certs {
@@ -640,5 +861,49 @@ mod tests {
             normalize_message_id("<abc@example.com>"),
             "<abc@example.com>"
         );
+    }
+
+    #[test]
+    fn test_parse_xover_data() {
+        let data = b"123456\tSubject line\tposter@example.com\tMon, 01 Jan 2024 00:00:00 UTC\t<msg-id@host>\t\t768000\t1000\r\n";
+        let entries = parse_xover_data(data);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].article_num, 123456);
+        assert_eq!(entries[0].subject, "Subject line");
+        assert_eq!(entries[0].from, "poster@example.com");
+        assert_eq!(entries[0].message_id, "msg-id@host");
+        assert_eq!(entries[0].bytes, 768000);
+        assert_eq!(entries[0].lines, 1000);
+    }
+
+    #[test]
+    fn test_parse_xover_strips_angle_brackets() {
+        let data = b"1\tSubj\tPoster\tDate\t<abc@def.com>\t\t100\t10\r\n";
+        let entries = parse_xover_data(data);
+        assert_eq!(entries[0].message_id, "abc@def.com");
+    }
+
+    #[test]
+    fn test_parse_xover_skips_malformed_lines() {
+        let data = b"too\tfew\tfields\r\n123\tSubj\tFrom\tDate\t<mid@x>\t\t500\t50\r\n";
+        let entries = parse_xover_data(data);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].article_num, 123);
+    }
+
+    #[test]
+    fn test_parse_xover_multiple_entries() {
+        let data = b"100\tS1\tF1\tD1\t<m1@x>\t\t1000\t10\r\n200\tS2\tF2\tD2\t<m2@x>\tref\t2000\t20\r\n";
+        let entries = parse_xover_data(data);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].article_num, 100);
+        assert_eq!(entries[1].article_num, 200);
+        assert_eq!(entries[1].references, "ref");
+    }
+
+    #[test]
+    fn test_parse_xover_empty() {
+        let entries = parse_xover_data(b"");
+        assert!(entries.is_empty());
     }
 }
