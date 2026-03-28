@@ -1,29 +1,64 @@
 # rustnzb
 
-A high-performance Usenet NZB download client written in Rust.
+**A Modern Usenet Binary Downloader, Rewritten From the Ground Up in Rust**
 
-rustnzb is a full-featured binary newsreader that downloads, decodes, verifies, repairs, and extracts files from Usenet. It provides a web UI, REST API, and a SABnzbd-compatible API so it works as a drop-in replacement with Sonarr, Radarr, and other *arr applications.
+Built from scratch with zero legacy dependencies. Fast, efficient, and designed for self-hosters. Full NNTP pipeline with yEnc decoding, PAR2 verification & repair, archive extraction, and a clean web UI. No inherited technical debt -- just modern Rust with async I/O, connection pooling, and NNTP pipelining for maximum throughput.
+
+[![Rust](https://img.shields.io/badge/Rust-2024_edition-orange)](https://www.rust-lang.org/)
+[![Docker](https://img.shields.io/badge/Docker-Hub-blue)](https://hub.docker.com/r/ausagentsmith/rustnzb)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+---
 
 ## Features
 
-- **Fast async downloads** — Tokio-based async I/O with NNTP request pipelining and multi-server support
-- **SIMD-accelerated decoding** — yEnc decoding via yenc-simd with per-segment CRC32 verification
-- **Automatic post-processing** — par2 verify/repair, RAR/7z/ZIP extraction, cleanup
-- **Multi-server failover** — Priority-based server selection with automatic failover and health tracking
-- **SABnzbd API compatibility** — Works with Sonarr, Radarr, Lidarr, and other *arr applications out of the box
-- **Web UI** — Embedded single-page application for managing downloads
-- **REST API** — Full-featured API with Swagger/OpenAPI documentation at `/swagger-ui`
-- **RSS feeds** — Automatic monitoring and downloading from RSS feeds with regex filtering
-- **Directory watching** — Auto-enqueue `.nzb` files dropped into a watch directory
-- **Bandwidth control** — Configurable speed limits with runtime adjustment via API
-- **OpenTelemetry** — Optional metrics and log export via OTLP gRPC
-- **Single binary** — par2cmdline-turbo is embedded at build time, no system par2 install needed
-- **SQLite persistence** — Queue and history survive restarts
-- **Docker-ready** — Multi-stage Dockerfile, health checks, non-root user
+| | Feature | Description |
+|-|---------|-------------|
+| **⚡** | **NNTP Pipelining** | Send multiple ARTICLE commands per connection before reading responses. Configurable pipeline depth per server eliminates round-trip latency. |
+| **🔄** | **Multi-Server Failover** | Priority-ordered server list with automatic failover. Articles not found on one server are retried on the next. Optional servers for fill providers. |
+| **📦** | **yEnc Decoding** | Fast yEnc decoder with CRC32 validation. Handles multi-part articles, escape sequences, and assembles files from decoded segments. |
+| **🔧** | **PAR2 Verify & Repair** | Automatic PAR2 verification after download. Damaged files are repaired using recovery blocks before extraction. |
+| **📂** | **Archive Extraction** | Automatic extraction of RAR, 7z, and ZIP archives after download and repair. Supports multi-part RAR with cleanup. |
+| **🖥️** | **Clean Web UI** | Responsive single-page interface. Queue management, download history, server configuration, real-time logs, and drag-and-drop NZB upload. |
+| **🖱️** | **Desktop App** | Native desktop application for Windows, macOS, and Linux powered by Tauri. System tray with queue count and speed. |
+| **🔌** | **REST API** | Full HTTP API with Swagger/OpenAPI documentation. Queue, history, server management, status, and log endpoints. |
+| **🔁** | **SABnzbd Compatible** | Drop-in replacement for SABnzbd. Works out of the box with Sonarr, Radarr, Lidarr, and other *arr applications. |
+| **📡** | **OpenTelemetry** | Built-in tracing and metrics export via OTLP. Ship logs and metrics to Grafana, Jaeger, or any OTLP-compatible backend. |
+| **📥** | **SABnzbd Migration** | Import your SABnzbd configuration with one click. Upload your `sabnzbd.ini` or connect to a live instance. |
 
-## Quick Start
+---
 
-### Docker (Recommended)
+## Benchmarks
+
+Head-to-head comparison with SABnzbd under identical conditions.
+
+### 1-Hour Stress Test
+
+Sustained load with continuous NZB submission -- 50 NNTP connections, 5 concurrent jobs.
+
+| Metric | rustnzb | SABnzbd |
+|--------|---------|---------|
+| Avg speed | **5,059 Mbps** | 1,002 Mbps |
+| NZBs completed / hour | **401** | 37 |
+| Downloaded in 1 hour | **2,287 GB** | 455 GB |
+| Memory over time | **Stable** (+2 MB/hr) | +2,412 MB/hr |
+
+### Scenario Comparisons
+
+| Scenario | rustnzb | SABnzbd | Improvement |
+|----------|---------|---------|-------------|
+| 5 GB raw download | **4.2s** @ 10,316 Mbps | 5.0s @ 8,535 Mbps | +21% faster |
+| 10 GB raw download | **10.2s** @ 8,394 Mbps | 14.1s @ 6,098 Mbps | +38% faster |
+| 10 GB + 7z extraction | **19.9s** | 29.2s | +47% faster |
+| 5 GB + PAR2 repair | 33.5s (4.0s download) | 30.4s (9.4s download) | 2.4x faster download, 60% less memory |
+
+All benchmarks run on the same machine using Docker containers with identical configuration. Data served by a mock NNTP server to eliminate network variability. Full methodology and raw data in `benchnzb/`.
+
+---
+
+## Getting Started
+
+### Docker
 
 ```bash
 docker run -d \
@@ -32,389 +67,157 @@ docker run -d \
   -v ./config:/config \
   -v ./data:/data \
   -v /path/to/downloads:/downloads \
-  ausagentsmith-org/rustnzb:latest
+  ausagentsmith/rustnzb:latest
 ```
 
-Then open `http://localhost:9090` in your browser. Add your NNTP servers via the web UI.
+Open `http://localhost:9090` and add your NNTP servers via the web UI.
 
 ### Docker Compose
-
-```yaml
-services:
-  rustnzb:
-    image: ausagentsmith-org/rustnzb:latest
-    container_name: rustnzb
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./config:/config
-      - ./data:/data
-      - /path/to/downloads:/downloads
-    environment:
-      - TZ=Your/Timezone
-      - RUST_LOG=info
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9090/api/status"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-```
-
-```bash
-docker compose up -d
-```
-
-### From Source
-
-**Prerequisites:**
-- Rust 1.88+ (edition 2024)
-- `unrar` or `unrar-free` — for RAR extraction
-- `p7zip-full` — for 7z extraction
-- par2 is bundled automatically, no system install needed
 
 ```bash
 git clone https://github.com/AusAgentSmith-org/rustnzb.git
 cd rustnzb
-cargo build --release
-./target/release/rustnzb --config config.example.toml
-```
-
-Verify external tools work:
-
-```bash
-./target/release/rustnzb --smoke-test
-```
-
-## Configuration
-
-rustnzb uses a TOML configuration file. Copy `config.example.toml` to get started:
-
-```bash
 cp config.example.toml config.toml
+docker compose up -d
 ```
 
-Servers and most settings can also be configured through the web UI.
+### Desktop App
 
-### Configuration File
+Native application for Windows and Linux powered by Tauri.
+
+Download the latest installer from [GitHub Releases](https://github.com/AusAgentSmith-org/rustnzb/releases):
+- **Windows** -- `.exe` (NSIS installer)
+- **Linux** -- `.deb` or `.rpm`
+
+### From Source
+
+```bash
+git clone https://github.com/AusAgentSmith-org/rustnzb.git
+cd rustnzb
+cp config.example.toml config.toml
+cargo build --release
+./target/release/rustnzb
+```
+
+Requirements: Rust 1.88+ (2024 edition), `7z` for archive extraction.
+
+---
+
+## Sonarr & Radarr Integration
+
+rustnzb is a drop-in replacement for SABnzbd -- use the **SABnzbd** download client type in your *arr apps.
+
+1. In Sonarr/Radarr, go to **Settings > Download Clients > Add** and select **SABnzbd**
+2. Set **Host** and **Port** to your rustnzb instance
+3. Enter your `api_key` (if configured in `config.toml`)
+4. Set **Category** to match your rustnzb categories (e.g. `tv`, `movies`)
 
 ```toml
 [general]
-listen_addr = "0.0.0.0"
-port = 8080
-# api_key = "your-secret-api-key"
-incomplete_dir = "downloads/incomplete"
-complete_dir = "downloads/complete"
-data_dir = "data"
-speed_limit_bps = 0              # 0 = unlimited
-cache_size = 524288000           # 500 MB article cache
-log_level = "info"
-# watch_dir = "watch"            # Auto-enqueue NZBs from this directory
-# history_retention = 100        # Max history entries (omit = keep all)
-
-[[servers]]
-id = "primary"
-name = "My Usenet Server"
-host = "news.example.com"
-port = 563
-ssl = true
-ssl_verify = true
-username = "user"
-password = "pass"
-connections = 8
-priority = 0                     # 0 = highest priority
-enabled = true
-retention = 3000                 # days
-pipelining = 1
-
-[[servers]]
-id = "backup"
-name = "Backup Server"
-host = "backup.example.com"
-port = 563
-ssl = true
-connections = 4
-priority = 1                     # Lower priority = tried after primary
-optional = true
-
-[[categories]]
-name = "Default"
-post_processing = 3              # 0=none, 1=repair, 2=unpack, 3=repair+unpack
-
-[[categories]]
-name = "movies"
-output_dir = "movies"            # Relative to complete_dir
-post_processing = 3
+api_key = "your-secret-key"
 
 [[categories]]
 name = "tv"
 output_dir = "tv"
-post_processing = 3
 
-# RSS feed monitoring
-# [[rss_feeds]]
-# name = "My Indexer"
-# url = "https://example.com/rss?t=5000"
-# poll_interval_secs = 900
-# category = "tv"
-# filter_regex = "1080p"
-# enabled = true
-
-# OpenTelemetry (optional)
-[otel]
-enabled = false
-endpoint = "http://localhost:4317"
-service_name = "rustnzb"
+[[categories]]
+name = "movies"
+output_dir = "movies"
 ```
 
-### Environment Variables
+Works with Sonarr, Radarr, Lidarr, Readarr, and Prowlarr.
 
-All CLI arguments can be set via environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RUSTNZB_CONFIG` | `config.toml` | Config file path |
-| `RUSTNZB_PORT` | from config | Listen port |
-| `RUSTNZB_LISTEN_ADDR` | from config | Listen address |
-| `RUSTNZB_DATA_DIR` | from config | Data directory |
-| `RUSTNZB_LOG_LEVEL` | `info` | Log level |
-| `RUSTNZB_LOG_FILE` | — | Log file path |
-| `RUST_LOG` | — | tracing env filter (advanced) |
-| `OTEL_ENABLED` | `false` | Enable OpenTelemetry |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | — | OTLP gRPC endpoint |
-| `OTEL_SERVICE_NAME` | `rustnzb` | Telemetry service name |
-
-## Usage
-
-### CLI
-
-```
-rustnzb [OPTIONS]
-
-Options:
-  -c, --config <PATH>        Config file path [default: config.toml]
-  -p, --port <PORT>          Listen port
-      --listen-addr <ADDR>   Listen address
-      --data-dir <PATH>      Data directory
-      --log-level <LEVEL>    Log level [default: info]
-      --log-file <PATH>      Log file path
-      --smoke-test           Verify external tools work, then exit
-  -h, --help                 Print help
-  -V, --version              Print version
-```
-
-### Web UI
-
-Open `http://localhost:9090` (or your configured port) in a browser. The web UI provides:
-
-- Queue management (add, pause, resume, reorder, delete jobs)
-- History view with retry for failed downloads
-- Server management (add, edit, test, monitor health)
-- Category configuration
-- RSS feed management
-- Speed limiting controls
-- Real-time log viewer
-
-### API
-
-Full API documentation is available at `/swagger-ui` when the server is running.
-
-#### Example: Add an NZB by URL
-
-```bash
-curl -X POST http://localhost:9090/api/queue/add-url \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com/file.nzb", "category": "movies"}'
-```
-
-#### Example: Upload an NZB file
-
-```bash
-curl -X POST http://localhost:9090/api/queue/add \
-  -F "file=@/path/to/file.nzb" \
-  -F "category=tv"
-```
-
-#### Example: Check status
-
-```bash
-curl http://localhost:9090/api/status
-```
-
-### SABnzbd API
-
-rustnzb implements the SABnzbd API, so it works with any application that supports SABnzbd as a download client.
-
-**In Sonarr/Radarr/etc.:**
-- **Host:** your rustnzb host
-- **Port:** your rustnzb port
-- **API Key:** your configured `api_key` (if set)
-- **Use SSL:** as applicable
-- **Category:** as configured
-
-The SABnzbd API is available at `/sabnzbd/api`.
+---
 
 ## Architecture
 
-rustnzb is organized as a Cargo workspace with 6 focused crates:
+A modular Rust workspace with clean separation of concerns.
 
 | Crate | Purpose |
 |-------|---------|
-| **nzb-core** | Shared models, TOML config, NZB XML parser, SQLite database |
-| **nzb-web** | Axum HTTP server, REST API, queue manager, download engine, SABnzbd compat |
-| **nzb-nntp** | Async NNTP client (RFC 3977), connection pool, pipelined downloader |
-| **nzb-decode** | SIMD yEnc decoding, CRC32 verification, file assembly |
-| **nzb-postproc** | Post-processing pipeline: par2 verify/repair, archive extraction |
-| **par2-sys** | Build-time download and runtime embedding of par2cmdline-turbo |
+| **nzb-core** | NZB parser, config, SQLite database, shared models |
+| **nzb-nntp** | NNTP protocol, connection pool, TLS (rustls), pipelining, server failover |
+| **nzb-decode** | yEnc decoder, CRC32 validation, file assembler |
+| **nzb-postproc** | PAR2 verify & repair, RAR/7z/ZIP extraction, cleanup |
+| **nzb-web** | Axum HTTP server, REST API, web UI, queue manager, SABnzbd compat |
 
 ### Download Pipeline
 
 ```
-NZB file parsed
-    │
-    ▼
-QueueManager creates job (Queued)
-    │
-    ▼
-DownloadEngine starts (Downloading)
-    │
-    ├── Downloader fetches articles via NNTP (multi-server, pipelined)
-    │       │
-    │       ▼
-    ├── yEnc decoder extracts data + CRC32 verify
-    │       │
-    │       ▼
-    └── FileAssembler writes segments to disk at correct offsets
-            │
-            ▼
-Post-processing pipeline
-    ├── par2 verify (skip if 0 failures and no par2 files)
-    ├── par2 repair (if verification fails)
-    ├── Extract archives (RAR → unrar, 7z → 7z, ZIP → zip crate)
-    └── Cleanup par2 + archive files
-            │
-            ▼
-Move to complete_dir/{category}/ (Completed)
+Parse NZB ─> Download (NNTP pipelining, multi-server failover)
+         ─> Decode (yEnc + CRC32)
+         ─> Verify & Repair (PAR2)
+         ─> Extract (RAR, 7z, ZIP)
+         ─> Complete
 ```
 
-### Server Failover
+---
 
-Articles are fetched from the highest-priority server first. On failure:
-1. Retry on the same server (up to 3 attempts)
-2. On 430 (Article Not Found) → immediately try next server
-3. On connection error → reconnect, re-queue
-4. Only mark article as failed after all servers exhausted
-5. Failed articles are recoverable via par2 repair
+## Configuration
 
-## Docker Image
+rustnzb uses TOML configuration with CLI and environment variable overrides.
 
-The Docker image is built with a two-stage Dockerfile:
+**Priority:** CLI args > environment variables > TOML file > defaults
 
-1. **Builder stage** (`rust:1.88-bookworm`): Compiles the release binary. The par2-sys crate automatically downloads par2cmdline-turbo and embeds it.
-2. **Runtime stage** (`debian:bookworm-slim`): Minimal image with `ca-certificates`, `curl`, `unrar-free`, `p7zip-full`. Runs as non-root user.
+Most settings can be configured through the web UI. See [`config.example.toml`](config.example.toml) for the full reference.
 
-### Volumes
+### Key Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `RUSTNZB_CONFIG` | Config file path |
+| `RUSTNZB_PORT` | Listen port |
+| `RUSTNZB_LOG_LEVEL` | Log level (trace/debug/info/warn/error) |
+| `OTEL_ENABLED` | Enable OpenTelemetry |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint |
+
+### Docker Volumes
 
 | Path | Purpose |
 |------|---------|
-| `/config` | Configuration files (`config.toml`) |
+| `/config` | Configuration files |
 | `/data` | Database, RSS state, credentials |
 | `/downloads` | Incomplete and completed downloads |
 
-### Ports
+---
 
-| Port | Purpose |
-|------|---------|
-| 9090 | Web UI + REST API |
+## API
 
-### Multi-Platform
-
-par2cmdline-turbo binaries are available for:
-- Linux: x86_64, aarch64, ARMv7
-- macOS: x86_64, Apple Silicon
-- Windows: x86_64, aarch64
-- FreeBSD: x86_64, aarch64
-
-## Benchmarking
-
-The `benchnzb/` directory contains a benchmark suite that compares rustnzb against SABnzbd using a mock NNTP server and Docker Compose.
+Interactive API documentation is available at `/swagger-ui` when the server is running.
 
 ```bash
-cd benchnzb
+# Add NZB by URL
+curl -X POST http://localhost:9090/api/queue/add-url \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/file.nzb", "category": "movies"}'
 
-# Quick test (5 GB download, ~5 minutes)
-./run.sh --scenarios quick
+# Upload NZB file
+curl -X POST http://localhost:9090/api/queue/add \
+  -F "file=@/path/to/file.nzb" -F "category=tv"
 
-# Medium test suite (~30 minutes)
-./run.sh --scenarios medium
-
-# Full benchmark (all 9 scenarios)
-./run.sh --scenarios full
+# Check status
+curl http://localhost:9090/api/status
 ```
 
-**Scenario matrix:** 5GB / 10GB / 50GB x raw download / par2 repair / archive extraction
+The SABnzbd-compatible API is available at `/sabnzbd/api`.
 
-Results are saved to `benchnzb/results/` as JSON, CSV, and SVG charts.
-
-## Observability
-
-### Logging
-
-rustnzb uses the `tracing` crate. Control log level via:
-- `--log-level` CLI flag
-- `RUST_LOG` environment variable (e.g., `RUST_LOG=rustnzb=debug,nzb_nntp=trace`)
-- `log_level` in config.toml
-
-Logs are also available via the web UI log viewer and the `/api/logs` endpoint.
-
-### Loki Integration
-
-A Promtail sidecar is included in `docker-compose.yml` behind the `logging` profile:
-
-```bash
-LOKI_URL=http://your-loki:3100 COMPOSE_PROFILES=logging docker compose up -d
-```
-
-### OpenTelemetry
-
-Enable OTLP export for metrics and logs:
-
-```toml
-[otel]
-enabled = true
-endpoint = "http://your-collector:4317"
-service_name = "rustnzb"
-```
-
-Or via environment variables: `OTEL_ENABLED=true`, `OTEL_EXPORTER_OTLP_ENDPOINT=...`
-
-Exported metrics include `download.speed_bps` and `queue.depth`.
+---
 
 ## Development
 
 ```bash
-# Build (debug)
-cargo build
-
-# Build (release)
-cargo build --release
-
-# Run all tests
-cargo test --workspace
-
-# Run specific crate tests
-cargo test -p nzb-decode
-
-# Run integration tests
-cargo test --test e2e_download_test
-
-# Run with debug logging
-RUST_LOG=debug cargo run -- --config config.example.toml
-
-# Build Docker image locally
-docker build -t rustnzb:local .
+cargo build              # Debug build
+cargo build --release    # Release build
+cargo test --workspace   # All tests
+cargo test -p nzb-decode # Single crate
 ```
+
+---
 
 ## License
 
 MIT
+
+---
+
+Also by [AusAgentSmith](https://github.com/AusAgentSmith-org): [Indexarr](https://indexarr.net) | [rustTorrent](https://rusttorrent.dev)

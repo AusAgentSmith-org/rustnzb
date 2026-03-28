@@ -1878,7 +1878,7 @@ kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border); 
     var html = '';
     for (var i=0;i<entries.length;i++) {
       var e = entries[i], s = sc(e.status);
-      html += '<tr><td title="'+esc(e.name)+'" style="cursor:pointer;" onclick="window._showHistoryDetail(\''+e.id+'\')"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(e.name)+'</div>'+
+      html += '<tr><td title="'+esc(e.name)+'" style="cursor:pointer;" onclick="window._showHistoryDetail(\''+e.id+'\')"><div style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(e.name)+'</div>'+
         (e.error_message?'<div style="font-size:0.75rem;color:var(--red);margin-top:2px;">'+esc(e.error_message)+'</div>':'')+'</td>'+
         '<td><span class="badge badge-'+s+'">'+sl(e.status)+'</span></td>'+
         '<td>'+formatBytes(e.total_bytes)+'</td>'+
