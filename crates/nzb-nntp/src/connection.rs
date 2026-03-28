@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
+use tokio_socks::tcp::Socks5Stream;
 use tracing::{debug, trace};
 
 use nzb_core::config::ServerConfig;
@@ -202,11 +203,36 @@ impl NntpConnection {
         let addr = format!("{}:{}", config.host, config.port);
         debug!(server = %self.server_id, %addr, ssl = config.ssl, "Connecting");
 
-        // 1. TCP connect
-        let tcp = TcpStream::connect(&addr).await.map_err(|e| {
-            self.state = ConnectionState::Error;
-            NntpError::Connection(format!("TCP connect to {addr}: {e}"))
-        })?;
+        // 1. TCP connect (optionally through SOCKS5 proxy)
+        let tcp = if let Some(proxy_url) = &config.proxy_url {
+            let proxy = parse_socks5_url(proxy_url).map_err(|e| {
+                self.state = ConnectionState::Error;
+                NntpError::Connection(format!("Invalid proxy URL: {e}"))
+            })?;
+            debug!(server = %self.server_id, proxy = %proxy.addr, "Connecting via SOCKS5 proxy");
+            let stream = if let Some((user, pass)) = &proxy.auth {
+                Socks5Stream::connect_with_password(
+                    proxy.addr.as_str(),
+                    addr.as_str(),
+                    user,
+                    pass,
+                )
+                .await
+            } else {
+                Socks5Stream::connect(proxy.addr.as_str(), addr.as_str()).await
+            };
+            stream
+                .map_err(|e| {
+                    self.state = ConnectionState::Error;
+                    NntpError::Connection(format!("SOCKS5 connect to {addr} via proxy: {e}"))
+                })?
+                .into_inner()
+        } else {
+            TcpStream::connect(&addr).await.map_err(|e| {
+                self.state = ConnectionState::Error;
+                NntpError::Connection(format!("TCP connect to {addr}: {e}"))
+            })?
+        };
         tcp.set_nodelay(true).ok();
 
         // 2. Optional TLS
@@ -876,6 +902,42 @@ fn parse_xover_data(data: &[u8]) -> Vec<XoverEntry> {
     entries
 }
 
+/// Parsed SOCKS5 proxy URL components.
+struct Socks5Proxy {
+    addr: String,
+    auth: Option<(String, String)>,
+}
+
+/// Parse a SOCKS5 proxy URL: `socks5://[username:password@]host:port`
+fn parse_socks5_url(url: &str) -> Result<Socks5Proxy, String> {
+    let rest = url
+        .strip_prefix("socks5://")
+        .ok_or_else(|| format!("proxy URL must start with socks5://, got: {url}"))?;
+
+    let (auth, host_port) = if let Some(at_pos) = rest.rfind('@') {
+        let auth_part = &rest[..at_pos];
+        let host_part = &rest[at_pos + 1..];
+        let (user, pass) = auth_part
+            .split_once(':')
+            .ok_or_else(|| "proxy auth must be username:password".to_string())?;
+        (
+            Some((user.to_string(), pass.to_string())),
+            host_part.to_string(),
+        )
+    } else {
+        (None, rest.to_string())
+    };
+
+    if host_port.is_empty() {
+        return Err("proxy URL must contain host:port".to_string());
+    }
+
+    Ok(Socks5Proxy {
+        addr: host_port,
+        auth,
+    })
+}
+
 /// Build a `rustls::ClientConfig` for NNTP TLS connections.
 fn build_tls_config(verify_certs: bool) -> NntpResult<rustls::ClientConfig> {
     if verify_certs {
@@ -1464,6 +1526,32 @@ mod tests {
 
         let result = conn.xover(1, 10).await;
         assert!(matches!(result, Err(crate::error::NntpError::Protocol(_))));
+    }
+
+    #[test]
+    fn test_parse_socks5_url_basic() {
+        let proxy = parse_socks5_url("socks5://127.0.0.1:1080").unwrap();
+        assert_eq!(proxy.addr, "127.0.0.1:1080");
+        assert!(proxy.auth.is_none());
+    }
+
+    #[test]
+    fn test_parse_socks5_url_with_auth() {
+        let proxy = parse_socks5_url("socks5://user:pass@proxy.example.com:8388").unwrap();
+        assert_eq!(proxy.addr, "proxy.example.com:8388");
+        let (user, pass) = proxy.auth.unwrap();
+        assert_eq!(user, "user");
+        assert_eq!(pass, "pass");
+    }
+
+    #[test]
+    fn test_parse_socks5_url_invalid_scheme() {
+        assert!(parse_socks5_url("http://127.0.0.1:1080").is_err());
+    }
+
+    #[test]
+    fn test_parse_socks5_url_empty_host() {
+        assert!(parse_socks5_url("socks5://").is_err());
     }
 
     #[tokio::test]

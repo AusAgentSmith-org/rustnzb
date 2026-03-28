@@ -21,3 +21,4 @@ webpki-roots = { workspace = true }
 rustls-pki-types = { workspace = true }
 parking_lot = { workspace = true }
 flate2 = { workspace = true }
+tokio-socks = { workspace = true }

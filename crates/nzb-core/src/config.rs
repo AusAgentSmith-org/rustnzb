@@ -151,6 +151,9 @@ pub struct ServerConfig {
     /// Enable XFEATURE COMPRESS GZIP negotiation
     #[serde(default)]
     pub compress: bool,
+    /// Optional SOCKS5 proxy URL: socks5://[username:password@]host:port
+    #[serde(default)]
+    pub proxy_url: Option<String>,
 }
 
 impl Default for ServerConfig {
@@ -171,6 +174,7 @@ impl Default for ServerConfig {
             pipelining: 1,
             optional: false,
             compress: false,
+            proxy_url: None,
         }
     }
 }
@@ -351,6 +355,7 @@ mod tests {
             pipelining: 5,
             optional: false,
             compress: false,
+            proxy_url: None,
         };
 
         let toml_str = toml::to_string_pretty(&original).unwrap();
@@ -389,6 +394,7 @@ mod tests {
             pipelining: 1,
             optional: true,
             compress: false,
+            proxy_url: None,
         });
         original.general.speed_limit_bps = 1_000_000;
         original.general.api_key = Some("secret-key".into());
