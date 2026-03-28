@@ -74,6 +74,7 @@ quick-xml = "0.37"
 regex = "1"
 walkdir = "2"
 flate2 = "1"
+tokio-socks = "0.5"
 notify = "7"
 feed-rs = "2"
 

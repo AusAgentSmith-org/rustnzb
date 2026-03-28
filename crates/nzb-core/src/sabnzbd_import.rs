@@ -64,6 +64,7 @@ impl ImportedServer {
             pipelining: 1,
             optional: self.optional,
             compress: false,
+            proxy_url: None,
         }
     }
 }
