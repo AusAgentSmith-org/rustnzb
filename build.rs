@@ -29,7 +29,9 @@ fn main() {
         }
         Err(e) => {
             println!("cargo:warning=Could not run ng build (Node.js not found?): {e}");
-            println!("cargo:warning=The embedded web UI will be missing. Run 'cd frontend && npx ng build' first.");
+            println!(
+                "cargo:warning=The embedded web UI will be missing. Run 'cd frontend && npx ng build' first."
+            );
         }
     }
 }
