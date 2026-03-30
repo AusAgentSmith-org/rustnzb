@@ -1,0 +1,4 @@
+{
+  "/api": { "target": "http://localhost:9090", "secure": false, "changeOrigin": true },
+  "/sabnzbd": { "target": "http://localhost:9090", "secure": false, "changeOrigin": true }
+}
