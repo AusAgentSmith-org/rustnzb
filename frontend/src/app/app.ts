@@ -40,9 +40,8 @@ import { StatusResponse } from './core/models/queue.model';
           Queue
           @if (queueCount() > 0) { <span class="badge">{{ queueCount() }}</span> }
         </a>
-        <a class="tab" routerLink="/groups" routerLinkActive="active">Groups</a>
-        <a class="tab" routerLink="/history" routerLinkActive="active">History</a>
         <a class="tab" routerLink="/rss" routerLinkActive="active">RSS</a>
+        <a class="tab" routerLink="/groups" routerLinkActive="active">Groups</a>
         <a class="tab" routerLink="/settings" routerLinkActive="active">Settings</a>
         <a class="tab" routerLink="/logs" routerLinkActive="active">Logs</a>
       </div>
