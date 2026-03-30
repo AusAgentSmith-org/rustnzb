@@ -178,7 +178,7 @@ impl Database {
         offset: usize,
     ) -> Result<Vec<HeaderRow>, NzbError> {
         let (sql, use_fts) = if let Some(s) = search {
-            let safe = s.replace('"', "").replace('\'', "").trim().to_string();
+            let safe = s.replace(['"', '\''], "").trim().to_string();
             if safe.is_empty() {
                 (format!(
                     "SELECT id, group_id, article_num, subject, author, date, message_id, references_, bytes, lines, read, downloaded_at
@@ -245,7 +245,7 @@ impl Database {
 
     pub fn header_count(&self, group_id: i64, search: Option<&str>) -> Result<i64, NzbError> {
         let sql = if let Some(s) = search {
-            let safe = s.replace('"', "").replace('\'', "").trim().to_string();
+            let safe = s.replace(['"', '\''], "").trim().to_string();
             if safe.is_empty() {
                 "SELECT COUNT(*) FROM headers WHERE group_id = ?1".to_string()
             } else {
@@ -415,7 +415,7 @@ impl Database {
             .filter(|h| {
                 msg_to_root
                     .get(&h.message_id)
-                    .map_or(false, |r| r == root_message_id)
+                    .is_some_and(|r| r == root_message_id)
             })
             .map(|h| {
                 let depth = if h.references_.is_empty() {
