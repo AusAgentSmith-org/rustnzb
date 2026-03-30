@@ -10,7 +10,6 @@ use nzb_core::config::{AppConfig, RssFeedConfig};
 use nzb_core::models::{Priority, RssItem};
 
 use crate::queue_manager::QueueManager;
-use crate::util::normalize_job_names;
 
 /// Background RSS feed monitor that polls configured feeds for NZB links,
 /// persists all discovered items to the database, and automatically enqueues
@@ -329,7 +328,6 @@ impl RssMonitor {
         let data = response.bytes().await?;
 
         let mut job = nzb_core::nzb_parser::parse_nzb(name, &data)?;
-        normalize_job_names(&mut job);
 
         if let Some(cat) = category {
             job.category = cat.to_string();

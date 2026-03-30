@@ -2,21 +2,11 @@ use unicode_normalization::UnicodeNormalization;
 
 /// Normalize a string to Unicode NFC form.
 ///
-/// Filenames from external sources (NZB XML subjects, yEnc headers, RSS feeds,
-/// URLs) may arrive in decomposed (NFD) form. macOS HFS+ normalizes to NFD
-/// while most other systems expect NFC, causing mismatches when comparing or
-/// looking up files across platforms. Normalizing to NFC at ingestion prevents
-/// duplicate files and failed lookups.
+/// Used for filenames from sources not covered by nzb-core's parser
+/// (e.g. yEnc headers from nzb-decode). NZB-derived names are already
+/// normalized by nzb-core v0.1.1+.
 pub fn normalize_nfc(s: &str) -> String {
     s.nfc().collect()
-}
-
-/// Normalize the job name and all internal file filenames to NFC.
-pub fn normalize_job_names(job: &mut nzb_core::models::NzbJob) {
-    job.name = normalize_nfc(&job.name);
-    for file in &mut job.files {
-        file.filename = normalize_nfc(&file.filename);
-    }
 }
 
 #[cfg(test)]
