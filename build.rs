@@ -4,34 +4,37 @@ fn main() {
     println!("cargo:rerun-if-changed=frontend/src/");
     println!("cargo:rerun-if-changed=frontend/angular.json");
 
-    // Only build Angular if frontend exists AND dist is missing/stale
-    if !std::path::Path::new("frontend/package.json").exists() {
+    let dist = "frontend/dist/frontend/browser";
+
+    // If dist already exists (e.g. CI pre-built it or previous build), skip
+    if std::path::Path::new(dist).join("index.html").exists() {
         return;
     }
 
-    // If dist already exists (e.g. CI pre-built it), skip ng build
-    if std::path::Path::new("frontend/dist/frontend/browser/index.html").exists() {
-        return;
+    // Try to run ng build if frontend exists
+    if std::path::Path::new("frontend/package.json").exists() {
+        match Command::new("npx")
+            .args(["ng", "build", "--configuration=production"])
+            .current_dir("frontend")
+            .status()
+        {
+            Ok(status) if status.success() => return,
+            Ok(status) => {
+                println!(
+                    "cargo:warning=Angular build failed with exit code {:?}",
+                    status.code()
+                );
+            }
+            Err(e) => {
+                println!("cargo:warning=Could not run ng build: {e}");
+            }
+        }
     }
 
-    // Try to run ng build; don't panic if Node.js isn't installed
-    match Command::new("npx")
-        .args(["ng", "build", "--configuration=production"])
-        .current_dir("frontend")
-        .status()
-    {
-        Ok(status) if status.success() => {}
-        Ok(status) => {
-            println!(
-                "cargo:warning=Angular build failed with exit code {:?}",
-                status.code()
-            );
-        }
-        Err(e) => {
-            println!("cargo:warning=Could not run ng build (Node.js not found?): {e}");
-            println!(
-                "cargo:warning=The embedded web UI will be missing. Run 'cd frontend && npx ng build' first."
-            );
-        }
-    }
+    // Create minimal placeholder so rust-embed has something to embed
+    std::fs::create_dir_all(dist).ok();
+    std::fs::write(
+        format!("{dist}/index.html"),
+        "<!DOCTYPE html><html><body><h1>rustnzb</h1><p>Frontend not built. Run: cd frontend && npx ng build</p></body></html>",
+    ).ok();
 }
