@@ -325,7 +325,7 @@ pub async fn h_article_get(
     use nzb_nntp::connection::NntpConnection;
 
     // Auto-mark as read
-    let _ = state.queue_manager.with_db(|db| {
+    state.queue_manager.with_db(|db| {
         if let Ok(Some(h)) = db.header_get_by_message_id(&message_id) {
             let _ = db.header_mark_read(h.id);
         }
