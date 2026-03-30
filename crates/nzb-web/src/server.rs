@@ -27,9 +27,9 @@ use crate::state::AppState;
 #[openapi(info(title = "rustnzb API", version = env!("CARGO_PKG_VERSION")))]
 struct ApiDoc;
 
-/// Embed the static/ directory at compile time.
+/// Embed the Angular SPA build at compile time.
 #[derive(Embed)]
-#[folder = "static/"]
+#[folder = "../../frontend/dist/frontend/browser"]
 struct StaticAssets;
 
 /// Serve the root page (index.html) from embedded static assets.
@@ -37,9 +37,23 @@ async fn h_root() -> Response {
     serve_embedded_file("index.html")
 }
 
-/// Serve any file from the embedded static assets by path.
-async fn h_static(Path(path): Path<String>) -> Response {
-    serve_embedded_file(&path)
+/// SPA fallback: serve static file if it exists, otherwise index.html.
+async fn h_spa_fallback(uri: axum::http::Uri) -> Response {
+    let path = uri.path().trim_start_matches('/');
+    // Try exact file first
+    if !path.is_empty() {
+        if let Some(content) = StaticAssets::get(path) {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            return (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, mime.as_ref().to_string())],
+                content.data.into_owned(),
+            )
+                .into_response();
+        }
+    }
+    // SPA fallback to index.html
+    serve_embedded_file("index.html")
 }
 
 /// Look up an embedded file and return it with the correct Content-Type.
@@ -256,9 +270,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     );
 
     Router::new()
-        // Static assets and SPA — no auth (the frontend handles its own auth gate)
+        // Root serves index.html
         .route("/", get(h_root))
-        .route("/static/{*path}", get(h_static))
         // Health check — no auth (Docker HEALTHCHECK)
         .route("/api/health", get(handlers::h_health))
         // Auth endpoints — no auth middleware
@@ -267,6 +280,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .nest("/api", api_routes.layer(auth_middleware))
         // SABnzbd compat — uses its own API key auth
         .merge(sabnzbd_route)
+        // SPA fallback — serve Angular for all unmatched routes
+        .fallback(h_spa_fallback)
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)
