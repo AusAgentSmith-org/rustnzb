@@ -1,3 +1,11 @@
+export interface ServerArticleStats {
+  server_id: string;
+  server_name: string;
+  articles_downloaded: number;
+  articles_failed: number;
+  bytes_downloaded: number;
+}
+
 export interface NzbJob {
   id: string;
   name: string;
@@ -15,6 +23,7 @@ export interface NzbJob {
   completed_at: string | null;
   speed_bps: number;
   error_message: string | null;
+  server_stats: ServerArticleStats[];
 }
 
 export interface QueueResponse {
@@ -45,6 +54,20 @@ export interface HistoryEntry {
   output_dir: string;
   stages: StageResult[];
   error_message: string | null;
+  server_stats: ServerArticleStats[];
+  has_nzb_data: boolean;
+}
+
+export interface LogEntry {
+  seq: number;
+  timestamp: string;
+  level: string;
+  message: string;
+}
+
+export interface LogsResponse {
+  entries: LogEntry[];
+  latest_seq: number;
 }
 
 export interface StageResult {
