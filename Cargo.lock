@@ -1163,7 +1163,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -1725,8 +1725,8 @@ dependencies = [
 
 [[package]]
 name = "nzb-core"
-version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith-org/nzb-core.git?tag=v0.1.0#39aa4628b75390792f90bd2c32c722a78fc74d25"
+version = "0.1.1"
+source = "git+https://github.com/AusAgentSmith-org/nzb-core.git?tag=v0.1.1#eb3c62d6b947695d9720bf29fade9dc261654fc1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1739,6 +1739,7 @@ dependencies = [
  "thiserror 2.0.18",
  "toml",
  "tracing",
+ "unicode-normalization",
  "uuid",
 ]
 
@@ -1781,8 +1782,8 @@ dependencies = [
 
 [[package]]
 name = "nzb-postproc"
-version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith-org/nzb-postproc.git?tag=v0.1.1#174ba1466d3728001a96b6fbbd42e666ce0032ed"
+version = "0.1.2"
+source = "git+https://github.com/AusAgentSmith-org/nzb-postproc.git?tag=v0.1.2#63ddc98234521c99771add2fc0160b84cb24f9c8"
 dependencies = [
  "anyhow",
  "nzb-core",
@@ -2176,7 +2177,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2213,7 +2214,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]
