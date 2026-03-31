@@ -40,6 +40,9 @@ jobs:
       - name: Format check
         run: cargo fmt --all -- --check
 
+      - name: Strip local [patch] overrides for CI
+        run: sed -i '/^\[patch\./,/^$/d' Cargo.toml
+
       - name: Compile check
         run: cargo check --workspace
 
@@ -64,6 +67,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: v2-windows
+
+      - name: Strip local [patch] overrides for CI
+        run: sed -i '/^\[patch\./,/^$/d' Cargo.toml
+        shell: bash
 
       - name: Build
         run: cargo build --workspace --release
