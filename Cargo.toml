@@ -74,11 +74,11 @@ feed-rs = "2"
 unicode-normalization = "0.1"
 
 # Shared NZB crates ([patch] sections redirect to local for dev)
-nzb-web = { git = "http://100.92.54.45:3002/indexarr/nzb-web.git", tag = "v0.2.5", features = ["groups-db"] }
-nzb-nntp = { git = "http://100.92.54.45:3002/indexarr/nzb-nntp.git", tag = "v0.2.0" }
-nzb-core = { git = "http://100.92.54.45:3002/indexarr/nzb-core.git", tag = "v0.2.0", features = ["groups-db"] }
-nzb-decode = { git = "http://100.92.54.45:3002/indexarr/nzb-decode.git", tag = "v0.1.0" }
-nzb-postproc = { git = "http://100.92.54.45:3002/indexarr/nzb-postproc.git", tag = "v0.2.0" }
+nzb-web = { version = "0.1.1", registry = "forgejo", features = ["groups-db"] }
+nzb-nntp = { version = "0.2.1", registry = "forgejo" }
+nzb-core = { version = "0.2.2", registry = "forgejo", features = ["groups-db"] }
+nzb-decode = { version = "0.1.1", registry = "forgejo" }
+nzb-postproc = { version = "0.2.1", registry = "forgejo" }
 rust-par2 = "0.1.1"
 yenc-simd = "0.1"
 
