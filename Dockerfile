@@ -1,4 +1,4 @@
-FROM rust:1.88-alpine3.21 AS builder
+FROM rust:1.94-alpine3.21 AS builder
 
 RUN apk add --no-cache musl-dev build-base protoc openssl-dev openssl-libs-static curl nodejs npm git
 
