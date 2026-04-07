@@ -79,7 +79,7 @@ nzb-nntp = { version = "0.2.1", registry = "forgejo" }
 nzb-core = { version = "0.2.2", registry = "forgejo", features = ["groups-db"] }
 nzb-decode = { version = "0.1.1", registry = "forgejo" }
 nzb-postproc = { version = "0.2.1", registry = "forgejo" }
-rust-par2 = { version = "0.1.1", registry = "forgejo" }
+rust-par2 = { version = "0.1.2", registry = "forgejo" }
 yenc-simd = { version = "0.1", registry = "forgejo" }
 
 [package]
