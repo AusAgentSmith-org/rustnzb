@@ -304,7 +304,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(sabnzbd_route)
         // SPA fallback — serve Angular for all unmatched routes
         .fallback(h_spa_fallback)
-        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB for multi-file NZB uploads
+        .layer(DefaultBodyLimit::max(200 * 1024 * 1024)) // 200 MB for multi-file NZB uploads
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)
