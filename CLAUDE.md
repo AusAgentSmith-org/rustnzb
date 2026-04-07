@@ -327,3 +327,7 @@ Integration tests are in `tests/`:
 - `e2e_postproc_detection.rs` — Post-processing detection
 - `e2e_full_pipeline.rs` — End-to-end workflow
 - `parse_real_nzbs.rs` — NZB XML parsing with real files
+
+## Codesight
+
+Auto-generated codebase context map: `.codesight/CODESIGHT.md` — routes, schema, components, dependencies, and hot files. Regenerate with `npx codesight`.
