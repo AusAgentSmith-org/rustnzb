@@ -25,6 +25,7 @@ jobs:
           mkdir -p ~/.cargo
           echo '[registries.forgejo]' > ~/.cargo/config.toml
           echo 'index = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"' >> ~/.cargo/config.toml
+          echo 'credential-provider = "cargo:token"' >> ~/.cargo/config.toml
           cargo login --registry forgejo "$CARGO_REGISTRIES_FORGEJO_TOKEN"
 
       - name: Configure git for private deps
