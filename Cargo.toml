@@ -79,8 +79,8 @@ nzb-nntp = { version = "0.2.1", registry = "forgejo" }
 nzb-core = { version = "0.2.2", registry = "forgejo", features = ["groups-db"] }
 nzb-decode = { version = "0.1.1", registry = "forgejo" }
 nzb-postproc = { version = "0.2.1", registry = "forgejo" }
-rust-par2 = "0.1.1"
-yenc-simd = "0.1"
+rust-par2 = { version = "0.1.1", registry = "forgejo" }
+yenc-simd = { version = "0.1", registry = "forgejo" }
 
 [package]
 name = "rustnzb"
@@ -125,19 +125,4 @@ axum = { workspace = true }
 tempfile = "3"
 arc-swap.workspace = true
 
-# Local dev overrides — redirect git deps to ~/Working/libs/
-[patch."http://100.92.54.45:3002/indexarr/nzb-web.git"]
-nzb-web = { path = "/home/sprooty/Working/libs/nzb-web" }
-
-[patch."http://100.92.54.45:3002/indexarr/nzb-core.git"]
-nzb-core = { path = "/home/sprooty/Working/libs/nzb-core" }
-
-[patch."http://100.92.54.45:3002/indexarr/nzb-nntp.git"]
-nzb-nntp = { path = "/home/sprooty/Working/libs/nzb-nntp" }
-
-[patch."http://100.92.54.45:3002/indexarr/nzb-postproc.git"]
-nzb-postproc = { path = "/home/sprooty/Working/libs/nzb-postproc" }
-
-[patch."http://100.92.54.45:3002/indexarr/nzb-decode.git"]
-nzb-decode = { path = "/home/sprooty/Working/libs/nzb-decode" }
 

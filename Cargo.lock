@@ -1174,7 +1174,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -1720,7 +1720,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-core"
-version = "0.2.0"
+version = "0.2.2"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "31d95fc8cd565c9669ff9a7d819089d130fcf70e92791c80aeafa7a4d1bc1143"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1739,7 +1741,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-decode"
-version = "0.1.0"
+version = "0.1.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "2a1f7bc5897cab0ea1935b8e61eb55ff7f991e3af8e836c590974d81de474355"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1753,7 +1757,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-nntp"
-version = "0.2.0"
+version = "0.2.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "e238b576725d1dd494418d107047e9e1f2177d3e132b50d4d57f9253b480d416"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1775,7 +1781,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-postproc"
-version = "0.2.0"
+version = "0.2.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "e3d543518f920a096d0f32cd9c427a4360dd49c60c041b30fd29fed61c83f479"
 dependencies = [
  "anyhow",
  "nzb-core",
@@ -1789,7 +1797,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-web"
-version = "0.1.0"
+version = "0.1.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "dac72189618aa9c1af9650d31f978ea4b98c4535ceeb3932a6a6e613d19a07b2"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2153,7 +2163,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2190,7 +2200,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]
