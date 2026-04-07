@@ -21,7 +21,7 @@ import { AddNzbService } from './core/services/add-nzb.service';
         <nav class="sidebar">
           <div class="sidebar-header">
             <div class="logo">
-              <img src="logo.png" alt="rustnzb" class="logo-img" />
+              <img src="/logo.png" alt="rustnzb" class="logo-img" />
             </div>
             <div class="speed-widget">
               <div class="speed-value">{{ formatSpeed(speed()) }}</div>

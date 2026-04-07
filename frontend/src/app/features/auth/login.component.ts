@@ -12,7 +12,7 @@ import { AuthService } from '../../core/services/auth.service';
     <div class="login-wrapper">
       <div class="login-card">
         <div class="login-header">
-          <img src="logo.png" alt="rustnzb" class="login-logo" />
+          <img src="/logo.png" alt="rustnzb" class="login-logo" />
           @if (isSetup()) {
             <p class="login-subtitle">Create your account to get started</p>
           } @else {
