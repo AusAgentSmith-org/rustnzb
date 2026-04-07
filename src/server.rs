@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
@@ -303,6 +304,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(sabnzbd_route)
         // SPA fallback — serve Angular for all unmatched routes
         .fallback(h_spa_fallback)
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB for multi-file NZB uploads
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)

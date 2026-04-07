@@ -649,7 +649,8 @@ export class QueueViewComponent implements OnInit, OnDestroy {
         this.selectedFiles = []; this.uploading = false; this.showAddPanel = false; this.loadQueue();
       },
       error: (err) => {
-        this.snackBar.open('Failed: ' + (err.error?.message || err.statusText), 'Close', { duration: 5000 });
+        const msg = err.error?.message || (err.status === 413 ? 'Upload too large' : err.statusText) || 'Upload failed';
+        this.snackBar.open('Failed: ' + msg, 'Close', { duration: 5000 });
         this.uploading = false;
       },
     });
@@ -667,7 +668,8 @@ export class QueueViewComponent implements OnInit, OnDestroy {
         this.addUrl = ''; this.uploading = false; this.showAddPanel = false; this.loadQueue();
       },
       error: (err: any) => {
-        this.snackBar.open('Failed: ' + (err.error?.message || err.statusText), 'Close', { duration: 5000 });
+        const msg = err.error?.message || (err.status === 413 ? 'Upload too large' : err.statusText) || 'Upload failed';
+        this.snackBar.open('Failed: ' + msg, 'Close', { duration: 5000 });
         this.uploading = false;
       },
     });
