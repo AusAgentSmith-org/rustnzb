@@ -62,8 +62,19 @@ steps:
       - cargo build --release
       - ls -lh target/release/rustnzb
 
-  # NOTE: Windows cross-compilation disabled — md5-asm crate doesn't support
-  # x86_64-pc-windows-gnu target. Windows builds use Tauri (desktop/src-tauri).
+  - name: build-windows
+    image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - git config --global url."http://x-access-token:$GIT_AUTH_TOKEN@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/"
+      - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml
+      - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
+      - cargo install cargo-xwin
+      - rustup target add x86_64-pc-windows-msvc
+      - cargo xwin build --release --target x86_64-pc-windows-msvc
+      - ls -lh target/x86_64-pc-windows-msvc/release/rustnzb.exe
 
   - name: build-and-push
     image: woodpeckerci/plugin-docker-buildx
