@@ -26,8 +26,16 @@ RUN TOKEN="${GIT_AUTH_TOKEN:-$PLUGIN_PASSWORD}" && \
     printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$TOKEN" > $CARGO_HOME/credentials.toml
 RUN sed -i '/^\[patch\./,/^$/d' Cargo.toml
 
+# RELEASE_OPTIMIZED=true enables fat LTO + single codegen-unit (slow but smaller binary)
+ARG RELEASE_OPTIMIZED=false
+
 # Build Rust binary (build.rs skips ng build since dist already exists)
-RUN cargo build --release
+RUN if [ "$RELEASE_OPTIMIZED" = "true" ]; then \
+      export CARGO_PROFILE_RELEASE_LTO=fat \
+             CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
+             CARGO_PROFILE_RELEASE_STRIP=symbols; \
+    fi && \
+    cargo build --release
 
 
 FROM lscr.io/linuxserver/baseimage-alpine:3.21
