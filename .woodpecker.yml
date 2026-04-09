@@ -167,6 +167,7 @@ steps:
         echo "Creating GitHub release $TAG on $REPO"
 
         # Push the tag to GitHub (force in case it exists)
+        git fetch --unshallow origin 2>/dev/null || true
         git remote add github "https://x-access-token:$GH_TOKEN@github.com/$REPO.git" 2>/dev/null || true
         git push github "refs/tags/$TAG" --force
 
@@ -208,6 +209,7 @@ steps:
       GH_TOKEN:
         from_secret: gh_release_token
     commands:
+      - git fetch --unshallow origin 2>/dev/null || true
       - git remote add github "https://x-access-token:$GH_TOKEN@github.com/AusAgentSmith-org/rustnzb.git" 2>/dev/null || true
       - git push github HEAD:main --force
       - git push github --tags --force 2>/dev/null || true
