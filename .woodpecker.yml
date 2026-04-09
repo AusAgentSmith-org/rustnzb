@@ -208,11 +208,13 @@ steps:
     environment:
       GH_TOKEN:
         from_secret: gh_release_token
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
     commands:
-      - git fetch --unshallow origin 2>/dev/null || true
-      - git remote add github "https://x-access-token:$GH_TOKEN@github.com/AusAgentSmith-org/rustnzb.git" 2>/dev/null || true
-      - git push github HEAD:main --force
-      - git push github --tags --force 2>/dev/null || true
+      - git clone --bare "https://x-access-token:$FORGEJO_TOKEN@repo.indexarr.net/indexarr/rustnzb.git" /tmp/repo.git
+      - cd /tmp/repo.git
+      - git push --force "https://x-access-token:$GH_TOKEN@github.com/AusAgentSmith-org/rustnzb.git" main:main
+      - git push --force "https://x-access-token:$GH_TOKEN@github.com/AusAgentSmith-org/rustnzb.git" --tags 2>/dev/null || true
 
   - name: discord-success
     image: alpine/curl
