@@ -114,6 +114,46 @@ steps:
       - ssh -o StrictHostKeyChecking=accept-new root@100.92.4.57 "cd /root/downloads/rustnzb && rm -rf latest && ln -s $CI_COMMIT_TAG latest"
       - echo "Published https://dl.rustnzb.dev/latest/"
 
+  - name: forgejo-release
+    image: alpine:3.23
+    when:
+      - event: tag
+    environment:
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - apk add --no-cache curl jq
+      - |
+        TAG="$CI_COMMIT_TAG"
+        API="https://repo.indexarr.net/api/v1"
+        REPO="indexarr/rustnzb"
+        echo "Creating Forgejo release $TAG"
+
+        BODY="## Downloads\n\n"
+        BODY="$BODY- **Linux x86_64**: \`rustnzb-${TAG}-linux-x86_64\`\n"
+        BODY="$BODY- **Windows x86_64**: \`rustnzb-${TAG}-windows-x86_64.exe\`\n"
+        BODY="$BODY- **Debian/Ubuntu**: \`rustnzb-${TAG}-amd64.deb\`\n"
+        BODY="$BODY- **Docker**: \`ghcr.io/ausagentsmith-org/rustnzb:${TAG}\`\n"
+        BODY="$BODY\nSHA256 checksums in \`SHA256SUMS-${TAG}.txt\`"
+
+        RELEASE_ID=$(curl -sf -X POST \
+          -H "Authorization: token $FORGEJO_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"tag_name\":\"$TAG\",\"name\":\"rustnzb $TAG\",\"body\":\"$(echo -e "$BODY")\",\"draft\":false,\"prerelease\":true}" \
+          "$API/repos/$REPO/releases" | jq -r '.id')
+
+        echo "Forgejo release created: ID=$RELEASE_ID"
+
+        for file in "rustnzb-${TAG}-linux-x86_64" "rustnzb-${TAG}-windows-x86_64.exe" "rustnzb-${TAG}-amd64.deb" "SHA256SUMS-${TAG}.txt"; do
+          [ -f "$file" ] || continue
+          echo "Uploading $file"
+          curl -sf -X POST \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            -F "attachment=@$file" \
+            "$API/repos/$REPO/releases/$RELEASE_ID/assets" > /dev/null
+        done
+        echo "Forgejo release $TAG complete"
+
   - name: build-and-push
     image: woodpeckerci/plugin-docker-buildx
     when:
