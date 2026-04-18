@@ -239,12 +239,24 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     // Build the auth middleware closure
     let token_store = state.token_store.clone();
     let credential_store = state.credential_store.clone();
+    let api_key = state.config().general.api_key.clone();
 
     let auth_middleware = axum::middleware::from_fn(
         move |headers: HeaderMap, request: axum::extract::Request, next: Next| {
             let token_store = token_store.clone();
             let credential_store = credential_store.clone();
+            let api_key = api_key.clone();
             async move {
+                // API key (X-Api-Key header) — config-based, bypasses session/credential auth
+                if let Some(ref expected) = api_key
+                    && let Some(provided) = headers.get("X-Api-Key").and_then(|h| h.to_str().ok())
+                {
+                    if auth::constant_time_eq(provided.as_bytes(), expected.as_bytes()) {
+                        return Ok(next.run(request).await);
+                    }
+                    return Err(ApiError::unauthorized());
+                }
+
                 // If no credentials configured, allow all requests (setup_required state)
                 if !credential_store.has_credentials() {
                     return Ok(next.run(request).await);
