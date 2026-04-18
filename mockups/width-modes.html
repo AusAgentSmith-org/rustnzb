@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>rustnzb — Compact / Expanded width modes mockup</title>
+<style>
+  :root {
+    --bg:#0f1419; --panel:#171d26; --panel2:#1e2632; --line:#2a3441;
+    --text:#e6edf3; --mute:#8b98a8;
+    --accent:#3b82f6; --accent2:#10b981; --warn:#f59e0b; --danger:#ef4444; --purple:#a78bfa;
+
+    /* Max content width for COMPACT mode. Both chrome + body share it. */
+    --compact-max: 1320px;
+    /* Horizontal gutter when in EXPANDED mode */
+    --expanded-gutter: 24px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.4 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color-scheme: dark;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  .shell { display: flex; flex-direction: column; height: 100vh; }
+
+  /* =====================================================================
+     Width-mode primitives
+     - .wrap is the width-constraint element. Header, nav, main all
+       include a .wrap inside so they can each render full-bleed
+       background with a centered inner content column.
+     - [data-width-mode="compact"]  → .wrap clamped to --compact-max
+     - [data-width-mode="expanded"] → .wrap full width with a small gutter
+     ===================================================================== */
+  .wrap {
+    width: 100%;
+    max-width: var(--compact-max);
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+  [data-width-mode="expanded"] .wrap {
+    max-width: none;
+    padding: 0 var(--expanded-gutter);
+  }
+
+  /* ---- Header ---- */
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  header .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 12px; padding-bottom: 12px;
+  }
+  .brand { font-weight: 700; font-size: 16px; }
+  .brand span { color: var(--accent); }
+  .ver { color: var(--mute); font-size: 11px; margin-left: 8px; font-weight: 400; }
+  .status { display: flex; gap: 10px; align-items: center; font-size: 12px; }
+
+  /* ---- Nav ---- */
+  nav.top {
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  nav.top .wrap {
+    display: flex; align-items: center; overflow-x: auto;
+    padding-top: 0; padding-bottom: 0;
+  }
+  nav.top a {
+    color: var(--mute);
+    padding: 10px 16px;
+    border-bottom: 2px solid transparent;
+    text-decoration: none;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  nav.top a:hover { color: var(--text); }
+  nav.top a.active { color: var(--text); border-bottom-color: var(--accent); }
+  nav.top .spacer { flex: 1; }
+  nav.top .action {
+    background: none; border: none; color: var(--text);
+    padding: 10px 14px; cursor: pointer; font: inherit; font-size: 13px; opacity: .85;
+  }
+  nav.top .action:hover { opacity: 1; }
+  nav.top .action.primary { color: var(--accent2); font-weight: 600; }
+  nav.top .action.muted   { color: var(--mute); font-size: 12px; }
+
+  /* ---- Width-mode toggle (segmented control) ---- */
+  .mode-toggle {
+    display: inline-flex; align-items: center;
+    background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 6px; padding: 2px; margin: 0 8px;
+  }
+  .mode-toggle button {
+    background: none; border: none; color: var(--mute);
+    font: inherit; font-size: 12px; padding: 4px 10px;
+    border-radius: 4px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center;
+  }
+  .mode-toggle button:hover { color: var(--text); }
+  .mode-toggle button.active {
+    background: var(--panel); color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .mode-toggle svg { width: 14px; height: 14px; }
+
+  /* ---- Pills / tags / status bits ---- */
+  .pill {
+    padding: 3px 9px; border-radius: 10px; font-size: 11px;
+    background: var(--panel2); border: 1px solid var(--line); color: var(--mute);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .pill.ok { color: var(--accent2); border-color: #0f3a2a; }
+  .pill b { color: inherit; font-weight: 600; }
+
+  /* ---- Main ---- */
+  main { flex: 1; overflow-y: auto; }
+  main .wrap { padding-top: 20px; padding-bottom: 20px; }
+
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 12px; }
+  .section-head h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .section-head .sub { color: var(--mute); font-size: 12px; margin-top: 2px; }
+
+  .cards4 { display: grid; gap: 16px; grid-template-columns: repeat(4, 1fr); margin-bottom: 20px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px;
+  }
+  .card .label { color: var(--mute); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .card .val { font-size: 22px; font-weight: 600; margin-top: 6px; }
+  .card .val .unit { font-size: 13px; color: var(--mute); margin-left: 2px; font-weight: 400; }
+  .card .sub { color: var(--mute); font-size: 12px; margin-top: 4px; }
+  .bar { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .bar > div { height: 100%; background: var(--accent); }
+  .bar.green > div { background: var(--accent2); }
+  .bar.warn  > div { background: var(--warn); }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; margin-bottom: 16px;
+  }
+  .panel h3 {
+    margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line);
+    font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 10px;
+  }
+  .panel h3 .hint { color: var(--mute); font-size: 11px; font-weight: 400; margin-left: auto; }
+  .panel .body.flush { padding: 0; }
+
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data th, table.data td {
+    padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle;
+  }
+  table.data th {
+    color: var(--mute); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .4px;
+  }
+  table.data tr:last-child td { border-bottom: none; }
+  table.data tr:hover td { background: rgba(255,255,255,.02); }
+
+  .status-pill { padding: 2px 8px; border-radius: 10px; font-size: 11px; white-space: nowrap; display: inline-block; }
+  .s-dl { background: #1e3a5f; color: #7ab8ff; }
+  .s-q  { background: #3a3a1e; color: #fbbf24; }
+  .s-pp { background: #3a1e3a; color: #d8b4fe; }
+
+  .progress { width: 140px; height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+  .progress > div { height: 100%; background: var(--accent); }
+  .progress.pp > div { background: var(--purple); }
+
+  .tag {
+    display: inline-block; padding: 1px 6px; background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 3px; font-size: 11px; color: var(--mute); margin-right: 4px;
+  }
+  .tag.cat { color: var(--accent);  border-color: #1e3a5f; }
+  .tag.srv { color: var(--accent2); border-color: #0f3a2a; }
+
+  /* ---- Floating mode indicator (just for the mockup) ---- */
+  .mode-badge {
+    position: fixed; right: 12px; bottom: 12px;
+    background: var(--panel2); border: 1px solid var(--line);
+    color: var(--mute); font-size: 11px; padding: 6px 10px; border-radius: 6px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .mode-badge b { color: var(--text); }
+</style>
+</head>
+<body data-width-mode="compact">
+  <div class="shell">
+
+    <header>
+      <div class="wrap">
+        <div>
+          <span class="brand">rust<span>nzb</span></span>
+          <span class="ver">v0.2.4</span>
+        </div>
+        <div class="status">
+          <span class="pill ok">● Daemon running</span>
+          <span class="pill">Speed: <b>42.1 MB/s</b></span>
+          <span class="pill">Queue: <b>7</b></span>
+          <span class="pill">Free: <b>1.2 TB</b></span>
+        </div>
+      </div>
+    </header>
+
+    <nav class="top">
+      <div class="wrap">
+        <a class="active">Queue</a>
+        <a>History</a>
+        <a>Search</a>
+        <a>RSS</a>
+        <a>Logs</a>
+        <a>Settings</a>
+        <div class="spacer"></div>
+
+        <!-- Width-mode toggle: persistent + auto on first load -->
+        <div class="mode-toggle" role="group" aria-label="Layout width">
+          <button id="mode-compact" title="Compact — center content to a fixed width">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3.5" y="2.5" width="9" height="11" rx="1"/>
+            </svg>
+            Compact
+          </button>
+          <button id="mode-expanded" title="Expanded — use full browser width">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
+            </svg>
+            Expanded
+          </button>
+        </div>
+
+        <button class="action primary">+ Upload NZB</button>
+        <button class="action">❚❚ Pause all</button>
+        <button class="action muted">Sign out</button>
+      </div>
+    </nav>
+
+    <main>
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2>Queue</h2>
+            <div class="sub">7 items • 42.1 MB/s • ETA 00:14:32</div>
+          </div>
+        </div>
+
+        <div class="cards4">
+          <div class="card">
+            <div class="label">Download speed</div>
+            <div class="val">42.1 <span class="unit">MB/s</span></div>
+            <div class="bar"><div style="width:78%"></div></div>
+            <div class="sub">Limit: 54 MB/s</div>
+          </div>
+          <div class="card">
+            <div class="label">Queue</div>
+            <div class="val">7 <span class="unit">items</span></div>
+            <div class="sub">12.4 GB remaining</div>
+          </div>
+          <div class="card">
+            <div class="label">Connections</div>
+            <div class="val">18 / 20</div>
+            <div class="bar green"><div style="width:90%"></div></div>
+            <div class="sub">news.eweka.nl</div>
+          </div>
+          <div class="card">
+            <div class="label">Disk free</div>
+            <div class="val">1.2 <span class="unit">TB</span></div>
+            <div class="bar warn"><div style="width:32%"></div></div>
+            <div class="sub">/downloads</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>
+            Active downloads
+            <span class="hint">auto-refresh every 2s</span>
+          </h3>
+          <div class="body flush">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th style="width:34px">#</th>
+                  <th>Name</th>
+                  <th>Tags</th>
+                  <th>Status</th>
+                  <th>Progress</th>
+                  <th>Size</th>
+                  <th>ETA</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>Some.Big.Release.2026.1080p.BluRay.x264-GROUP</td>
+                  <td><span class="tag cat">movies</span><span class="tag srv">eweka</span></td>
+                  <td><span class="status-pill s-dl">downloading</span></td>
+                  <td><span class="progress"><div style="width:62%"></div></span> 62%</td>
+                  <td>8.1 GB</td>
+                  <td>04:12</td>
+                  <td style="color:var(--mute)">⋯</td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>Another.Show.S04E11.2160p.HDR.HEVC-TEAM</td>
+                  <td><span class="tag cat">tv</span><span class="tag srv">eweka</span></td>
+                  <td><span class="status-pill s-dl">downloading</span></td>
+                  <td><span class="progress"><div style="width:28%"></div></span> 28%</td>
+                  <td>6.4 GB</td>
+                  <td>08:41</td>
+                  <td style="color:var(--mute)">⋯</td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>Documentary.Pack.2026.Part.3.1080p</td>
+                  <td><span class="tag cat">docs</span></td>
+                  <td><span class="status-pill s-pp">repairing</span></td>
+                  <td><span class="progress pp"><div style="width:44%"></div></span> 44%</td>
+                  <td>3.2 GB</td>
+                  <td>—</td>
+                  <td style="color:var(--mute)">⋯</td>
+                </tr>
+                <tr>
+                  <td>4</td>
+                  <td>Game.Soundtrack.2026.FLAC-GRP</td>
+                  <td><span class="tag cat">music</span></td>
+                  <td><span class="status-pill s-q">queued</span></td>
+                  <td><span class="progress"><div style="width:0%"></div></span> 0%</td>
+                  <td>812 MB</td>
+                  <td>—</td>
+                  <td style="color:var(--mute)">⋯</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Upcoming</h3>
+          <div class="body flush">
+            <table class="data">
+              <thead>
+                <tr><th style="width:34px">#</th><th>Name</th><th>Category</th><th>Size</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr><td>5</td><td>Indie.Film.Collection.Vol.12</td><td>movies</td><td>14.2 GB</td><td style="color:var(--mute)">⋯</td></tr>
+                <tr><td>6</td><td>Podcast.Archive.2025.Q4</td><td>audio</td><td>2.1 GB</td><td style="color:var(--mute)">⋯</td></tr>
+                <tr><td>7</td><td>Linux.Distro.Nightly.2026-04-17</td><td>software</td><td>4.6 GB</td><td style="color:var(--mute)">⋯</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <div class="mode-badge">
+    mode: <b id="mode-label">compact</b> · viewport: <b id="vp-label">—</b>
+  </div>
+
+<script>
+/* =========================================================================
+   Width-mode controller
+   - Persists to localStorage under 'rustnzb.widthMode' (values: compact|expanded)
+   - On first visit, auto-picks based on viewport width (< 1600 → compact)
+   - Toggle buttons let the user override; override wins on subsequent loads
+   - Auto-pick only runs when no saved preference exists
+   ========================================================================= */
+(function () {
+  const KEY = 'rustnzb.widthMode';
+  const AUTO_BREAKPOINT = 1600;
+  const root = document.body;
+  const btnC = document.getElementById('mode-compact');
+  const btnE = document.getElementById('mode-expanded');
+  const label = document.getElementById('mode-label');
+  const vp = document.getElementById('vp-label');
+
+  function apply(mode) {
+    root.setAttribute('data-width-mode', mode);
+    btnC.classList.toggle('active', mode === 'compact');
+    btnE.classList.toggle('active', mode === 'expanded');
+    label.textContent = mode;
+  }
+  function set(mode, persist) {
+    apply(mode);
+    if (persist) localStorage.setItem(KEY, mode);
+  }
+  function pickAuto() {
+    return window.innerWidth >= AUTO_BREAKPOINT ? 'expanded' : 'compact';
+  }
+  function updateVp() { vp.textContent = window.innerWidth + 'px'; }
+
+  const saved = localStorage.getItem(KEY);
+  apply(saved || pickAuto());
+  updateVp();
+
+  btnC.addEventListener('click', () => set('compact', true));
+  btnE.addEventListener('click', () => set('expanded', true));
+  window.addEventListener('resize', updateVp);
+})();
+</script>
+</body>
+</html>

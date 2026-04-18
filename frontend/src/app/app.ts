@@ -6,6 +6,7 @@ import { ApiService } from './core/services/api.service';
 import { AuthService } from './core/services/auth.service';
 import { StatusResponse } from './core/models/queue.model';
 import { AddNzbService } from './core/services/add-nzb.service';
+import { WidthModeService } from './core/services/width-mode.service';
 
 @Component({
   selector: 'app-root',
@@ -18,21 +19,24 @@ import { AddNzbService } from './core/services/add-nzb.service';
     } @else {
       <div class="shell">
         <header>
-          <div>
-            <span class="brand">rust<span>nzb</span></span>
-            <span class="ver">v{{ version }}</span>
-          </div>
-          <div class="status">
-            <span class="pill" [class.ok]="!paused()" [class.warn]="paused()">
-              ● {{ paused() ? 'Paused' : 'Daemon running' }}
-            </span>
-            <span class="pill">Speed: <b>{{ formatSpeed(speed()) }}</b></span>
-            <span class="pill">Queue: <b>{{ queueCount() }}</b></span>
-            <span class="pill">Free: <b>{{ formatBytes(diskFree()) }}</b></span>
+          <div class="wrap">
+            <div>
+              <span class="brand">rust<span>nzb</span></span>
+              <span class="ver">v{{ version }}</span>
+            </div>
+            <div class="status">
+              <span class="pill" [class.ok]="!paused()" [class.warn]="paused()">
+                ● {{ paused() ? 'Paused' : 'Daemon running' }}
+              </span>
+              <span class="pill">Speed: <b>{{ formatSpeed(speed()) }}</b></span>
+              <span class="pill">Queue: <b>{{ queueCount() }}</b></span>
+              <span class="pill">Free: <b>{{ formatBytes(diskFree()) }}</b></span>
+            </div>
           </div>
         </header>
 
         <nav class="top">
+          <div class="wrap">
           <a routerLink="/queue"    routerLinkActive="active">Queue</a>
           <a routerLink="/history"  routerLinkActive="active">History</a>
           <a routerLink="/groups"   routerLinkActive="active">Search</a>
@@ -40,6 +44,22 @@ import { AddNzbService } from './core/services/add-nzb.service';
           <a routerLink="/logs"     routerLinkActive="active">Logs</a>
           <a routerLink="/settings" routerLinkActive="active">Settings</a>
           <div class="spacer"></div>
+          <div class="mode-toggle" role="group" aria-label="Layout width">
+            <button type="button" [class.active]="widthMode.mode() === 'compact'"
+                    (click)="widthMode.set('compact')" title="Compact — center content">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <rect x="3.5" y="2.5" width="9" height="11" rx="1"/>
+              </svg>
+              Compact
+            </button>
+            <button type="button" [class.active]="widthMode.mode() === 'expanded'"
+                    (click)="widthMode.set('expanded')" title="Expanded — full width">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
+              </svg>
+              Expanded
+            </button>
+          </div>
           <button class="action primary" (click)="onAddNzb()">+ Upload NZB</button>
           <div class="pause-group">
             <button class="action" (click)="togglePause()">
@@ -63,10 +83,13 @@ import { AddNzbService } from './core/services/add-nzb.service';
             }
           </div>
           <button class="action muted" (click)="onLogout()" title="Sign out">Sign out</button>
+          </div>
         </nav>
 
         <main>
-          <router-outlet />
+          <div class="wrap">
+            <router-outlet />
+          </div>
         </main>
       </div>
     }
@@ -76,13 +99,32 @@ import { AddNzbService } from './core/services/add-nzb.service';
 
     .shell { display: flex; flex-direction: column; height: 100vh; }
 
+    /* ---- Width-mode wrap ----
+       Header, nav, and main render full-bleed backgrounds but wrap their
+       content in .wrap. Compact mode clamps .wrap to 1320px and centers it,
+       so chrome and body align. Expanded mode uses the full viewport width
+       with a small gutter. Mode is toggled via [data-width-mode] on <body>. */
+    .wrap {
+      width: 100%;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 0 20px;
+      box-sizing: border-box;
+    }
+    :host-context(body[data-width-mode="expanded"]) .wrap {
+      max-width: none;
+      padding: 0 24px;
+    }
+
     /* ---- Header ---- */
     header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 20px;
       background: var(--panel);
       border-bottom: 1px solid var(--line);
       flex-shrink: 0;
+    }
+    header .wrap {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-top: 12px; padding-bottom: 12px;
     }
     .brand { font-weight: 700; font-size: 16px; letter-spacing: .2px; }
     .brand span { color: var(--accent); }
@@ -91,13 +133,14 @@ import { AddNzbService } from './core/services/add-nzb.service';
 
     /* ---- Top nav ---- */
     nav.top {
-      display: flex;
-      padding: 0 20px;
       background: var(--panel);
       border-bottom: 1px solid var(--line);
       flex-shrink: 0;
-      overflow-x: auto;
+    }
+    nav.top .wrap {
+      display: flex;
       align-items: center;
+      overflow-x: auto;
     }
     nav.top a {
       color: var(--mute);
@@ -170,12 +213,30 @@ import { AddNzbService } from './core/services/add-nzb.service';
     main {
       flex: 1;
       overflow-y: auto;
-      padding: 20px;
-      max-width: 1320px;
-      margin: 0 auto;
-      width: 100%;
-      box-sizing: border-box;
     }
+    main .wrap {
+      padding-top: 20px;
+      padding-bottom: 20px;
+    }
+
+    /* ---- Width-mode toggle (segmented control) ---- */
+    .mode-toggle {
+      display: inline-flex; align-items: center;
+      background: var(--panel2); border: 1px solid var(--line);
+      border-radius: 6px; padding: 2px; margin: 0 8px;
+    }
+    .mode-toggle button {
+      background: none; border: none; color: var(--mute);
+      font: inherit; font-size: 12px; padding: 4px 10px;
+      border-radius: 4px; cursor: pointer;
+      display: inline-flex; gap: 6px; align-items: center;
+    }
+    .mode-toggle button:hover { color: var(--text); }
+    .mode-toggle button.active {
+      background: var(--panel); color: var(--text);
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .mode-toggle svg { width: 14px; height: 14px; }
   `],
 })
 export class App implements OnInit, OnDestroy {
@@ -208,6 +269,7 @@ export class App implements OnInit, OnDestroy {
     private authService: AuthService,
     private router: Router,
     private addNzbService: AddNzbService,
+    public widthMode: WidthModeService,
   ) {}
 
   ngOnInit(): void {
