@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
+import { RouterModule } from '@angular/router';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 
@@ -15,6 +15,11 @@ interface ServerConfig {
 interface CategoryConfig {
   name: string; output_dir: string | null; post_processing: number;
 }
+
+type Tab =
+  | 'servers' | 'rss-cfg'
+  | 'categories' | 'postproc' | 'paths'
+  | 'general' | 'api' | 'telemetry' | 'about';
 
 function emptyServer(): ServerConfig {
   return {
@@ -32,183 +37,439 @@ function emptyCategory(): CategoryConfig {
 @Component({
   selector: 'app-settings-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatSnackBarModule],
   template: `
-    <div class="settings-layout">
-      <div class="nav">
-        <div class="nav-item" [class.active]="tab === 'servers'" (click)="tab = 'servers'">Servers</div>
-        <div class="nav-item" [class.active]="tab === 'categories'" (click)="tab = 'categories'">Categories</div>
-        <div class="nav-item" [class.active]="tab === 'general'" (click)="tab = 'general'">General</div>
-      </div>
-      <div class="content">
+    <div class="settings-shell">
 
-        <!-- ==================== SERVERS TAB ==================== -->
+      <!-- Sidebar -->
+      <aside class="settings-side">
+        <div class="sg">Connection</div>
+        <button [class.active]="tab === 'servers'"  (click)="tab = 'servers'">News servers</button>
+        <button [class.active]="tab === 'rss-cfg'"  (click)="tab = 'rss-cfg'">RSS feeds</button>
+
+        <div class="sg">Downloads</div>
+        <button [class.active]="tab === 'categories'" (click)="tab = 'categories'">Categories</button>
+        <button [class.active]="tab === 'postproc'"   (click)="tab = 'postproc'">Post-processing</button>
+        <button [class.active]="tab === 'paths'"      (click)="tab = 'paths'">Paths &amp; disk</button>
+
+        <div class="sg">System</div>
+        <button [class.active]="tab === 'general'"    (click)="tab = 'general'">General</button>
+        <button [class.active]="tab === 'api'"        (click)="tab = 'api'">API &amp; SABnzbd compat</button>
+        <button [class.active]="tab === 'telemetry'"  (click)="tab = 'telemetry'">Logging &amp; telemetry</button>
+        <button [class.active]="tab === 'about'"      (click)="tab = 'about'">About</button>
+      </aside>
+
+      <div class="settings-main">
+
+        <!-- =========== SERVERS =========== -->
         @if (tab === 'servers') {
-          <div class="tab-header">
-            <h3>News Servers</h3>
+          <div class="section-head">
+            <div>
+              <h2>News servers</h2>
+              <div class="sub">Priority 0 is tried first; higher priorities fill gaps.</div>
+            </div>
             @if (!editingServer) {
-              <button class="btn btn-primary" (click)="addServer()">Add Server</button>
+              <button class="btn primary" (click)="addServer()">+ Add server</button>
             }
           </div>
 
-          @if (editingServer) {
-            <div class="form-card">
-              <h4>{{ editingServerId ? 'Edit Server' : 'Add Server' }}</h4>
-              <div class="form-grid">
-                <div class="form-row">
-                  <label>Name</label>
-                  <input type="text" [(ngModel)]="editingServer.name" placeholder="My Server" />
+          <!-- Server list -->
+          <div class="panel">
+            @for (s of servers(); track s.id) {
+              <div class="srv-row">
+                <div class="drag">⋮⋮</div>
+                <div>
+                  <div class="title" [class.dim]="!s.enabled">
+                    {{ s.name || s.host }}
+                    <span class="pill" [class.ok]="s.enabled" [class.warn]="!s.enabled" style="margin-left:6px">
+                      ● {{ s.enabled ? 'enabled' : 'disabled' }}
+                    </span>
+                    @if (s.optional) { <span class="tag" style="margin-left:4px">backup</span> }
+                  </div>
+                  <div class="host">
+                    {{ s.ssl ? 'NNTPS' : 'NNTP' }} · {{ s.host }}:{{ s.port }}
+                    @if (s.username) { · user <code>{{ s.username }}</code> }
+                    · {{ s.connections }} conns · pipeline {{ s.pipelining }}
+                    @if (s.ssl) { · TLS 1.3 }
+                  </div>
+                  <div class="meters">
+                    <span>priority <b>{{ s.priority }}</b></span>
+                    <span>retention <b>{{ s.retention }} d</b></span>
+                    <span>ramp-up <b>{{ s.ramp_up_delay_ms }} ms</b></span>
+                    @if (s.compress) { <span><b>compression</b></span> }
+                  </div>
                 </div>
-                <div class="form-row">
+                <div class="actions">
+                  <button class="btn sm" (click)="testServer(s.id)">Test</button>
+                  <button class="btn sm" (click)="editServer(s)">Edit</button>
+                  <button class="btn sm" (click)="cloneServer(s)">Clone</button>
+                  <button class="btn sm danger" (click)="deleteServer(s.id)">Remove</button>
+                </div>
+              </div>
+            }
+            @if (servers().length === 0 && !editingServer) {
+              <div class="empty">No servers configured. Click <b>+ Add server</b> to get started.</div>
+            }
+          </div>
+
+          <!-- Edit form -->
+          @if (editingServer) {
+            <div class="panel">
+              <h3>{{ editingServerId ? 'Edit server' : 'Add server' }}</h3>
+              <div class="body">
+                <div class="form">
+                  <label>Name</label>
+                  <input type="text" [(ngModel)]="editingServer.name" placeholder="news-primary" />
+
                   <label>Host</label>
                   <input type="text" [(ngModel)]="editingServer.host" placeholder="news.example.com" />
-                </div>
-                <div class="form-row">
+
                   <label>Port</label>
-                  <input type="number" [(ngModel)]="editingServer.port" />
-                </div>
-                <div class="form-row">
-                  <label>SSL</label>
-                  <input type="checkbox" [(ngModel)]="editingServer.ssl" />
-                </div>
-                <div class="form-row">
-                  <label>Verify SSL</label>
-                  <input type="checkbox" [(ngModel)]="editingServer.ssl_verify" />
-                </div>
-                <div class="form-row">
+                  <div class="inline">
+                    <input type="number" [(ngModel)]="editingServer.port" />
+                    <label class="check"><input type="checkbox" [(ngModel)]="editingServer.ssl" /> SSL (NNTPS)</label>
+                    <label class="check"><input type="checkbox" [(ngModel)]="editingServer.ssl_verify" /> Verify cert</label>
+                  </div>
+
                   <label>Username</label>
                   <input type="text" [(ngModel)]="editingServer.username" placeholder="(optional)" />
-                </div>
-                <div class="form-row">
+
                   <label>Password</label>
                   <input type="password" [(ngModel)]="editingServer.password" placeholder="(optional)" />
-                </div>
-                <div class="form-row">
-                  <label>Connections</label>
-                  <input type="number" [(ngModel)]="editingServer.connections" min="1" />
-                </div>
-                <div class="form-row">
-                  <label>Priority</label>
-                  <input type="number" [(ngModel)]="editingServer.priority" min="0" />
-                </div>
-                <div class="form-row">
-                  <label>Retention (days)</label>
-                  <input type="number" [(ngModel)]="editingServer.retention" min="0" />
-                </div>
-                <div class="form-row">
-                  <label>Pipelining</label>
-                  <input type="number" [(ngModel)]="editingServer.pipelining" min="0" />
-                </div>
-                <div class="form-row">
-                  <label>Enabled</label>
-                  <input type="checkbox" [(ngModel)]="editingServer.enabled" />
-                </div>
-                <div class="form-row">
-                  <label>Optional (backup)</label>
-                  <input type="checkbox" [(ngModel)]="editingServer.optional" />
-                </div>
-                <div class="form-row">
-                  <label>Compress</label>
-                  <input type="checkbox" [(ngModel)]="editingServer.compress" />
-                </div>
-              </div>
-              <div class="form-actions">
-                <button class="btn btn-primary" (click)="saveServer()">Save</button>
-                <button class="btn" (click)="cancelServerEdit()">Cancel</button>
-              </div>
-            </div>
-          }
 
-          @for (s of servers(); track s.id) {
-            <div class="server-card">
-              <div class="server-info">
-                <div class="server-name">{{ s.name }} @if (s.optional) { <span class="optional">(backup)</span> }</div>
-                <div class="server-host">{{ s.host }}:{{ s.port }} · {{ s.ssl ? 'SSL' : 'Plain' }} · {{ s.connections }} conn · Pipeline: {{ s.pipelining }}</div>
+                  <label>Connections</label>
+                  <div class="inline">
+                    <input type="number" [(ngModel)]="editingServer.connections" min="1" />
+                    <label class="check"><input type="checkbox" [(ngModel)]="editingServer.enabled" /> Enabled</label>
+                    <label class="check"><input type="checkbox" [(ngModel)]="editingServer.optional" /> Optional (skip on failure)</label>
+                  </div>
+
+                  <label>Priority</label>
+                  <div class="inline">
+                    <input type="number" [(ngModel)]="editingServer.priority" min="0" />
+                    <span style="color:var(--mute);font-size:11px">0 = primary, higher = fallback</span>
+                  </div>
+
+                  <label>Pipelining</label>
+                  <div class="inline">
+                    <input type="number" [(ngModel)]="editingServer.pipelining" min="0" />
+                    <span style="color:var(--mute);font-size:11px">Max inflight ARTICLE commands per conn</span>
+                  </div>
+
+                  <label>Ramp-up delay</label>
+                  <div class="inline">
+                    <input type="number" [(ngModel)]="editingServer.ramp_up_delay_ms" min="0" />
+                    <span style="color:var(--mute);font-size:11px">ms between opening conns</span>
+                  </div>
+
+                  <label>Retention</label>
+                  <div class="inline">
+                    <input type="number" [(ngModel)]="editingServer.retention" min="0" />
+                    <span style="color:var(--mute);font-size:11px">days (informational)</span>
+                  </div>
+
+                  <label>Compression</label>
+                  <div class="check">
+                    <input type="checkbox" [(ngModel)]="editingServer.compress" /> Enable header compression (XZVER)
+                  </div>
+
+                  <label>Proxy URL</label>
+                  <input type="text" [(ngModel)]="editingServer.proxy_url" placeholder="socks5://user:pass@host:1080 (optional)" />
+                </div>
+
+                <div class="form-actions">
+                  <button class="btn primary" (click)="saveServer()">Save</button>
+                  @if (editingServerId) {
+                    <button class="btn" (click)="testServer(editingServerId)">Test connection</button>
+                  }
+                  <button class="btn" (click)="cancelServerEdit()">Cancel</button>
+                </div>
               </div>
-              <div class="server-status">
-                <span class="dot" [class.active]="s.enabled"></span>
-                {{ s.enabled ? 'Enabled' : 'Disabled' }}
-              </div>
-              <button class="btn" (click)="editServer(s)">Edit</button>
-              <button class="btn" (click)="testServer(s.id)">Test</button>
-              <button class="btn btn-danger" (click)="deleteServer(s.id)">Delete</button>
             </div>
-          }
-          @if (servers().length === 0 && !editingServer) {
-            <div class="empty">No servers configured</div>
           }
         }
 
-        <!-- ==================== CATEGORIES TAB ==================== -->
+        <!-- =========== RSS GLOBAL OPTIONS =========== -->
+        @if (tab === 'rss-cfg') {
+          <div class="section-head">
+            <div>
+              <h2>RSS feeds</h2>
+              <div class="sub">Manage feeds themselves on the <a routerLink="/rss">RSS page</a>.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>About RSS configuration</h3>
+            <div class="body">
+              <p style="margin:0;color:var(--mute);font-size:13px">
+                Feed URLs, regex filters, poll intervals, and auto-enqueue are configured per feed on the
+                <a routerLink="/rss">RSS page</a>. This section is reserved for global defaults
+                (backoff, duplicate guard, User-Agent) and will move here once the backend exposes the
+                corresponding endpoints.
+              </p>
+            </div>
+          </div>
+        }
+
+        <!-- =========== CATEGORIES =========== -->
         @if (tab === 'categories') {
-          <div class="tab-header">
-            <h3>Categories</h3>
+          <div class="section-head">
+            <div>
+              <h2>Categories</h2>
+              <div class="sub">Bucket downloads into folders; each has its own post-processing level.</div>
+            </div>
             @if (!editingCategory) {
-              <button class="btn btn-primary" (click)="addCategory()">Add Category</button>
+              <button class="btn primary" (click)="addCategory()">+ Add category</button>
             }
           </div>
 
+          <div class="panel">
+            <div class="body flush">
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Output dir</th>
+                    <th>Post-processing</th>
+                    <th style="width:120px"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of categories(); track c.name) {
+                    <tr>
+                      <td><span class="tag cat">{{ c.name }}</span></td>
+                      <td><code>{{ c.output_dir || '(default)' }}</code></td>
+                      <td>{{ ppLabel(c.post_processing) }}</td>
+                      <td>
+                        <button class="row-action" (click)="editCategory(c)">edit</button>
+                        <button class="row-action danger" (click)="deleteCategory(c.name)">del</button>
+                      </td>
+                    </tr>
+                  }
+                  @if (categories().length === 0 && !editingCategory) {
+                    <tr><td colspan="4" class="empty-cell">No categories configured.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           @if (editingCategory) {
-            <div class="form-card">
-              <h4>{{ editingCategoryOriginalName ? 'Edit Category' : 'Add Category' }}</h4>
-              <div class="form-grid">
-                <div class="form-row">
+            <div class="panel">
+              <h3>{{ editingCategoryOriginalName ? 'Edit' : 'Add' }} category</h3>
+              <div class="body">
+                <div class="form">
                   <label>Name</label>
                   <input type="text" [(ngModel)]="editingCategory.name" placeholder="movies" />
-                </div>
-                <div class="form-row">
-                  <label>Output Directory</label>
-                  <input type="text" [(ngModel)]="editingCategory.output_dir" placeholder="(optional)" />
-                </div>
-                <div class="form-row">
-                  <label>Post Processing</label>
+
+                  <label>Output dir</label>
+                  <input type="text" [(ngModel)]="editingCategory.output_dir" placeholder="(optional — uses default if blank)" />
+
+                  <label>Post-processing</label>
                   <select [(ngModel)]="editingCategory.post_processing">
                     <option [ngValue]="0">None</option>
-                    <option [ngValue]="1">Repair</option>
+                    <option [ngValue]="1">Repair (par2)</option>
                     <option [ngValue]="2">Unpack</option>
                     <option [ngValue]="3">Repair + Unpack</option>
                   </select>
                 </div>
-              </div>
-              <div class="form-actions">
-                <button class="btn btn-primary" (click)="saveCategory()">Save</button>
-                <button class="btn" (click)="cancelCategoryEdit()">Cancel</button>
+                <div class="form-actions">
+                  <button class="btn primary" (click)="saveCategory()">Save</button>
+                  <button class="btn" (click)="cancelCategoryEdit()">Cancel</button>
+                </div>
               </div>
             </div>
-          }
-
-          @for (c of categories(); track c.name) {
-            <div class="server-card">
-              <div class="server-info">
-                <div class="server-name">{{ c.name }}</div>
-                <div class="server-host">{{ c.output_dir || 'Default output' }} · {{ ppLabel(c.post_processing) }}</div>
-              </div>
-              <button class="btn" (click)="editCategory(c)">Edit</button>
-              <button class="btn btn-danger" (click)="deleteCategory(c.name)">Delete</button>
-            </div>
-          }
-          @if (categories().length === 0 && !editingCategory) {
-            <div class="empty">No categories configured</div>
           }
         }
 
-        <!-- ==================== GENERAL TAB ==================== -->
+        <!-- =========== POST-PROCESSING (static/overview) =========== -->
+        @if (tab === 'postproc') {
+          <div class="section-head">
+            <div>
+              <h2>Post-processing</h2>
+              <div class="sub">Par2 repair (native Rust), unrar / 7z extraction, cleanup.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Par2 repair <span class="hint">rust-par2 · no external binary</span></h3>
+            <div class="body" style="font-size:13px;color:var(--mute)">
+              Par2 behaviour is currently controlled per-category (see <a (click)="tab = 'categories'" style="cursor:pointer">Categories</a>).
+              Global toggles (mode, memory limit, threads) will live here once the backend exposes them.
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Extraction</h3>
+            <div class="body" style="font-size:13px;color:var(--mute)">
+              System <code>unrar</code> and <code>7z</code> are detected at startup.
+              Run <code>--smoke-test</code> to verify the runtime tools.
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Cleanup</h3>
+            <div class="body" style="font-size:13px;color:var(--mute)">
+              On success, .rar / .par2 are removed from the output directory; sample files under 50 MB
+              are pruned. On failure, partial files are kept for retry.
+            </div>
+          </div>
+        }
+
+        <!-- =========== PATHS & DISK (read-only preview) =========== -->
+        @if (tab === 'paths') {
+          <div class="section-head">
+            <div>
+              <h2>Paths &amp; disk</h2>
+              <div class="sub">Where rustnzb reads and writes. Set via CLI / TOML / env.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Directories</h3>
+            <div class="body" style="font-size:13px;line-height:1.8">
+              <div><b>Data dir</b> — SQLite, queue state, job blobs · set via <code>RUSTNZB_DATA_DIR</code> or <code>--data-dir</code></div>
+              <div><b>Downloads</b> — <code>/downloads/complete</code> (configured per category)</div>
+              <div><b>Incomplete</b> — <code>/downloads/incomplete</code></div>
+              <div><b>Watch dir</b> — <code>/downloads/watch</code> · <code>.nzb</code> drops auto-enqueue</div>
+              <div><b>Temp</b> — <code>&lt;data&gt;/tmp</code></div>
+              <div><b>Logs</b> — <code>&lt;data&gt;/logs</code></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Disk guards
+              <span class="hint">history retention is editable under <a (click)="tab = 'general'" style="cursor:pointer">General</a></span>
+            </h3>
+            <div class="body" style="font-size:13px;color:var(--mute)">
+              Min free space and abort thresholds are configured in <code>config.toml</code>. A UI for
+              these will land when the API endpoints exist.
+            </div>
+          </div>
+        }
+
+        <!-- =========== GENERAL =========== -->
         @if (tab === 'general') {
-          <h3>General Settings</h3>
-          <div class="setting-row">
-            <label>Speed Limit (bytes/sec, 0 = unlimited)</label>
-            <input type="number" [(ngModel)]="speedLimit" class="setting-input" />
-            <button class="btn" (click)="saveSpeedLimit()">Save</button>
+          <div class="section-head">
+            <div>
+              <h2>General</h2>
+              <div class="sub">Global speed limit, concurrency, history retention.</div>
+            </div>
           </div>
-          <div class="setting-row">
-            <label>Max Concurrent Downloads</label>
-            <input type="number" [(ngModel)]="maxActiveDownloads" class="setting-input" min="1" />
-            <button class="btn" (click)="saveMaxActive()">Save</button>
+
+          <div class="panel">
+            <h3>Speed &amp; concurrency</h3>
+            <div class="body">
+              <div class="form">
+                <label>Global speed limit</label>
+                <div class="inline">
+                  <input type="number" [(ngModel)]="speedLimit" min="0" />
+                  <span style="color:var(--mute)">bytes/sec · 0 = unlimited</span>
+                  <button class="btn sm" (click)="saveSpeedLimit()">Save</button>
+                </div>
+
+                <label>Concurrent jobs</label>
+                <div class="inline">
+                  <input type="number" [(ngModel)]="maxActiveDownloads" min="1" />
+                  <span style="color:var(--mute);font-size:11px">Max jobs in Downloading state</span>
+                  <button class="btn sm" (click)="saveMaxActive()">Save</button>
+                </div>
+
+                <label>History retention</label>
+                <div class="inline">
+                  <input type="number" [(ngModel)]="historyRetention" min="0" />
+                  <span style="color:var(--mute)">days · blank = keep all</span>
+                  <button class="btn sm" (click)="saveRetention()">Save</button>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="setting-row">
-            <label>History Retention (days, blank = keep all)</label>
-            <input type="number" [(ngModel)]="historyRetention" class="setting-input" min="0" />
-            <button class="btn" (click)="saveRetention()">Save</button>
+        }
+
+        <!-- =========== API / SABnzbd =========== -->
+        @if (tab === 'api') {
+          <div class="section-head">
+            <div>
+              <h2>API &amp; SABnzbd compatibility</h2>
+              <div class="sub">Native REST + drop-in SABnzbd API for Sonarr / Radarr / Lidarr.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>SABnzbd endpoint</h3>
+            <div class="body" style="font-size:13px">
+              <p style="margin:0 0 10px">Point Sonarr/Radarr at this host — category matching is done by category name.</p>
+              <code>{{ sabnzbdExample }}</code>
+              <div class="form" style="margin-top:16px">
+                <label>Supported modes</label>
+                <div style="font-size:12px">
+                  <code>addfile</code> <code>addurl</code> <code>queue</code> <code>history</code>
+                  <code>config</code> <code>fullstatus</code> <code>version</code>
+                  <code>pause</code> <code>resume</code> <code>delete</code> <code>retry</code>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>OpenAPI / Swagger</h3>
+            <div class="body">
+              <a href="/swagger-ui" target="_blank">Open <code>/swagger-ui</code></a>
+              — generated by <code>utoipa</code> from the live route handlers.
+            </div>
+          </div>
+        }
+
+        <!-- =========== TELEMETRY =========== -->
+        @if (tab === 'telemetry') {
+          <div class="section-head">
+            <div>
+              <h2>Logging &amp; telemetry</h2>
+              <div class="sub">tracing filters, file rotation, OpenTelemetry OTLP.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>tracing</h3>
+            <div class="body" style="font-size:13px;line-height:1.8">
+              Configured via env at startup: <code>RUSTNZB_LOG_LEVEL</code> (default <code>info</code>)
+              or <code>RUST_LOG</code> for fine-grained per-target filters (e.g.
+              <code>nzb_nntp=debug,nzb_web=info</code>). Live logs are on the
+              <a routerLink="/logs">Logs page</a>.
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>OpenTelemetry (OTLP gRPC)</h3>
+            <div class="body" style="font-size:13px;line-height:1.8">
+              Enabled via <code>OTEL_ENABLED=true</code>, <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>,
+              <code>OTEL_SERVICE_NAME</code>. A mutable UI for these will land once the backend
+              exposes a config endpoint.
+            </div>
+          </div>
+        }
+
+        <!-- =========== ABOUT =========== -->
+        @if (tab === 'about') {
+          <div class="section-head">
+            <div>
+              <h2>About</h2>
+              <div class="sub">Build info, versions, license.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="body">
+              <div class="form">
+                <label>Version</label><div>0.2.4</div>
+                <label>Rust edition</label><div>2024</div>
+                <label>Web framework</label><div>Axum 0.8 + Tower</div>
+                <label>TLS</label><div>rustls 0.23 (ring)</div>
+                <label>Database</label><div>SQLite · WAL mode · bundled</div>
+                <label>License</label><div>MIT</div>
+                <label>Source</label><div><a href="https://repo.indexarr.net/indexarr/rustnzb" target="_blank">repo.indexarr.net/indexarr/rustnzb</a></div>
+              </div>
+            </div>
           </div>
         }
 
@@ -216,69 +477,85 @@ function emptyCategory(): CategoryConfig {
     </div>
   `,
   styles: [`
-    :host { display: flex; height: 100%; }
-    .settings-layout { display: flex; flex: 1; overflow: hidden; }
-    .nav { width: 180px; border-right: 1px solid #21262d; background: #0d1117; padding: 8px 0; }
-    .nav-item { padding: 8px 16px; cursor: pointer; font-size: 13px; color: #8b949e; }
-    .nav-item:hover { color: #c9d1d9; background: #161b22; }
-    .nav-item.active { color: #c9d1d9; background: rgba(56,139,253,0.1); border-right: 2px solid #58a6ff; }
-    .content { flex: 1; padding: 20px 24px; overflow-y: auto; }
-    h3 { font-size: 16px; margin-bottom: 12px; }
-    .tab-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .tab-header h3 { margin-bottom: 0; }
+    :host { display: block; }
 
-    /* Server / category cards */
-    .server-card { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 8px; }
-    .server-info { flex: 1; }
-    .server-name { font-weight: 600; font-size: 14px; }
-    .optional { color: #8b949e; font-weight: normal; font-size: 12px; }
-    .server-host { font-size: 12px; color: #8b949e; margin-top: 2px; }
-    .server-status { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #8b949e; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #484f58; }
-    .dot.active { background: #3fb950; }
+    .settings-shell { display: grid; grid-template-columns: 220px 1fr; gap: 16px; }
 
-    /* Buttons */
-    .btn { padding: 4px 10px; border-radius: 4px; border: 1px solid #30363d; background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 12px; }
-    .btn:hover { background: #30363d; }
-    .btn-primary { background: #238636; border-color: #238636; color: #fff; }
-    .btn-primary:hover { background: #2ea043; }
-    .btn-danger { color: #f85149; }
-    .btn-danger:hover { background: #30363d; }
+    .settings-side {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      height: fit-content;
+      position: sticky;
+      top: 16px;
+    }
+    .settings-side .sg {
+      color: var(--mute);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      padding: 10px 12px 4px;
+    }
+    .settings-side button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--mute);
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font: inherit;
+    }
+    .settings-side button:hover { color: var(--text); background: var(--panel2); }
+    .settings-side button.active {
+      color: var(--text);
+      background: var(--panel2);
+      box-shadow: inset 2px 0 0 var(--accent);
+    }
 
-    /* Inline form card */
-    .form-card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px 20px; margin-bottom: 16px; }
-    .form-card h4 { font-size: 14px; margin: 0 0 12px 0; }
-    .form-grid { display: flex; flex-wrap: wrap; gap: 10px 24px; }
-    .form-row { display: flex; align-items: center; gap: 8px; }
-    .form-row label { font-size: 13px; min-width: 130px; color: #8b949e; }
-    .form-row input[type="text"],
-    .form-row input[type="password"],
-    .form-row input[type="number"],
-    .form-row select { padding: 6px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 13px; width: 200px; }
-    .form-row input[type="checkbox"] { accent-color: #58a6ff; width: auto; }
-    .form-row select { width: 218px; }
-    .form-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .settings-main { min-width: 0; }
 
-    /* General settings */
-    .setting-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-    .setting-row label { font-size: 13px; min-width: 280px; }
-    .setting-input { padding: 6px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 13px; width: 150px; }
+    /* Server rows */
+    .srv-row {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .srv-row:last-child { border: none; }
+    .drag { color: var(--mute); cursor: grab; text-align: center; }
+    .title { font-weight: 600; }
+    .title.dim { color: var(--mute); }
+    .host { color: var(--mute); font-size: 12px; margin-top: 2px; }
+    .meters { display: flex; gap: 18px; align-items: center; font-size: 12px; color: var(--mute); margin-top: 6px; flex-wrap: wrap; }
+    .meters b { color: var(--text); font-weight: 600; }
+    .actions { display: flex; gap: 4px; flex-wrap: wrap; }
 
-    .empty { padding: 24px; color: #484f58; text-align: center; }
+    .empty { padding: 24px; color: var(--mute); text-align: center; font-size: 13px; }
+    .empty-cell { text-align: center; padding: 28px !important; color: var(--mute); font-size: 13px; }
+
+    .form-actions { margin-top: 14px; display: flex; gap: 8px; }
   `],
 })
 export class SettingsViewComponent implements OnInit {
-  tab = 'servers';
+  tab: Tab = 'servers';
+
+  readonly sabnzbdExample = `${typeof location !== 'undefined' ? location.origin : 'http://host:9090'}/sabnzbd/api?apikey=...&mode=queue`;
 
   // Servers
   servers = signal<ServerConfig[]>([]);
   editingServer: ServerConfig | null = null;
-  editingServerId: string | null = null; // non-null when editing existing
+  editingServerId: string | null = null;
 
   // Categories
   categories = signal<CategoryConfig[]>([]);
   editingCategory: CategoryConfig | null = null;
-  editingCategoryOriginalName: string | null = null; // non-null when editing existing
+  editingCategoryOriginalName: string | null = null;
 
   // General
   speedLimit = 0;
@@ -312,6 +589,11 @@ export class SettingsViewComponent implements OnInit {
     this.editingServerId = s.id;
   }
 
+  cloneServer(s: ServerConfig): void {
+    this.editingServer = { ...s, id: '', name: `${s.name} (copy)` };
+    this.editingServerId = null;
+  }
+
   cancelServerEdit(): void {
     this.editingServer = null;
     this.editingServerId = null;
@@ -324,7 +606,6 @@ export class SettingsViewComponent implements OnInit {
     if (!server.password) server.password = null;
 
     if (this.editingServerId) {
-      // Edit existing
       this.api.put(`/config/servers/${this.editingServerId}`, server).subscribe({
         next: () => {
           this.snack.open('Server updated', 'Close', { duration: 2000 });
@@ -334,7 +615,6 @@ export class SettingsViewComponent implements OnInit {
         error: () => this.snack.open('Failed to update server', 'Close', { duration: 3000 }),
       });
     } else {
-      // Add new
       server.id = '';
       this.api.post('/config/servers', server).subscribe({
         next: () => {
@@ -355,8 +635,12 @@ export class SettingsViewComponent implements OnInit {
   }
 
   deleteServer(id: string): void {
+    if (!confirm('Remove this server?')) return;
     this.api.delete(`/config/servers/${id}`).subscribe({
-      next: () => { this.loadServers(); this.snack.open('Server removed', 'Close', { duration: 2000 }); },
+      next: () => {
+        this.loadServers();
+        this.snack.open('Server removed', 'Close', { duration: 2000 });
+      },
       error: () => this.snack.open('Failed to delete server', 'Close', { duration: 3000 }),
     });
   }
@@ -391,7 +675,6 @@ export class SettingsViewComponent implements OnInit {
     if (!cat.output_dir) cat.output_dir = null;
 
     if (this.editingCategoryOriginalName) {
-      // Edit existing
       const encoded = encodeURIComponent(this.editingCategoryOriginalName);
       this.api.put(`/config/categories/${encoded}`, cat).subscribe({
         next: () => {
@@ -402,7 +685,6 @@ export class SettingsViewComponent implements OnInit {
         error: () => this.snack.open('Failed to update category', 'Close', { duration: 3000 }),
       });
     } else {
-      // Add new
       this.api.post('/config/categories', cat).subscribe({
         next: () => {
           this.snack.open('Category added', 'Close', { duration: 2000 });
@@ -415,9 +697,13 @@ export class SettingsViewComponent implements OnInit {
   }
 
   deleteCategory(name: string): void {
+    if (!confirm(`Delete category "${name}"?`)) return;
     const encoded = encodeURIComponent(name);
     this.api.delete(`/config/categories/${encoded}`).subscribe({
-      next: () => { this.loadCategories(); this.snack.open('Category removed', 'Close', { duration: 2000 }); },
+      next: () => {
+        this.loadCategories();
+        this.snack.open('Category removed', 'Close', { duration: 2000 });
+      },
       error: () => this.snack.open('Failed to delete category', 'Close', { duration: 3000 }),
     });
   }

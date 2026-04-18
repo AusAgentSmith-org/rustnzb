@@ -1,0 +1,1398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rustnzb — UI redesign mockup</title>
+<!--
+  ============================================================
+  rustnzb — UI REDESIGN MOCKUP
+  ============================================================
+  Purpose: reimagine the rustnzb web UI using the visual language
+  of nzbservice/mockup/reseller-pitch.html, but applied to a
+  LOCAL daemon (not a reseller portal). No plan/billing.
+
+  Retained (required by the product):
+    - Multi-server NNTP management (priority failover, per-server pool)
+    - RSS feed monitor + auto-enqueue
+    - Categories + post-processing pipeline
+    - Newsgroup search/browse (FTS5 headers, threads)
+    - Queue + history + logs
+
+  Every top-level page and every Settings sub-tab is present.
+  In-page JS switches sections — no backend calls, all numbers
+  are illustrative.
+  ============================================================
+-->
+<style>
+  :root {
+    --bg:#0f1419; --panel:#171d26; --panel2:#1e2632; --line:#2a3441;
+    --text:#e6edf3; --mute:#8b98a8; --accent:#3b82f6; --accent2:#10b981;
+    --warn:#f59e0b; --danger:#ef4444; --purple:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  a{color:var(--accent);text-decoration:none}
+  code{font:12px ui-monospace,Menlo,Consolas,monospace;background:var(--panel2);padding:1px 5px;border-radius:3px;border:1px solid var(--line)}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header .brand{font-weight:700;font-size:16px;letter-spacing:.2px}
+  header .brand span{color:var(--accent)}
+  header .ver{color:var(--mute);font-size:11px;margin-left:8px;font-weight:400}
+  header .status{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--mute)}
+  header .status b{color:var(--text);font-weight:600}
+  .pill{padding:3px 9px;border-radius:10px;font-size:11px;background:var(--panel2);border:1px solid var(--line);color:var(--mute)}
+  .pill.ok{color:var(--accent2);border-color:#0f3a2a}
+  .pill.warn{color:var(--warn);border-color:#3a2e0f}
+  .pill.err{color:var(--danger);border-color:#3a1515}
+  .pill b{color:inherit}
+
+  nav.top{display:flex;gap:0;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+  nav.top button{background:none;border:none;color:var(--mute);padding:10px 16px;cursor:pointer;border-bottom:2px solid transparent;font:inherit;white-space:nowrap}
+  nav.top button.active{color:var(--text);border-bottom-color:var(--accent)}
+  nav.top button:hover{color:var(--text)}
+  nav.top .spacer{flex:1}
+  nav.top .action{color:var(--text);opacity:.8}
+  nav.top .action.primary{color:var(--accent2)}
+
+  main{padding:20px;max-width:1320px;margin:0 auto}
+  .grid{display:grid;gap:16px}
+  .cards4{grid-template-columns:repeat(4,1fr);margin-bottom:20px}
+  .cards3{grid-template-columns:repeat(3,1fr);margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+  .card .label{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .card .val{font-size:22px;font-weight:600;margin-top:6px}
+  .card .sub{color:var(--mute);font-size:12px;margin-top:4px}
+  .card .val .unit{font-size:13px;color:var(--mute);margin-left:2px;font-weight:400}
+  .bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:8px}
+  .bar>div{height:100%;background:var(--accent)}
+  .bar.green>div{background:var(--accent2)}
+  .bar.warn>div{background:var(--warn)}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:16px}
+  .panel h3{margin:0;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px}
+  .panel h3 .hint{color:var(--mute);font-size:11px;font-weight:400;margin-left:auto}
+  .panel .body{padding:14px 16px}
+  .panel .body.flush{padding:0}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--mute);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,.02)}
+
+  .status-pill{padding:2px 8px;border-radius:10px;font-size:11px;white-space:nowrap}
+  .s-dl{background:#1e3a5f;color:#7ab8ff}
+  .s-ok{background:#0f3a2a;color:#4ade80}
+  .s-q{background:#3a3a1e;color:#fbbf24}
+  .s-pp{background:#3a1e3a;color:#d8b4fe}
+  .s-fail{background:#3a1515;color:#fca5a5}
+  .s-paused{background:#2a3441;color:var(--mute)}
+
+  .progress{width:140px;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden}
+  .progress>div{height:100%;background:var(--accent)}
+  .progress.pp>div{background:var(--purple)}
+  .progress.done>div{background:var(--accent2)}
+
+  .search{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .search input{flex:1;min-width:220px;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:6px;font:inherit}
+  .search select,.search button{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:10px 14px;border-radius:6px;font:inherit;cursor:pointer}
+  .search button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .search button.ghost:hover{border-color:var(--accent);color:var(--text)}
+
+  .tag{display:inline-block;padding:1px 6px;background:var(--panel2);border:1px solid var(--line);border-radius:3px;font-size:11px;color:var(--mute);margin-right:4px}
+  .tag.cat{color:var(--accent);border-color:#1e3a5f}
+  .tag.srv{color:var(--accent2);border-color:#0f3a2a}
+
+  .row-action{cursor:pointer;color:var(--accent);background:none;border:none;font:inherit;padding:2px 6px;border-radius:3px;margin-right:2px}
+  .row-action:hover{background:var(--panel2)}
+  .row-action.danger{color:var(--danger)}
+  .row-action.warn{color:var(--warn)}
+
+  /* Per-server connection grid */
+  .srv-block{padding:12px 0;border-bottom:1px solid var(--line)}
+  .srv-block:last-child{border:none;padding-bottom:0}
+  .srv-block:first-child{padding-top:0}
+  .srv-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .srv-name{font-weight:600}
+  .srv-name .prio{color:var(--mute);font-weight:400;font-size:11px;margin-left:8px}
+  .srv-meta{color:var(--mute);font-size:11px}
+  .conn-grid{display:grid;grid-template-columns:repeat(30,1fr);gap:3px}
+  .conn-grid .c{height:16px;border-radius:2px;background:var(--panel2)}
+  .conn-grid .c.active{background:var(--accent2)}
+  .conn-grid .c.idle{background:var(--accent)}
+  .conn-grid .c.err{background:var(--danger);opacity:.6}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--mute);margin-top:10px;align-items:center}
+  .legend span.sw{display:inline-flex;align-items:center}
+  .legend span.sw::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+  .legend .a::before{background:var(--accent2)}
+  .legend .i::before{background:var(--accent)}
+  .legend .f::before{background:var(--panel2);border:1px solid var(--line)}
+  .legend .e::before{background:var(--danger);opacity:.6}
+
+  .two{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+  .two-eq{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+  /* Settings layout */
+  .settings-shell{display:grid;grid-template-columns:200px 1fr;gap:16px}
+  .settings-side{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;height:fit-content;position:sticky;top:16px}
+  .settings-side .sg{color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:10px 12px 4px}
+  .settings-side button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--mute);padding:8px 12px;border-radius:5px;cursor:pointer;font:inherit}
+  .settings-side button:hover{color:var(--text);background:var(--panel2)}
+  .settings-side button.active{color:var(--text);background:var(--panel2);box-shadow:inset 2px 0 0 var(--accent)}
+
+  /* Form grid */
+  .form{display:grid;grid-template-columns:180px 1fr;gap:10px 14px;align-items:center}
+  .form label{color:var(--mute);font-size:13px}
+  .form .help{color:var(--mute);font-size:11px;margin-top:2px;grid-column:2}
+  .form input[type=text],.form input[type=number],.form input[type=password],.form select,.form textarea{
+    background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:5px;font:inherit;width:100%
+  }
+  .form textarea{min-height:72px;font:12px ui-monospace,Menlo,monospace}
+  .form .check{display:flex;align-items:center;gap:8px}
+  .form .inline{display:flex;gap:8px;align-items:center}
+  .form .inline input{max-width:140px}
+
+  .btn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:7px 14px;border-radius:5px;font:inherit;cursor:pointer}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.danger{border-color:#3a1515;color:var(--danger)}
+  .btn.sm{padding:4px 10px;font-size:12px}
+
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px}
+  .section-head h2{margin:0;font-size:18px;font-weight:600}
+  .section-head .sub{color:var(--mute);font-size:12px}
+
+  /* Server list row */
+  .srv-row{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .srv-row:last-child{border:none}
+  .srv-row .drag{color:var(--mute);cursor:grab;text-align:center}
+  .srv-row .title{font-weight:600}
+  .srv-row .host{color:var(--mute);font-size:12px;margin-top:2px}
+  .srv-row .meters{display:flex;gap:18px;align-items:center;font-size:12px;color:var(--mute)}
+  .srv-row .meters b{color:var(--text);font-weight:600}
+  .srv-row .actions{display:flex;gap:4px}
+
+  /* RSS feed card */
+  .feed-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .feed-row:last-child{border:none}
+  .feed-row .url{color:var(--mute);font-size:12px;font-family:ui-monospace,Menlo,monospace;margin-top:3px;word-break:break-all}
+  .feed-row .regex{margin-top:4px;font-size:11px;color:var(--mute)}
+
+  /* Logs */
+  .logs{font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:10px 14px;max-height:560px;overflow:auto}
+  .logs .l{display:grid;grid-template-columns:90px 50px 110px 1fr;gap:10px;padding:2px 0;border-bottom:1px dashed transparent}
+  .logs .l:hover{background:rgba(255,255,255,.02)}
+  .logs .t{color:var(--mute)}
+  .logs .lv{font-weight:600}
+  .logs .lv.info{color:var(--accent)}
+  .logs .lv.warn{color:var(--warn)}
+  .logs .lv.err{color:var(--danger)}
+  .logs .lv.dbg{color:var(--mute)}
+  .logs .tgt{color:var(--purple)}
+
+  /* Newsgroup browser */
+  .groups-shell{display:grid;grid-template-columns:260px 1fr;gap:16px}
+  .groups-side{background:var(--panel);border:1px solid var(--line);border-radius:8px;height:fit-content}
+  .groups-side .gs-head{padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.5px}
+  .groups-side .g{padding:8px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+  .groups-side .g:hover{background:var(--panel2)}
+  .groups-side .g.active{background:var(--panel2);box-shadow:inset 2px 0 0 var(--accent)}
+  .groups-side .g .name{font-size:12px;font-family:ui-monospace,Menlo,monospace}
+  .groups-side .g .cnt{color:var(--mute);font-size:11px;margin-top:2px}
+
+  /* Post-processing timeline */
+  .pipeline{display:flex;align-items:center;gap:0;padding:14px 16px;background:var(--panel2);border-radius:6px;margin:0 16px 16px;border:1px solid var(--line)}
+  .pipeline .step{flex:1;text-align:center;position:relative;padding:4px}
+  .pipeline .step .dot{width:26px;height:26px;border-radius:50%;background:var(--panel);border:2px solid var(--line);margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mute);font-weight:600}
+  .pipeline .step.done .dot{background:var(--accent2);border-color:var(--accent2);color:#fff}
+  .pipeline .step.active .dot{background:var(--purple);border-color:var(--purple);color:#fff;box-shadow:0 0 0 4px rgba(167,139,250,.18)}
+  .pipeline .step .lbl{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.4px}
+  .pipeline .step.done .lbl,.pipeline .step.active .lbl{color:var(--text)}
+  .pipeline .step:not(:last-child)::after{content:"";position:absolute;top:17px;right:-50%;left:50%;height:2px;background:var(--line);z-index:0}
+  .pipeline .step.done::after{background:var(--accent2)}
+
+  footer{text-align:center;color:var(--mute);font-size:12px;padding:20px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+
+<!-- =================== HEADER =================== -->
+<header>
+  <div>
+    <span class="brand">rust<span>nzb</span></span>
+    <span class="ver">v0.2.4 · build 8f3a21c</span>
+  </div>
+  <div class="status">
+    <span class="pill ok">● Daemon running</span>
+    <span class="pill">Speed: <b>84.2 MB/s</b></span>
+    <span class="pill">Conn: <b>34/44</b></span>
+    <span class="pill">Queue: <b>6</b></span>
+    <span style="color:var(--mute)">·</span>
+    <span>Host: <b>nzb.lan</b></span>
+  </div>
+</header>
+
+<!-- =================== TOP NAV =================== -->
+<nav class="top">
+  <button data-page="queue" class="active">Queue</button>
+  <button data-page="history">History</button>
+  <button data-page="search">Search</button>
+  <button data-page="rss">RSS</button>
+  <button data-page="logs">Logs</button>
+  <button data-page="settings">Settings</button>
+  <div class="spacer"></div>
+  <button class="action primary" onclick="alert('mock: upload NZB')">+ Upload NZB</button>
+  <button class="action" onclick="alert('mock: pause all')">❚❚ Pause all</button>
+</nav>
+
+<main>
+
+<!-- =================================================================
+     PAGE: QUEUE  (default)
+     ================================================================= -->
+<section data-section="queue">
+
+  <!-- Live stat cards -->
+  <div class="grid cards4">
+    <div class="card">
+      <div class="label">Download speed</div>
+      <div class="val">84.2 <span class="unit">MB/s</span></div>
+      <div class="sub">Avg last 5m: 71.6 MB/s · limit: off</div>
+    </div>
+    <div class="card">
+      <div class="label">NNTP connections</div>
+      <div class="val">34 / 44</div>
+      <div class="bar"><div style="width:77%"></div></div>
+      <div class="sub">Across 3 servers (2 enabled)</div>
+    </div>
+    <div class="card">
+      <div class="label">Queue</div>
+      <div class="val">6 jobs · 42.3 <span class="unit">GB</span></div>
+      <div class="sub">ETA 8m 14s</div>
+    </div>
+    <div class="card">
+      <div class="label">Disk free</div>
+      <div class="val">1.82 <span class="unit">TB</span></div>
+      <div class="bar green"><div style="width:28%"></div></div>
+      <div class="sub">/downloads · 28% used</div>
+    </div>
+  </div>
+
+  <!-- Per-server connection visualiser (replaces reseller single-provider view) -->
+  <div class="panel">
+    <h3>NNTP connection pool
+      <span class="hint">priority failover · TLS 1.3 (rustls) · live</span>
+    </h3>
+    <div class="body">
+
+      <div class="srv-block">
+        <div class="srv-head">
+          <div>
+            <span class="srv-name">news-primary.example</span>
+            <span class="prio">priority 0 · 20 slots · pipeline 16</span>
+          </div>
+          <div class="srv-meta">19 active · 1 idle · 58.1 MB/s</div>
+        </div>
+        <div class="conn-grid" id="cg-p"></div>
+      </div>
+
+      <div class="srv-block">
+        <div class="srv-head">
+          <div>
+            <span class="srv-name">news-backup.example</span>
+            <span class="prio">priority 1 · 16 slots · pipeline 8 · block-acct</span>
+          </div>
+          <div class="srv-meta">14 active · 2 idle · 26.1 MB/s · 3 retries</div>
+        </div>
+        <div class="conn-grid" id="cg-b"></div>
+      </div>
+
+      <div class="srv-block">
+        <div class="srv-head">
+          <div>
+            <span class="srv-name" style="color:var(--mute)">news-tertiary.example</span>
+            <span class="prio">priority 2 · 8 slots · disabled</span>
+          </div>
+          <div class="srv-meta" style="color:var(--mute)">off</div>
+        </div>
+        <div class="conn-grid" id="cg-t"></div>
+      </div>
+
+      <div class="legend">
+        <span class="sw a">Active transfer</span>
+        <span class="sw i">Idle (pooled)</span>
+        <span class="sw f">Free slot</span>
+        <span class="sw e">Retry/error</span>
+        <span style="margin-left:auto">Transport: NNTPS · cert pinned · ring crypto</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post-processing pipeline for currently PP job -->
+  <div class="panel">
+    <h3>Post-processing · <code>Sintel.Open.Movie.1080p</code>
+      <span class="hint">par2 repair in progress — 47% · native rust-par2</span>
+    </h3>
+    <div class="pipeline">
+      <div class="step done"><div class="dot">✓</div><div class="lbl">Download</div></div>
+      <div class="step done"><div class="dot">✓</div><div class="lbl">Decode (yEnc)</div></div>
+      <div class="step done"><div class="dot">✓</div><div class="lbl">Assemble</div></div>
+      <div class="step active"><div class="dot">4</div><div class="lbl">Par2 repair</div></div>
+      <div class="step"><div class="dot">5</div><div class="lbl">Unrar</div></div>
+      <div class="step"><div class="dot">6</div><div class="lbl">Cleanup</div></div>
+      <div class="step"><div class="dot">7</div><div class="lbl">Complete</div></div>
+    </div>
+  </div>
+
+  <!-- Active queue -->
+  <div class="panel">
+    <h3>Active downloads
+      <span class="hint">drag rows to reorder · 6 jobs · 42.3 GB remaining</span>
+    </h3>
+    <div class="body flush">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:4%"></th>
+            <th style="width:34%">Name</th>
+            <th>Size</th>
+            <th>Progress</th>
+            <th>Speed</th>
+            <th>ETA</th>
+            <th>Status</th>
+            <th style="width:110px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color:var(--mute)">⋮⋮</td>
+            <td>
+              <div>Ubuntu.24.04.3.LTS.desktop-amd64.iso</div>
+              <div style="margin-top:3px"><span class="tag cat">linux-iso</span><span class="tag srv">primary</span></div>
+            </td>
+            <td>5.0 GB</td>
+            <td><div class="progress"><div style="width:72%"></div></div><span style="color:var(--mute);font-size:11px">72% · 3.6/5.0 GB</span></td>
+            <td>52 MB/s</td><td>26s</td>
+            <td><span class="status-pill s-dl">downloading</span></td>
+            <td>
+              <button class="row-action" title="priority">▲</button>
+              <button class="row-action" title="pause">❚❚</button>
+              <button class="row-action danger" title="remove">✕</button>
+            </td>
+          </tr>
+          <tr>
+            <td style="color:var(--mute)">⋮⋮</td>
+            <td>
+              <div>Big.Buck.Bunny.4K.HDR.2160p.WEB-DL</div>
+              <div style="margin-top:3px"><span class="tag cat">movies</span><span class="tag srv">primary+backup</span></div>
+            </td>
+            <td>14.2 GB</td>
+            <td><div class="progress"><div style="width:31%"></div></div><span style="color:var(--mute);font-size:11px">31% · 4.4/14.2 GB</span></td>
+            <td>32 MB/s</td><td>5m 02s</td>
+            <td><span class="status-pill s-dl">downloading</span></td>
+            <td>
+              <button class="row-action">▲</button><button class="row-action">❚❚</button><button class="row-action danger">✕</button>
+            </td>
+          </tr>
+          <tr>
+            <td style="color:var(--mute)">⋮⋮</td>
+            <td>
+              <div>Sintel.Open.Movie.1080p.BluRay.x264</div>
+              <div style="margin-top:3px"><span class="tag cat">movies</span><span class="tag srv">primary</span></div>
+            </td>
+            <td>3.8 GB</td>
+            <td><div class="progress pp"><div style="width:47%"></div></div><span style="color:var(--mute);font-size:11px">par2 · 47%</span></td>
+            <td>—</td><td>—</td>
+            <td><span class="status-pill s-pp">par2 repair</span></td>
+            <td>
+              <button class="row-action">▲</button><button class="row-action">❚❚</button><button class="row-action danger">✕</button>
+            </td>
+          </tr>
+          <tr>
+            <td style="color:var(--mute)">⋮⋮</td>
+            <td>
+              <div>Tears.of.Steel.4K.HDR.2160p</div>
+              <div style="margin-top:3px"><span class="tag cat">movies</span></div>
+            </td>
+            <td>8.1 GB</td>
+            <td><div class="progress"><div style="width:0%"></div></div><span style="color:var(--mute);font-size:11px">queued</span></td>
+            <td>—</td><td>—</td>
+            <td><span class="status-pill s-q">queued</span></td>
+            <td>
+              <button class="row-action">▲</button><button class="row-action">▼</button><button class="row-action danger">✕</button>
+            </td>
+          </tr>
+          <tr>
+            <td style="color:var(--mute)">⋮⋮</td>
+            <td>
+              <div>Debian.12.7.0.netinst.iso</div>
+              <div style="margin-top:3px"><span class="tag cat">linux-iso</span></div>
+            </td>
+            <td>640 MB</td>
+            <td><div class="progress"><div style="width:0%"></div></div><span style="color:var(--mute);font-size:11px">queued</span></td>
+            <td>—</td><td>—</td>
+            <td><span class="status-pill s-q">queued</span></td>
+            <td>
+              <button class="row-action">▲</button><button class="row-action">▼</button><button class="row-action danger">✕</button>
+            </td>
+          </tr>
+          <tr>
+            <td style="color:var(--mute)">⋮⋮</td>
+            <td>
+              <div style="color:var(--mute)">Caminandes.3.Llamigos (paused)</div>
+              <div style="margin-top:3px"><span class="tag cat">shorts</span></div>
+            </td>
+            <td>1.2 GB</td>
+            <td><div class="progress"><div style="width:18%"></div></div><span style="color:var(--mute);font-size:11px">18% · held</span></td>
+            <td>—</td><td>—</td>
+            <td><span class="status-pill s-paused">paused</span></td>
+            <td>
+              <button class="row-action" title="resume">▶</button><button class="row-action danger">✕</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================================
+     PAGE: HISTORY
+     ================================================================= -->
+<section data-section="history" class="hide">
+
+  <div class="grid cards4">
+    <div class="card">
+      <div class="label">Completed · 7 days</div>
+      <div class="val">284</div>
+      <div class="sub">4.2 TB · avg 62 MB/s</div>
+    </div>
+    <div class="card">
+      <div class="label">Failed · 7 days</div>
+      <div class="val">6</div>
+      <div class="sub">2 missing articles · 4 par2 unrepairable</div>
+    </div>
+    <div class="card">
+      <div class="label">Retention hit</div>
+      <div class="val">99.2%</div>
+      <div class="bar green"><div style="width:99%"></div></div>
+      <div class="sub">Of articles fetched first-try</div>
+    </div>
+    <div class="card">
+      <div class="label">Avg post-proc</div>
+      <div class="val">14.3 <span class="unit">s</span></div>
+      <div class="sub">par2 + unrar per job</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>History</h3>
+    <div class="body">
+      <div class="search">
+        <input placeholder="Filter name…">
+        <select><option>All statuses</option><option>Completed</option><option>Failed</option><option>Deleted</option></select>
+        <select><option>All categories</option><option>movies</option><option>tv</option><option>linux-iso</option><option>books</option></select>
+        <select><option>Last 7 days</option><option>Last 30 days</option><option>All time</option></select>
+        <button class="primary">Apply</button>
+        <button class="ghost">Export CSV</button>
+      </div>
+    </div>
+    <div class="body flush">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th><th>Category</th><th>Size</th><th>Duration</th><th>Completed</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Ubuntu.24.04.3.LTS.desktop-amd64</td><td><span class="tag cat">linux-iso</span></td><td>5.0 GB</td><td>1m 48s</td><td>2 min ago</td><td><span class="status-pill s-ok">completed</span></td>
+            <td><button class="row-action">↻ retry</button><button class="row-action">open</button></td></tr>
+          <tr><td>Kubuntu.24.04.3.desktop-amd64</td><td><span class="tag cat">linux-iso</span></td><td>4.7 GB</td><td>1m 42s</td><td>12 min ago</td><td><span class="status-pill s-ok">completed</span></td>
+            <td><button class="row-action">↻</button><button class="row-action">open</button></td></tr>
+          <tr><td>The.Mandalorian.S03E05.1080p.WEB-DL</td><td><span class="tag cat">tv</span></td><td>2.1 GB</td><td>42s</td><td>38 min ago</td><td><span class="status-pill s-ok">completed</span></td>
+            <td><button class="row-action">↻</button><button class="row-action">open</button></td></tr>
+          <tr><td>Obscure.Release.Missing.Parts</td><td><span class="tag cat">movies</span></td><td>8.3 GB</td><td>—</td><td>1 h ago</td><td><span class="status-pill s-fail">par2 unrepairable</span></td>
+            <td><button class="row-action warn">↻ retry</button><button class="row-action">logs</button></td></tr>
+          <tr><td>Tech.Book.Collection.Pack.42</td><td><span class="tag cat">books</span></td><td>684 MB</td><td>18s</td><td>2 h ago</td><td><span class="status-pill s-ok">completed</span></td>
+            <td><button class="row-action">↻</button><button class="row-action">open</button></td></tr>
+          <tr><td>Old.Release.Retention.Expired</td><td><span class="tag cat">movies</span></td><td>6.1 GB</td><td>—</td><td>3 h ago</td><td><span class="status-pill s-fail">missing articles</span></td>
+            <td><button class="row-action warn">↻</button><button class="row-action">logs</button></td></tr>
+          <tr><td>Big.Buck.Bunny.1080p</td><td><span class="tag cat">movies</span></td><td>2.8 GB</td><td>52s</td><td>yesterday</td><td><span class="status-pill s-ok">completed</span></td>
+            <td><button class="row-action">↻</button><button class="row-action">open</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================================
+     PAGE: SEARCH  (newsgroup browsing)
+     ================================================================= -->
+<section data-section="search" class="hide">
+
+  <div class="panel">
+    <h3>Search Usenet headers
+      <span class="hint">SQLite FTS5 over XOVER-fetched headers · server-side where supported</span>
+    </h3>
+    <div class="body">
+      <div class="search">
+        <input placeholder="Search title, poster, subject… (e.g. ubuntu 24.04 iso)" value="ubuntu 24.04">
+        <select>
+          <option>All subscribed groups</option>
+          <option>alt.binaries.linux</option>
+          <option>alt.binaries.iso</option>
+          <option>alt.binaries.movies</option>
+          <option>alt.binaries.tv</option>
+        </select>
+        <select><option>Any size</option><option>&gt; 100 MB</option><option>&gt; 1 GB</option><option>&gt; 5 GB</option></select>
+        <select><option>Any age</option><option>≤ 24 h</option><option>≤ 7 d</option><option>≤ 30 d</option></select>
+        <button class="primary">Search</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="groups-shell">
+
+    <!-- Left: subscribed groups -->
+    <div class="groups-side">
+      <div class="gs-head">Subscribed groups (6)</div>
+      <div class="g active">
+        <div class="name">alt.binaries.linux</div>
+        <div class="cnt">41,207 headers · 312 new</div>
+      </div>
+      <div class="g">
+        <div class="name">alt.binaries.iso</div>
+        <div class="cnt">128,944 headers · 58 new</div>
+      </div>
+      <div class="g">
+        <div class="name">alt.binaries.movies</div>
+        <div class="cnt">2.1M headers · 4,812 new</div>
+      </div>
+      <div class="g">
+        <div class="name">alt.binaries.movies.divx</div>
+        <div class="cnt">884k headers · 1,204 new</div>
+      </div>
+      <div class="g">
+        <div class="name">alt.binaries.tv</div>
+        <div class="cnt">1.4M headers · 2,204 new</div>
+      </div>
+      <div class="g">
+        <div class="name">alt.binaries.ebook</div>
+        <div class="cnt">612k headers · 42 new</div>
+      </div>
+      <div style="padding:10px 14px;border-top:1px solid var(--line)">
+        <button class="btn sm" style="width:100%">+ Subscribe to group…</button>
+      </div>
+    </div>
+
+    <!-- Right: results / headers / threads -->
+    <div>
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Results — <code>alt.binaries.linux</code> · “ubuntu 24.04”
+          <span class="hint">14 matches · fetched from local FTS5 index</span>
+        </h3>
+        <div class="body flush">
+          <table>
+            <thead><tr><th style="width:50%">Subject</th><th>Poster</th><th>Size</th><th>Parts</th><th>Age</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Ubuntu.24.04.3.LTS.desktop-amd64.iso [01/45]</td><td>l33t@anon.invalid</td><td>5.0 GB</td><td>45</td><td>2 d</td><td><button class="row-action">↓ grab</button><button class="row-action">view</button></td></tr>
+              <tr><td>Ubuntu.24.04.3.LTS.server-amd64.iso [01/19]</td><td>l33t@anon.invalid</td><td>2.1 GB</td><td>19</td><td>2 d</td><td><button class="row-action">↓ grab</button><button class="row-action">view</button></td></tr>
+              <tr><td>Ubuntu.24.04.2.LTS.live-server [01/18]</td><td>altposter@anon.invalid</td><td>2.0 GB</td><td>18</td><td>3 w</td><td><button class="row-action">↓ grab</button><button class="row-action">view</button></td></tr>
+              <tr><td>Kubuntu.24.04.3.desktop-amd64 [01/42]</td><td>kde-user@anon.invalid</td><td>4.7 GB</td><td>42</td><td>2 d</td><td><button class="row-action">↓ grab</button><button class="row-action">view</button></td></tr>
+              <tr><td>Xubuntu.24.04.3.desktop-amd64 [01/29]</td><td>xfce-fan@anon.invalid</td><td>3.2 GB</td><td>29</td><td>2 d</td><td><button class="row-action">↓ grab</button><button class="row-action">view</button></td></tr>
+              <tr><td>Ubuntu.24.04 .par2 repair set</td><td>l33t@anon.invalid</td><td>512 MB</td><td>6</td><td>2 d</td><td><button class="row-action">↓ grab</button><button class="row-action">view</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Thread view — <code>Ubuntu.24.04.3.LTS.desktop-amd64.iso</code>
+          <span class="hint">45 parts across 2 posts · click ↓ to build NZB and queue</span>
+        </h3>
+        <div class="body">
+          <div style="font-size:13px;color:var(--mute);margin-bottom:8px">
+            All articles present. Estimated download on current bandwidth: <b style="color:var(--text)">1m 28s</b>
+          </div>
+          <table>
+            <thead><tr><th>Part</th><th>Message-ID</th><th>Bytes</th><th>Posted</th></tr></thead>
+            <tbody>
+              <tr><td>01/45</td><td><code>&lt;a1b2c3@example&gt;</code></td><td>768 KB</td><td>2d ago</td></tr>
+              <tr><td>02/45</td><td><code>&lt;a1b2c4@example&gt;</code></td><td>768 KB</td><td>2d ago</td></tr>
+              <tr><td>03/45</td><td><code>&lt;a1b2c5@example&gt;</code></td><td>768 KB</td><td>2d ago</td></tr>
+              <tr><td>…</td><td style="color:var(--mute)">(42 more)</td><td>…</td><td>…</td></tr>
+              <tr><td>45/45</td><td><code>&lt;a1b2ez@example&gt;</code></td><td>512 KB</td><td>2d ago</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn primary">↓ Grab all 45 parts</button>
+            <button class="btn">Save NZB to disk</button>
+            <button class="btn">Copy message-IDs</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================================
+     PAGE: RSS
+     ================================================================= -->
+<section data-section="rss" class="hide">
+
+  <div class="grid cards3">
+    <div class="card">
+      <div class="label">Feeds</div>
+      <div class="val">4 <span class="unit">active</span></div>
+      <div class="sub">Polling every 5 min</div>
+    </div>
+    <div class="card">
+      <div class="label">Matches today</div>
+      <div class="val">18</div>
+      <div class="sub">12 auto-queued · 6 below size threshold</div>
+    </div>
+    <div class="card">
+      <div class="label">Last poll</div>
+      <div class="val">42s <span class="unit">ago</span></div>
+      <div class="sub">Next in 4m 18s</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Feeds
+      <span class="hint">regex filter → auto-enqueue → category</span>
+    </h3>
+    <div class="body flush">
+
+      <div class="feed-row">
+        <div>
+          <div class="srv-name">Linux ISOs — recent
+            <span class="pill ok" style="margin-left:8px">● active</span>
+          </div>
+          <div class="url">https://nzbindexer.example/rss?t=linux&amp;dl=1&amp;apikey=***</div>
+          <div class="regex">Filter: <code>/ubuntu|debian|fedora/i</code> · category: <code>linux-iso</code> · min size: 500 MB · last: 42s ago · matches today: 5</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn sm">Test</button>
+          <button class="btn sm">Edit</button>
+          <button class="btn sm danger">Delete</button>
+        </div>
+      </div>
+
+      <div class="feed-row">
+        <div>
+          <div class="srv-name">TV shows — watchlist
+            <span class="pill ok" style="margin-left:8px">● active</span>
+          </div>
+          <div class="url">https://nzbindexer.example/rss?t=tv&amp;dl=1&amp;apikey=***</div>
+          <div class="regex">Filter: <code>/(Severance|Silo|Foundation)\.S\d+E\d+/i</code> · category: <code>tv</code> · last: 3m ago · matches today: 9</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn sm">Test</button>
+          <button class="btn sm">Edit</button>
+          <button class="btn sm danger">Delete</button>
+        </div>
+      </div>
+
+      <div class="feed-row">
+        <div>
+          <div class="srv-name">4K movies — premium only
+            <span class="pill warn" style="margin-left:8px">● auth err</span>
+          </div>
+          <div class="url">https://nzbindexer2.example/rss?t=2160p&amp;apikey=***</div>
+          <div class="regex">Filter: <code>/2160p.*(HDR|DV)/i</code> · category: <code>movies</code> · last: 2h ago · 401 on last 12 polls</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn sm">Test</button>
+          <button class="btn sm">Edit</button>
+          <button class="btn sm danger">Delete</button>
+        </div>
+      </div>
+
+      <div class="feed-row">
+        <div>
+          <div class="srv-name">Books
+            <span class="pill" style="margin-left:8px">○ paused</span>
+          </div>
+          <div class="url">https://nzbindexer.example/rss?t=books&amp;dl=1&amp;apikey=***</div>
+          <div class="regex">Filter: <code>/.*/</code> · category: <code>books</code> · no min size</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn sm">Resume</button>
+          <button class="btn sm">Edit</button>
+          <button class="btn sm danger">Delete</button>
+        </div>
+      </div>
+
+    </div>
+    <div class="body" style="border-top:1px solid var(--line)">
+      <button class="btn primary">+ Add feed</button>
+      <button class="btn" style="margin-left:6px">Poll all now</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Recent matches
+      <span class="hint">last 50 · grouped by feed</span>
+    </h3>
+    <div class="body flush">
+      <table>
+        <thead><tr><th>Feed</th><th>Title</th><th>Size</th><th>Matched</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Linux ISOs</td><td>Ubuntu.24.04.3.LTS.desktop-amd64</td><td>5.0 GB</td><td>3 min ago</td><td><span class="status-pill s-dl">queued</span></td></tr>
+          <tr><td>TV shows</td><td>Severance.S02E07.1080p.WEB-DL</td><td>2.4 GB</td><td>12 min ago</td><td><span class="status-pill s-ok">completed</span></td></tr>
+          <tr><td>TV shows</td><td>Silo.S02E09.2160p.WEB-DL</td><td>6.2 GB</td><td>27 min ago</td><td><span class="status-pill s-dl">downloading</span></td></tr>
+          <tr><td>TV shows</td><td>Foundation.S03E01.1080p.WEB-DL</td><td>2.1 GB</td><td>42 min ago</td><td><span class="status-pill s-ok">completed</span></td></tr>
+          <tr><td>Linux ISOs</td><td>Debian.12.7.0.netinst.iso</td><td>640 MB</td><td>1 h ago</td><td><span class="status-pill s-q">queued</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================================
+     PAGE: LOGS
+     ================================================================= -->
+<section data-section="logs" class="hide">
+
+  <div class="panel">
+    <h3>Live logs
+      <span class="hint">tracing subscriber · OTLP mirror on</span>
+    </h3>
+    <div class="body">
+      <div class="search">
+        <input placeholder="Filter… (regex ok)">
+        <select>
+          <option>All levels</option><option>ERROR</option><option>WARN</option><option>INFO</option><option>DEBUG</option><option>TRACE</option>
+        </select>
+        <select>
+          <option>All targets</option>
+          <option>nzb_web</option>
+          <option>nzb_nntp</option>
+          <option>nzb_decode</option>
+          <option>nzb_postproc</option>
+          <option>nzb_core</option>
+        </select>
+        <button class="primary">Follow</button>
+        <button class="ghost">Pause</button>
+        <button class="ghost">Download</button>
+      </div>
+    </div>
+    <div class="body flush logs">
+      <div class="l"><span class="t">12:04:18.204</span><span class="lv info">INFO</span><span class="tgt">nzb_web::queue</span><span>job <code>5f2a</code> transitioned Downloading → Verifying (par2)</span></div>
+      <div class="l"><span class="t">12:04:18.198</span><span class="lv dbg">DEBUG</span><span class="tgt">nzb_nntp::pool</span><span>primary: released conn #12 · in_use=19 idle=1</span></div>
+      <div class="l"><span class="t">12:04:18.167</span><span class="lv info">INFO</span><span class="tgt">nzb_decode::assembler</span><span>assembled <code>Sintel.Open.Movie.1080p.mkv</code> 3,812,492,288 B · crc ok</span></div>
+      <div class="l"><span class="t">12:04:17.904</span><span class="lv dbg">DEBUG</span><span class="tgt">nzb_nntp::downloader</span><span>pipeline drained: 142 articles · primary · 58.1 MB/s</span></div>
+      <div class="l"><span class="t">12:04:17.501</span><span class="lv warn">WARN</span><span class="tgt">nzb_nntp::pool</span><span>backup: article <code>&lt;abc@ex&gt;</code> not found, failing over to primary</span></div>
+      <div class="l"><span class="t">12:04:17.498</span><span class="lv info">INFO</span><span class="tgt">nzb_web::rss_monitor</span><span>feed &quot;TV shows&quot; matched 2 new entries, enqueuing</span></div>
+      <div class="l"><span class="t">12:04:16.902</span><span class="lv info">INFO</span><span class="tgt">nzb_web::http</span><span>POST /sabnzbd/api?mode=addurl → 200 · 14 ms · sonarr</span></div>
+      <div class="l"><span class="t">12:04:15.708</span><span class="lv dbg">DEBUG</span><span class="tgt">nzb_decode::yenc</span><span>SIMD decode · 64 MB in 182 ms (352 MB/s)</span></div>
+      <div class="l"><span class="t">12:04:12.102</span><span class="lv err">ERROR</span><span class="tgt">nzb_nntp::conn</span><span>tertiary: handshake failed — peer certificate expired (disabled by health check)</span></div>
+      <div class="l"><span class="t">12:04:12.098</span><span class="lv warn">WARN</span><span class="tgt">nzb_nntp::pool</span><span>tertiary: removing from pool after 3 consecutive failures</span></div>
+      <div class="l"><span class="t">12:04:11.812</span><span class="lv info">INFO</span><span class="tgt">nzb_web::queue</span><span>job <code>8a41</code> queued: <code>Big.Buck.Bunny.4K.HDR</code> (14.2 GB)</span></div>
+      <div class="l"><span class="t">12:04:10.004</span><span class="lv dbg">DEBUG</span><span class="tgt">nzb_postproc::par2</span><span>repair started · 42 blocks missing / 512 available</span></div>
+      <div class="l"><span class="t">12:04:08.221</span><span class="lv info">INFO</span><span class="tgt">nzb_core::db</span><span>sqlite WAL checkpoint · 2,104 pages</span></div>
+      <div class="l"><span class="t">12:04:06.802</span><span class="lv info">INFO</span><span class="tgt">nzb_web::dir_watcher</span><span>detected <code>/watch/Kubuntu.nzb</code> → enqueuing</span></div>
+      <div class="l"><span class="t">12:04:04.518</span><span class="lv dbg">DEBUG</span><span class="tgt">nzb_nntp::downloader</span><span>primary: opening 4 new conns to reach configured 20</span></div>
+      <div class="l"><span class="t">12:04:01.002</span><span class="lv info">INFO</span><span class="tgt">nzb_web</span><span>rustnzb 0.2.4 started · listening 0.0.0.0:9090 · data /data · downloads /downloads</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================================
+     PAGE: SETTINGS (with sub-tabs)
+     ================================================================= -->
+<section data-section="settings" class="hide">
+
+  <div class="settings-shell">
+
+    <aside class="settings-side">
+      <div class="sg">Connection</div>
+      <button data-sub="servers" class="active">News servers</button>
+      <button data-sub="rss-cfg">RSS feeds</button>
+      <div class="sg">Downloads</div>
+      <button data-sub="categories">Categories</button>
+      <button data-sub="postproc">Post-processing</button>
+      <button data-sub="paths">Paths &amp; disk</button>
+      <div class="sg">System</div>
+      <button data-sub="general">General</button>
+      <button data-sub="api">API &amp; SABnzbd compat</button>
+      <button data-sub="telemetry">Logging &amp; telemetry</button>
+      <button data-sub="about">About</button>
+    </aside>
+
+    <div>
+
+      <!-- SUB: Servers -->
+      <div data-sub-section="servers">
+        <div class="section-head">
+          <div>
+            <h2>News servers</h2>
+            <div class="sub">Priority 0 tried first; higher priorities fill gaps. Drag rows to reorder.</div>
+          </div>
+          <button class="btn primary">+ Add server</button>
+        </div>
+
+        <div class="panel">
+          <div class="srv-row">
+            <div class="drag">⋮⋮</div>
+            <div>
+              <div class="title">news-primary.example
+                <span class="pill ok" style="margin-left:6px">● connected</span>
+              </div>
+              <div class="host">NNTPS · news-primary.example:563 · user <code>sprooty</code> · 20 conns · pipeline 16 · TLS 1.3 · cert pinned</div>
+              <div class="meters" style="margin-top:6px">
+                <span>priority <b>0</b></span>
+                <span>in use <b>19/20</b></span>
+                <span>month <b>412 GB</b></span>
+                <span>retention <b>5400 d</b></span>
+                <span>avg hit <b>99.8%</b></span>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn sm">Test</button>
+              <button class="btn sm">Edit</button>
+              <button class="btn sm danger">Remove</button>
+            </div>
+          </div>
+
+          <div class="srv-row">
+            <div class="drag">⋮⋮</div>
+            <div>
+              <div class="title">news-backup.example
+                <span class="pill ok" style="margin-left:6px">● connected</span>
+                <span class="tag" style="margin-left:4px">block account</span>
+              </div>
+              <div class="host">NNTPS · news-backup.example:563 · user <code>sprooty</code> · 16 conns · pipeline 8</div>
+              <div class="meters" style="margin-top:6px">
+                <span>priority <b>1</b></span>
+                <span>in use <b>14/16</b></span>
+                <span>GB left <b>86.2</b></span>
+                <span>retention <b>3000 d</b></span>
+                <span>avg hit <b>91.4%</b></span>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn sm">Test</button>
+              <button class="btn sm">Edit</button>
+              <button class="btn sm danger">Remove</button>
+            </div>
+          </div>
+
+          <div class="srv-row">
+            <div class="drag">⋮⋮</div>
+            <div>
+              <div class="title" style="color:var(--mute)">news-tertiary.example
+                <span class="pill err" style="margin-left:6px">● cert expired</span>
+              </div>
+              <div class="host">NNTPS · news-tertiary.example:563 · user <code>sprooty</code> · 8 conns · disabled by health check</div>
+              <div class="meters" style="margin-top:6px;color:var(--mute)">
+                <span>priority <b>2</b></span>
+                <span>last error <b>handshake</b></span>
+                <span>disabled <b>2m ago</b></span>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn sm">Retest</button>
+              <button class="btn sm">Edit</button>
+              <button class="btn sm danger">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit form for a server -->
+        <div class="panel">
+          <h3>Edit · news-primary.example</h3>
+          <div class="body">
+            <div class="form">
+              <label>Name</label><input type="text" value="news-primary.example">
+
+              <label>Host</label><input type="text" value="news-primary.example">
+              <label>Port</label>
+              <div class="inline">
+                <input type="number" value="563">
+                <label class="check"><input type="checkbox" checked> SSL (NNTPS)</label>
+                <label class="check"><input type="checkbox" checked> Verify cert</label>
+              </div>
+
+              <label>Username</label><input type="text" value="sprooty">
+              <label>Password</label><input type="password" value="hunter2">
+
+              <label>Connections</label>
+              <div class="inline">
+                <input type="number" value="20">
+                <label class="check"><input type="checkbox" checked> Enabled</label>
+                <label class="check"><input type="checkbox"> Optional (skip on failure)</label>
+              </div>
+
+              <label>Priority</label>
+              <div class="inline">
+                <input type="number" value="0">
+                <span class="help" style="grid-column:auto">0 = primary, higher = fallback</span>
+              </div>
+
+              <label>Pipelining</label>
+              <div class="inline">
+                <input type="number" value="16">
+                <span class="help" style="grid-column:auto">Max inflight ARTICLE commands per conn</span>
+              </div>
+
+              <label>Ramp-up delay</label>
+              <div class="inline">
+                <input type="number" value="250"> <span style="color:var(--mute)">ms between opening conns</span>
+              </div>
+
+              <label>Retention</label>
+              <div class="inline">
+                <input type="number" value="5400"> <span style="color:var(--mute)">days (informational)</span>
+              </div>
+
+              <label>Proxy URL</label><input type="text" placeholder="socks5://user:pass@host:1080 (optional)">
+            </div>
+
+            <div style="margin-top:14px;display:flex;gap:8px">
+              <button class="btn primary">Save</button>
+              <button class="btn">Test connection</button>
+              <button class="btn">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB: RSS feeds config -->
+      <div data-sub-section="rss-cfg" class="hide">
+        <div class="section-head">
+          <div>
+            <h2>RSS feeds</h2>
+            <div class="sub">Configure poll interval, defaults, and global filters. Per-feed settings on the RSS page.</div>
+          </div>
+          <button class="btn primary">+ Add feed</button>
+        </div>
+
+        <div class="panel">
+          <h3>Global RSS options</h3>
+          <div class="body">
+            <div class="form">
+              <label>Poll interval</label>
+              <div class="inline"><input type="number" value="5"> <span style="color:var(--mute)">minutes</span></div>
+
+              <label>Backoff on error</label>
+              <div class="inline"><input type="number" value="15"> <span style="color:var(--mute)">minutes (doubles on repeat)</span></div>
+
+              <label>Default category</label>
+              <select><option>movies</option><option>tv</option><option>linux-iso</option><option>books</option></select>
+
+              <label>Default min size</label>
+              <div class="inline"><input type="number" value="0"> <span style="color:var(--mute)">MB</span></div>
+
+              <label>Default max size</label>
+              <div class="inline"><input type="number" value="0"> <span style="color:var(--mute)">MB (0 = unlimited)</span></div>
+
+              <label>Duplicate guard</label>
+              <div class="check"><input type="checkbox" checked> Skip titles already in queue or history</div>
+
+              <label>User-Agent</label>
+              <input type="text" value="rustnzb/0.2.4 (+https://rustnzb.dev)">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Configured feeds (4)</h3>
+          <div class="body flush">
+            <table>
+              <thead><tr><th>Name</th><th>Category</th><th>Filter</th><th>Poll</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>Linux ISOs</td><td><span class="tag cat">linux-iso</span></td><td><code>/ubuntu|debian|fedora/i</code></td><td>5m</td><td><span class="status-pill s-ok">ok</span></td><td><button class="row-action">edit</button><button class="row-action danger">del</button></td></tr>
+                <tr><td>TV shows</td><td><span class="tag cat">tv</span></td><td><code>/(Severance|Silo|Foundation)/</code></td><td>5m</td><td><span class="status-pill s-ok">ok</span></td><td><button class="row-action">edit</button><button class="row-action danger">del</button></td></tr>
+                <tr><td>4K movies</td><td><span class="tag cat">movies</span></td><td><code>/2160p.*(HDR|DV)/i</code></td><td>5m</td><td><span class="status-pill s-fail">401</span></td><td><button class="row-action">edit</button><button class="row-action danger">del</button></td></tr>
+                <tr><td>Books</td><td><span class="tag cat">books</span></td><td><code>/.*/</code></td><td>15m</td><td><span class="status-pill s-paused">paused</span></td><td><button class="row-action">edit</button><button class="row-action danger">del</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB: Categories -->
+      <div data-sub-section="categories" class="hide">
+        <div class="section-head">
+          <div>
+            <h2>Categories</h2>
+            <div class="sub">Bucket downloads into folders, each with its own post-processing level.</div>
+          </div>
+          <button class="btn primary">+ Add category</button>
+        </div>
+
+        <div class="panel">
+          <div class="body flush">
+            <table>
+              <thead><tr><th>Name</th><th>Output dir</th><th>Post-processing</th><th>Script</th><th>Priority</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><span class="tag cat">movies</span></td><td><code>/downloads/movies</code></td><td>Repair + Unpack + Delete</td><td>none</td><td>Normal</td><td><button class="row-action">edit</button><button class="row-action danger">del</button></td></tr>
+                <tr><td><span class="tag cat">tv</span></td><td><code>/downloads/tv</code></td><td>Repair + Unpack + Delete</td><td><code>notify-sonarr.sh</code></td><td>High</td><td><button class="row-action">edit</button><button class="row-action danger">del</button></td></tr>
+                <tr><td><span class="tag cat">linux-iso</span></td><td><code>/downloads/iso</code></td><td>Repair only</td><td>none</td><td>Normal</td><td><button class="row-action">edit</button><button class="row-action danger">del</button></td></tr>
+                <tr><td><span class="tag cat">books</span></td><td><code>/downloads/books</code></td><td>Repair + Unpack</td><td>none</td><td>Low</td><td><button class="row-action">edit</button><button class="row-action danger">del</button></td></tr>
+                <tr><td><span class="tag cat">*default*</span></td><td><code>/downloads/complete</code></td><td>Repair + Unpack + Delete</td><td>none</td><td>Normal</td><td><button class="row-action">edit</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Edit · <span class="tag cat">tv</span></h3>
+          <div class="body">
+            <div class="form">
+              <label>Name</label><input type="text" value="tv">
+              <label>Output dir</label><input type="text" value="/downloads/tv">
+              <label>Post-processing</label>
+              <select><option>None</option><option>Repair only (par2)</option><option>Repair + Unpack</option><option selected>Repair + Unpack + Delete</option></select>
+              <label>Priority</label>
+              <select><option>Paused</option><option>Low</option><option>Normal</option><option selected>High</option><option>Force</option></select>
+              <label>Post-processing script</label><input type="text" value="notify-sonarr.sh">
+              <label>Indexer TV ID</label><input type="text" placeholder="for SABnzbd compat / Sonarr sort" value="5000">
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px">
+              <button class="btn primary">Save</button>
+              <button class="btn">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB: Post-processing -->
+      <div data-sub-section="postproc" class="hide">
+        <div class="section-head">
+          <div>
+            <h2>Post-processing</h2>
+            <div class="sub">Par2 repair (native Rust), unrar / 7z extraction, cleanup.</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Par2 repair
+            <span class="hint">rust-par2 · no external binary</span>
+          </h3>
+          <div class="body">
+            <div class="form">
+              <label>Par2 mode</label>
+              <select><option>Off</option><option>Verify only</option><option selected>Repair if needed</option><option>Always verify + repair</option></select>
+              <label>Download par2 files</label>
+              <select><option>When needed</option><option selected>Always</option><option>Never</option></select>
+              <label>Max repair threads</label><input type="number" value="8">
+              <label>Memory limit</label>
+              <div class="inline"><input type="number" value="2048"> <span style="color:var(--mute)">MB (0 = unlimited)</span></div>
+              <label>Quick check</label>
+              <div class="check"><input type="checkbox" checked> Skip full verify if all blocks match on first pass</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Extraction</h3>
+          <div class="body">
+            <div class="form">
+              <label>unrar</label><input type="text" value="/usr/bin/unrar">
+              <label>7z</label><input type="text" value="/usr/bin/7z">
+              <label>Password list</label>
+              <textarea>password
+hunter2
+secret</textarea>
+              <label>Nested archives</label>
+              <div class="check"><input type="checkbox" checked> Recurse into archives found after extraction</div>
+              <label>Tolerate errors</label>
+              <div class="check"><input type="checkbox"> Keep partial extraction if unrar returns non-zero</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Cleanup</h3>
+          <div class="body">
+            <div class="form">
+              <label>Delete after extract</label>
+              <div class="check"><input type="checkbox" checked> Remove .rar / .par2 on success</div>
+              <label>Delete samples</label>
+              <div class="check"><input type="checkbox" checked> Remove files matching <code>/sample/i</code> smaller than 50 MB</div>
+              <label>On failure</label>
+              <select><option>Keep everything</option><option selected>Keep for retry</option><option>Delete</option></select>
+              <label>Max retries</label><input type="number" value="3">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB: Paths & disk -->
+      <div data-sub-section="paths" class="hide">
+        <div class="section-head">
+          <div>
+            <h2>Paths &amp; disk</h2>
+            <div class="sub">Where rustnzb reads and writes.</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Directories</h3>
+          <div class="body">
+            <div class="form">
+              <label>Data dir</label><input type="text" value="/data">
+              <span class="help">SQLite, queue state, job blobs</span>
+
+              <label>Downloads</label><input type="text" value="/downloads/complete">
+              <label>Incomplete</label><input type="text" value="/downloads/incomplete">
+              <label>Watch dir</label><input type="text" value="/downloads/watch">
+              <span class="help">.nzb files dropped here are auto-enqueued (see <code>nzb_web::dir_watcher</code>)</span>
+
+              <label>Temp dir</label><input type="text" value="/data/tmp">
+              <label>Logs dir</label><input type="text" value="/data/logs">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Disk guards</h3>
+          <div class="body">
+            <div class="form">
+              <label>Min free space</label>
+              <div class="inline"><input type="number" value="50"> <span style="color:var(--mute)">GB — pause queue below this</span></div>
+
+              <label>Stop at free space</label>
+              <div class="inline"><input type="number" value="10"> <span style="color:var(--mute)">GB — abort active job</span></div>
+
+              <label>Keep history for</label>
+              <div class="inline"><input type="number" value="30"> <span style="color:var(--mute)">days</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB: General -->
+      <div data-sub-section="general" class="hide">
+        <div class="section-head">
+          <div><h2>General</h2><div class="sub">Web UI, speed, scheduler.</div></div>
+        </div>
+
+        <div class="panel">
+          <h3>Web UI &amp; daemon</h3>
+          <div class="body">
+            <div class="form">
+              <label>Listen address</label><input type="text" value="0.0.0.0">
+              <label>Port</label><input type="number" value="9090">
+              <label>Base URL</label><input type="text" placeholder="/rustnzb (for reverse-proxy subpath)">
+              <label>Auth</label>
+              <select><option>None (LAN only)</option><option selected>Basic</option><option>Forward-auth header</option></select>
+              <label>Username</label><input type="text" value="admin">
+              <label>Password</label><input type="password" value="hunter2">
+              <label>Theme</label>
+              <select><option selected>Dark</option><option>Light</option><option>System</option></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Speed &amp; scheduler</h3>
+          <div class="body">
+            <div class="form">
+              <label>Global speed limit</label>
+              <div class="inline"><input type="number" value="0"> <span style="color:var(--mute)">MB/s · 0 = unlimited</span></div>
+
+              <label>Scheduled throttle</label>
+              <textarea>0 22 * * *   limit=30
+0 6 * * *    limit=0</textarea>
+              <span class="help">cron-style. <code>limit=N</code> sets MB/s, <code>pause</code> / <code>resume</code> also accepted.</span>
+
+              <label>Concurrent jobs</label>
+              <input type="number" value="2">
+              <span class="help">How many jobs download in parallel (each uses the full connection pool via fair share)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB: API / SAB compat -->
+      <div data-sub-section="api" class="hide">
+        <div class="section-head">
+          <div><h2>API &amp; SABnzbd compatibility</h2><div class="sub">Native REST + drop-in SABnzbd API for Sonarr / Radarr / Lidarr.</div></div>
+        </div>
+
+        <div class="panel">
+          <h3>API keys</h3>
+          <div class="body">
+            <div class="form">
+              <label>API key</label>
+              <div class="inline"><input type="text" value="a1b2c3d4e5f6g7h8i9j0"><button class="btn sm">Regenerate</button><button class="btn sm">Copy</button></div>
+              <label>NZB key</label>
+              <div class="inline"><input type="text" value="0j9i8h7g6f5e4d3c2b1a"><button class="btn sm">Regenerate</button><button class="btn sm">Copy</button></div>
+              <span class="help">Used by Sonarr/Radarr to authenticate against <code>/sabnzbd/api</code>.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>SABnzbd endpoint</h3>
+          <div class="body" style="font-size:13px">
+            <p style="margin:0 0 8px">Point Sonarr/Radarr at this host, category matching is done by category name.</p>
+            <code>http://nzb.lan:9090/sabnzbd/api?apikey=a1b2…&amp;mode=queue</code>
+            <div class="form" style="margin-top:14px">
+              <label>Supported modes</label>
+              <div><code>addfile</code> <code>addurl</code> <code>queue</code> <code>history</code> <code>config</code> <code>fullstatus</code> <code>version</code> <code>pause</code> <code>resume</code> <code>delete</code> <code>retry</code></div>
+              <label>Advertise version</label>
+              <select><option>3.7.2 (real)</option><option selected>4.2.0 (compat mode)</option></select>
+              <span class="help">Some indexers check version strings. Override if an integration complains.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Swagger / OpenAPI</h3>
+          <div class="body">
+            <a href="#">Open <code>/swagger-ui</code></a> — generated by <code>utoipa</code> from the live route handlers.
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB: Logging & telemetry -->
+      <div data-sub-section="telemetry" class="hide">
+        <div class="section-head">
+          <div><h2>Logging &amp; telemetry</h2><div class="sub">tracing filters, file rotation, OpenTelemetry OTLP.</div></div>
+        </div>
+
+        <div class="panel">
+          <h3>tracing</h3>
+          <div class="body">
+            <div class="form">
+              <label>Default level</label>
+              <select><option>error</option><option>warn</option><option selected>info</option><option>debug</option><option>trace</option></select>
+              <label>RUST_LOG override</label>
+              <input type="text" placeholder="e.g. nzb_nntp=debug,nzb_web=info">
+              <label>Log to file</label>
+              <div class="check"><input type="checkbox" checked> Rotate daily, keep 14 days</div>
+              <label>Log file path</label><input type="text" value="/data/logs/rustnzb.log">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>OpenTelemetry (OTLP gRPC)</h3>
+          <div class="body">
+            <div class="form">
+              <label>Enabled</label>
+              <div class="check"><input type="checkbox" checked></div>
+              <label>Endpoint</label><input type="text" value="https://otel.sprooty.com:4317">
+              <label>Service name</label><input type="text" value="rustnzb">
+              <label>Headers</label>
+              <textarea>authorization=Bearer ${OTLP_TOKEN}</textarea>
+              <label>Sample rate</label>
+              <div class="inline"><input type="number" value="100"> <span style="color:var(--mute)">%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Loki sidecar</h3>
+          <div class="body" style="font-size:13px">
+            Promtail sidecar enabled via Docker Compose <code>logging</code> profile. Ship via <code>LOKI_URL</code> env var.
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB: About -->
+      <div data-sub-section="about" class="hide">
+        <div class="section-head">
+          <div><h2>About</h2><div class="sub">Build info, versions, license.</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="body">
+            <div class="form">
+              <label>Version</label><div>0.2.4 (build <code>8f3a21c</code>)</div>
+              <label>Rust</label><div>1.88.0 · edition 2024</div>
+              <label>Axum</label><div>0.8</div>
+              <label>Tokio</label><div>1.42 (full)</div>
+              <label>TLS</label><div>rustls 0.23 (ring provider)</div>
+              <label>SQLite</label><div>bundled · WAL mode</div>
+              <label>Native crates</label>
+              <div>
+                <code>nzb-web 0.2.4</code> · <code>nzb-nntp 0.2.0</code> · <code>nzb-core 0.2.0</code>
+                · <code>nzb-decode 0.1.0</code> · <code>nzb-postproc 0.2.0</code> · <code>rust-par2 0.1.1</code> · <code>yenc-simd 0.1</code>
+              </div>
+              <label>System tools</label>
+              <div>
+                <span class="pill ok">● unrar 7.0.9</span>
+                <span class="pill ok">● 7z 24.07</span>
+                <span class="pill ok">● par2 embedded</span>
+              </div>
+              <label>License</label><div>MIT</div>
+              <label>Source</label><div><a href="#">repo.indexarr.net/indexarr/rustnzb</a></div>
+            </div>
+
+            <div style="margin-top:14px;display:flex;gap:8px">
+              <button class="btn">Check for updates</button>
+              <button class="btn">Run smoke test</button>
+              <button class="btn danger">Restart daemon</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<footer>
+  Mockup — illustrative only. Single-file prototype; all numbers fake. Retains server mgmt, RSS, categories, post-proc.
+</footer>
+
+</main>
+
+<script>
+  // Paint the per-server connection grids. Each block = one NNTP socket.
+  function paint(id, total, active, idle) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    for (let i = 0; i < total; i++) {
+      const d = document.createElement('div');
+      let cls = 'c';
+      if (i < active) cls += ' active';
+      else if (i < active + idle) cls += ' idle';
+      el.appendChild(d);
+      d.className = cls;
+    }
+  }
+  paint('cg-p', 20, 19, 1);          // primary: 19 active, 1 idle
+  paint('cg-b', 16, 14, 2);          // backup:  14 active, 2 idle
+  // tertiary: disabled — all err blocks
+  (function(){
+    const el = document.getElementById('cg-t');
+    for (let i = 0; i < 8; i++) {
+      const d = document.createElement('div');
+      d.className = 'c err';
+      el.appendChild(d);
+    }
+  })();
+
+  // Top-level nav
+  const navBtns = document.querySelectorAll('nav.top button[data-page]');
+  const sections = document.querySelectorAll('section[data-section]');
+  navBtns.forEach(b => b.addEventListener('click', () => {
+    navBtns.forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    const p = b.dataset.page;
+    sections.forEach(s => s.classList.toggle('hide', s.dataset.section !== p));
+    window.scrollTo({top:0});
+  }));
+
+  // Settings sub-tab nav
+  const subBtns = document.querySelectorAll('.settings-side button[data-sub]');
+  const subSections = document.querySelectorAll('[data-sub-section]');
+  subBtns.forEach(b => b.addEventListener('click', () => {
+    subBtns.forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    const s = b.dataset.sub;
+    subSections.forEach(sec => sec.classList.toggle('hide', sec.dataset.subSection !== s));
+  }));
+</script>
+
+</body>
+</html>

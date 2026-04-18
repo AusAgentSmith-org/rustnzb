@@ -1,7 +1,6 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 
@@ -33,229 +32,248 @@ interface RuleFormModel {
 @Component({
   selector: 'app-rss-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule],
   template: `
-    <div class="rss-layout">
-      <div class="toolbar">
-        <span class="title">RSS Feeds</span>
-        <span class="spacer"></span>
+    <!-- Stat cards -->
+    <div class="cards3">
+      <div class="card">
+        <div class="label">Feeds</div>
+        <div class="val">{{ enabledFeedCount() }} <span class="unit">active</span></div>
+        <div class="sub">{{ feeds().length }} total · avg poll {{ avgPollLabel() }}</div>
       </div>
+      <div class="card">
+        <div class="label">Items (all time)</div>
+        <div class="val">{{ items().length }}</div>
+        <div class="sub">{{ downloadedCount() }} downloaded · {{ pendingCount() }} pending</div>
+      </div>
+      <div class="card">
+        <div class="label">Rules</div>
+        <div class="val">{{ enabledRuleCount() }}</div>
+        <div class="sub">{{ rules().length }} total</div>
+      </div>
+    </div>
 
-      <!-- Feeds Section -->
-      <div class="section">
-        <div class="section-header">
-          <h3>Feeds</h3>
-          @if (!feedFormVisible()) {
-            <button class="btn btn-primary" (click)="showAddFeed()">Add Feed</button>
-          }
-        </div>
+    <!-- ============ Feeds panel ============ -->
+    <div class="panel">
+      <h3>Feeds
+        <span class="hint">each feed polls an RSS URL, optionally filters by regex, and auto-enqueues matches</span>
+      </h3>
 
-        @if (feedFormVisible()) {
-          <div class="inline-form">
-            <div class="form-title">{{ editingFeedName() ? 'Edit Feed' : 'Add Feed' }}</div>
-            <div class="form-row">
-              <div class="form-field">
-                <label>Name</label>
-                <input type="text" [(ngModel)]="feedForm.name" [disabled]="!!editingFeedName()" placeholder="Feed name" />
-              </div>
-              <div class="form-field form-field-wide">
-                <label>URL</label>
-                <input type="text" [(ngModel)]="feedForm.url" placeholder="https://..." />
-              </div>
+      @if (feedFormVisible()) {
+        <div class="body edit-form">
+          <div class="form">
+            <label>Name</label>
+            <input type="text" [(ngModel)]="feedForm.name" [disabled]="!!editingFeedName()" placeholder="Feed name" />
+
+            <label>URL</label>
+            <input type="text" [(ngModel)]="feedForm.url" placeholder="https://indexer.example/rss?apikey=…" />
+
+            <label>Poll interval</label>
+            <div class="inline">
+              <input type="number" [(ngModel)]="feedForm.poll_interval_secs" /> <span style="color:var(--mute)">seconds</span>
             </div>
-            <div class="form-row">
-              <div class="form-field">
-                <label>Poll Interval (seconds)</label>
-                <input type="number" [(ngModel)]="feedForm.poll_interval_secs" />
-              </div>
-              <div class="form-field">
-                <label>Category</label>
-                <input type="text" [(ngModel)]="feedForm.category" placeholder="Optional" />
-              </div>
-              <div class="form-field form-field-wide">
-                <label>Filter Regex</label>
-                <input type="text" [(ngModel)]="feedForm.filter_regex" placeholder="Optional" />
-              </div>
-            </div>
-            <div class="form-row">
-              <label class="checkbox-label">
-                <input type="checkbox" [(ngModel)]="feedForm.enabled" />
-                Enabled
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" [(ngModel)]="feedForm.auto_download" />
-                Auto Download
-              </label>
-              <span class="spacer"></span>
-              <button class="btn" (click)="cancelFeedForm()">Cancel</button>
-              <button class="btn btn-primary" (click)="saveFeed()">{{ editingFeedName() ? 'Update' : 'Add' }}</button>
+
+            <label>Category</label>
+            <input type="text" [(ngModel)]="feedForm.category" placeholder="(optional)" />
+
+            <label>Filter regex</label>
+            <input type="text" [(ngModel)]="feedForm.filter_regex" placeholder="/ubuntu|debian/i (optional)" />
+
+            <label>Options</label>
+            <div style="display:flex;gap:16px">
+              <label class="check"><input type="checkbox" [(ngModel)]="feedForm.enabled" /> Enabled</label>
+              <label class="check"><input type="checkbox" [(ngModel)]="feedForm.auto_download" /> Auto-download matches</label>
             </div>
           </div>
-        }
+          <div class="form-actions">
+            <button class="btn primary" (click)="saveFeed()">{{ editingFeedName() ? 'Update' : 'Add feed' }}</button>
+            <button class="btn" (click)="cancelFeedForm()">Cancel</button>
+          </div>
+        </div>
+      }
 
+      <div class="body flush">
         @for (f of feeds(); track f.name) {
-          <div class="card">
-            <div class="card-info">
-              <div class="card-name">{{ f.name }}</div>
-              <div class="card-detail">
-                {{ f.url }} · Every {{ f.poll_interval_secs }}s · {{ f.category || 'No category' }}
-                @if (f.filter_regex) { · Filter: <code>{{ f.filter_regex }}</code> }
-                @if (f.auto_download) { · Auto-download }
+          <div class="feed-row">
+            <div class="feed-info">
+              <div class="feed-name">
+                {{ f.name }}
+                <span class="pill" [class.ok]="f.enabled" [class.warn]="!f.enabled" style="margin-left:8px">
+                  ● {{ f.enabled ? 'active' : 'paused' }}
+                </span>
+              </div>
+              <div class="feed-url">{{ maskUrl(f.url) }}</div>
+              <div class="feed-regex">
+                @if (f.filter_regex) { Filter: <code>{{ f.filter_regex }}</code> · }
+                category: <code>{{ f.category || '—' }}</code>
+                · poll every {{ f.poll_interval_secs }}s
+                @if (f.auto_download) { · auto-enqueue } @else { · manual grab }
               </div>
             </div>
-            <div class="card-status">
-              <span class="dot" [class.active]="f.enabled"></span>
-              {{ f.enabled ? 'Active' : 'Disabled' }}
+            <div class="feed-actions">
+              <button class="btn sm" (click)="editFeed(f)">Edit</button>
+              <button class="btn sm danger" (click)="deleteFeed(f.name)">Delete</button>
             </div>
-            <button class="btn" (click)="editFeed(f)">Edit</button>
-            <button class="btn btn-danger" (click)="deleteFeed(f.name)">Delete</button>
           </div>
         }
         @if (feeds().length === 0 && !feedFormVisible()) {
-          <div class="empty">No RSS feeds configured.</div>
+          <div class="empty">No feeds configured.</div>
         }
       </div>
 
-      <!-- Rules Section -->
-      <div class="section">
-        <div class="section-header">
-          <h3>Download Rules</h3>
-          @if (!ruleFormVisible()) {
-            <button class="btn btn-primary" (click)="showAddRule()">Add Rule</button>
-          }
+      <div class="body" style="border-top:1px solid var(--line)">
+        <button class="btn primary" (click)="showAddFeed()" [disabled]="feedFormVisible()">+ Add feed</button>
+      </div>
+    </div>
+
+    <!-- ============ Rules panel ============ -->
+    <div class="panel">
+      <h3>Download rules
+        <span class="hint">regex rules applied across feeds; sets category + priority on match</span>
+      </h3>
+
+      @if (ruleFormVisible()) {
+        <div class="body edit-form">
+          <div class="form">
+            <label>Name</label>
+            <input type="text" [(ngModel)]="ruleForm.name" placeholder="Rule name" />
+
+            <label>Match regex</label>
+            <input type="text" [(ngModel)]="ruleForm.match_regex" placeholder=".*S\\d+E\\d+.*" />
+
+            <label>Category</label>
+            <input type="text" [(ngModel)]="ruleForm.category" placeholder="(optional — sets category for matches)" />
+
+            <label>Priority</label>
+            <input type="number" [(ngModel)]="ruleForm.priority" />
+
+            <label>Feeds</label>
+            <input type="text" [(ngModel)]="ruleForm.feed_names_csv" placeholder="feed1, feed2 (blank = all feeds)" />
+
+            <label>Options</label>
+            <label class="check"><input type="checkbox" [(ngModel)]="ruleForm.enabled" /> Enabled</label>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" (click)="saveRule()">{{ editingRuleId() ? 'Update' : 'Add rule' }}</button>
+            <button class="btn" (click)="cancelRuleForm()">Cancel</button>
+          </div>
         </div>
+      }
 
-        @if (ruleFormVisible()) {
-          <div class="inline-form">
-            <div class="form-title">{{ editingRuleId() ? 'Edit Rule' : 'Add Rule' }}</div>
-            <div class="form-row">
-              <div class="form-field">
-                <label>Name</label>
-                <input type="text" [(ngModel)]="ruleForm.name" placeholder="Rule name" />
-              </div>
-              <div class="form-field form-field-wide">
-                <label>Match Regex</label>
-                <input type="text" [(ngModel)]="ruleForm.match_regex" placeholder=".*pattern.*" />
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-field">
-                <label>Category</label>
-                <input type="text" [(ngModel)]="ruleForm.category" placeholder="Optional" />
-              </div>
-              <div class="form-field">
-                <label>Priority</label>
-                <input type="number" [(ngModel)]="ruleForm.priority" />
-              </div>
-              <div class="form-field form-field-wide">
-                <label>Feed Names (comma-separated)</label>
-                <input type="text" [(ngModel)]="ruleForm.feed_names_csv" placeholder="feed1, feed2" />
-              </div>
-            </div>
-            <div class="form-row">
-              <label class="checkbox-label">
-                <input type="checkbox" [(ngModel)]="ruleForm.enabled" />
-                Enabled
-              </label>
-              <span class="spacer"></span>
-              <button class="btn" (click)="cancelRuleForm()">Cancel</button>
-              <button class="btn btn-primary" (click)="saveRule()">{{ editingRuleId() ? 'Update' : 'Add' }}</button>
-            </div>
-          </div>
-        }
-
-        @for (r of rules(); track r.id) {
-          <div class="card">
-            <div class="card-info">
-              <div class="card-name">{{ r.name }}</div>
-              <div class="card-detail">
-                Regex: <code>{{ r.match_regex }}</code> · {{ r.category || 'Any' }} · Priority: {{ r.priority }}
-                @if (r.feed_names.length) { · Feeds: {{ r.feed_names.join(', ') }} }
-              </div>
-            </div>
-            <div class="card-status">
-              <span class="dot" [class.active]="r.enabled"></span>
-              {{ r.enabled ? 'Active' : 'Disabled' }}
-            </div>
-            <button class="btn" (click)="editRule(r)">Edit</button>
-            <button class="btn btn-danger" (click)="deleteRule(r.id)">Delete</button>
-          </div>
-        }
-        @if (rules().length === 0 && !ruleFormVisible()) {
-          <div class="empty">No download rules configured.</div>
-        }
+      <div class="body flush">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Regex</th>
+              <th>Category</th>
+              <th>Priority</th>
+              <th>Feeds</th>
+              <th>Status</th>
+              <th style="width:130px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of rules(); track r.id) {
+              <tr>
+                <td>{{ r.name }}</td>
+                <td><code>{{ r.match_regex }}</code></td>
+                <td>
+                  @if (r.category) { <span class="tag cat">{{ r.category }}</span> }
+                  @else { <span class="dim">—</span> }
+                </td>
+                <td>{{ r.priority }}</td>
+                <td class="dim">{{ r.feed_names.length === 0 ? 'all' : r.feed_names.join(', ') }}</td>
+                <td>
+                  <span class="status-pill" [class]="r.enabled ? 's-ok' : 's-paused'">
+                    {{ r.enabled ? 'active' : 'disabled' }}
+                  </span>
+                </td>
+                <td>
+                  <button class="row-action" (click)="editRule(r)">edit</button>
+                  <button class="row-action danger" (click)="deleteRule(r.id)">del</button>
+                </td>
+              </tr>
+            }
+            @if (rules().length === 0 && !ruleFormVisible()) {
+              <tr><td colspan="7" class="empty-cell">No rules configured.</td></tr>
+            }
+          </tbody>
+        </table>
       </div>
 
-      <!-- Items Section -->
-      <div class="section">
-        <h3>Recent Items ({{ items().length }})</h3>
-        <div class="items-list">
-          @for (i of items(); track i.id) {
-            <div class="item-row">
-              <span class="item-title">{{ i.title }}</span>
-              <span class="item-meta">{{ i.feed_name }} · {{ formatBytes(i.size_bytes) }}</span>
-              @if (!i.downloaded) {
-                <button class="btn" (click)="downloadItem(i.id)">Download</button>
-              } @else {
-                <span class="downloaded">Done</span>
-              }
-            </div>
-          }
-          @if (items().length === 0) {
-            <div class="empty">No recent items.</div>
-          }
-        </div>
+      <div class="body" style="border-top:1px solid var(--line)">
+        <button class="btn primary" (click)="showAddRule()" [disabled]="ruleFormVisible()">+ Add rule</button>
+      </div>
+    </div>
+
+    <!-- ============ Recent items ============ -->
+    <div class="panel">
+      <h3>Recent items
+        <span class="hint">last {{ items().length }} · grouped by feed</span>
+      </h3>
+      <div class="body flush">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Feed</th>
+              <th>Title</th>
+              <th>Size</th>
+              <th>Published</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (i of items(); track i.id) {
+              <tr>
+                <td class="dim">{{ i.feed_name }}</td>
+                <td>{{ i.title }}</td>
+                <td>{{ formatBytes(i.size_bytes) || '—' }}</td>
+                <td class="dim">{{ relativeTime(i.published_at) }}</td>
+                <td>
+                  <span class="status-pill" [class]="i.downloaded ? 's-ok' : 's-q'">
+                    {{ i.downloaded ? 'downloaded' : 'pending' }}
+                  </span>
+                </td>
+                <td>
+                  @if (!i.downloaded) {
+                    <button class="row-action" (click)="downloadItem(i.id)">↓ grab</button>
+                  }
+                </td>
+              </tr>
+            }
+            @if (items().length === 0) {
+              <tr><td colspan="6" class="empty-cell">No recent items.</td></tr>
+            }
+          </tbody>
+        </table>
       </div>
     </div>
   `,
   styles: [`
-    :host { display: flex; height: 100%; overflow-y: auto; }
-    .rss-layout { flex: 1; padding: 16px 24px; }
-    .toolbar { display: flex; align-items: center; margin-bottom: 16px; }
-    .title { font-size: 16px; font-weight: 600; }
-    .spacer { flex: 1; }
-    .section { margin-bottom: 24px; }
-    .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-    .section-header h3 { font-size: 14px; margin: 0; color: #c9d1d9; }
-    h3 { font-size: 14px; margin-bottom: 8px; color: #c9d1d9; }
+    :host { display: block; }
 
-    .card { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 6px; }
-    .card-info { flex: 1; min-width: 0; }
-    .card-name { font-weight: 600; font-size: 13px; }
-    .card-detail { font-size: 11px; color: #8b949e; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .card-detail code { color: #58a6ff; }
-    .card-status { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8b949e; white-space: nowrap; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #484f58; }
-    .dot.active { background: #3fb950; }
+    .feed-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 10px;
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+    }
+    .feed-row:last-child { border: none; }
+    .feed-name { font-weight: 600; }
+    .feed-url { color: var(--mute); font-size: 12px; font-family: ui-monospace, Menlo, monospace; margin-top: 3px; word-break: break-all; }
+    .feed-regex { margin-top: 4px; font-size: 11px; color: var(--mute); }
+    .feed-actions { display: flex; gap: 6px; align-items: center; }
 
-    .btn { padding: 4px 10px; border-radius: 4px; border: 1px solid #30363d; background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 12px; white-space: nowrap; }
-    .btn:hover { background: #30363d; }
-    .btn-primary { background: #238636; border-color: #2ea043; }
-    .btn-primary:hover { background: #2ea043; }
-    .btn-danger { color: #f85149; }
-    .btn-danger:hover { background: #30363d; }
+    .edit-form {
+      background: var(--panel2);
+      border-bottom: 1px solid var(--line);
+    }
+    .form-actions { margin-top: 14px; display: flex; gap: 8px; }
 
-    .inline-form { padding: 14px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 10px; }
-    .form-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #c9d1d9; }
-    .form-row { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-    .form-row:last-child { margin-bottom: 0; }
-    .form-field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
-    .form-field-wide { flex: 1; min-width: 200px; }
-    .form-field label { font-size: 11px; color: #8b949e; }
-    .form-field input[type="text"],
-    .form-field input[type="number"] { padding: 6px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 13px; }
-    .form-field input:focus { border-color: #58a6ff; outline: none; }
-    .form-field input:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #c9d1d9; cursor: pointer; padding-bottom: 4px; }
-    .checkbox-label input[type="checkbox"] { accent-color: #58a6ff; }
-
-    .empty { padding: 16px; color: #484f58; font-size: 12px; }
-    .items-list { max-height: 300px; overflow-y: auto; }
-    .item-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #21262d; font-size: 12px; }
-    .item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .item-meta { color: #8b949e; font-size: 11px; white-space: nowrap; }
-    .downloaded { color: #3fb950; font-size: 12px; }
+    td.dim { color: var(--mute); }
+    .dim { color: var(--mute); }
+    .empty { padding: 20px; color: var(--mute); font-size: 13px; text-align: center; }
+    .empty-cell { text-align: center; padding: 28px !important; color: var(--mute); font-size: 13px; }
   `],
 })
 export class RssViewComponent implements OnInit {
@@ -263,15 +281,27 @@ export class RssViewComponent implements OnInit {
   rules = signal<RssRule[]>([]);
   items = signal<RssItem[]>([]);
 
-  // Feed form state
   feedFormVisible = signal(false);
   editingFeedName = signal<string | null>(null);
   feedForm: FeedFormModel = this.emptyFeedForm();
 
-  // Rule form state
   ruleFormVisible = signal(false);
   editingRuleId = signal<string | null>(null);
   ruleForm: RuleFormModel = this.emptyRuleForm();
+
+  // ---- Stat-card derivations ----
+  enabledFeedCount = computed(() => this.feeds().filter(f => f.enabled).length);
+  enabledRuleCount = computed(() => this.rules().filter(r => r.enabled).length);
+  downloadedCount = computed(() => this.items().filter(i => i.downloaded).length);
+  pendingCount = computed(() => this.items().filter(i => !i.downloaded).length);
+  avgPollLabel = computed(() => {
+    const active = this.feeds().filter(f => f.enabled);
+    if (active.length === 0) return '—';
+    const avg = active.reduce((n, f) => n + f.poll_interval_secs, 0) / active.length;
+    if (avg >= 3600) return Math.round(avg / 3600) + 'h';
+    if (avg >= 60) return Math.round(avg / 60) + 'm';
+    return Math.round(avg) + 's';
+  });
 
   constructor(private api: ApiService, private snack: MatSnackBar) {}
 
@@ -348,6 +378,7 @@ export class RssViewComponent implements OnInit {
   }
 
   deleteFeed(name: string): void {
+    if (!confirm(`Delete feed "${name}"?`)) return;
     this.api.delete(`/config/rss-feeds/${encodeURIComponent(name)}`).subscribe({
       next: () => {
         this.snack.open('Feed deleted', 'Close', { duration: 2000 });
@@ -397,7 +428,7 @@ export class RssViewComponent implements OnInit {
       feed_names: feedNames,
     };
     if (!body.name || !body.match_regex) {
-      this.snack.open('Name and match regex are required', 'Close', { duration: 3000 });
+      this.snack.open('Name and regex are required', 'Close', { duration: 3000 });
       return;
     }
     const editing = this.editingRuleId();
@@ -415,6 +446,7 @@ export class RssViewComponent implements OnInit {
   }
 
   deleteRule(id: string): void {
+    if (!confirm('Delete this rule?')) return;
     this.api.delete(`/rss/rules/${id}`).subscribe({
       next: () => {
         this.snack.open('Rule deleted', 'Close', { duration: 2000 });
@@ -443,7 +475,25 @@ export class RssViewComponent implements OnInit {
     const k = 1024;
     const s = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(b) / Math.log(k));
-    return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + s[i];
+    return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
+  }
+
+  /**
+   * Mask obvious secrets in a feed URL before rendering. Covers common
+   * apikey-style query params; anything more exotic the user can still see
+   * in the edit form.
+   */
+  maskUrl(url: string): string {
+    return url.replace(/(apikey|api_key|token|auth)=([^&]+)/gi, (_m, k) => `${k}=***`);
+  }
+
+  relativeTime(d: string | null): string {
+    if (!d) return '—';
+    const diff = (Date.now() - new Date(d).getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`;
+    return `${Math.floor(diff / 86400)} d ago`;
   }
 
   private emptyFeedForm(): FeedFormModel {

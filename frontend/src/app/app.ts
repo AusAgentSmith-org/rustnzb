@@ -1,7 +1,6 @@
 import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from './core/services/api.service';
 import { AuthService } from './core/services/auth.service';
 import { StatusResponse } from './core/models/queue.model';
@@ -10,196 +9,116 @@ import { AddNzbService } from './core/services/add-nzb.service';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatIconModule],
+  imports: [CommonModule, RouterModule],
   template: `
     @if (!authenticated()) {
-      <!-- Full-screen login (no sidebar) -->
+      <!-- Full-screen login (no chrome) -->
       <router-outlet />
     } @else {
       <div class="shell">
-        <!-- Sidebar -->
-        <nav class="sidebar">
-          <div class="sidebar-header">
-            <div class="logo">
-              <img src="/logo.png" alt="rustnzb" class="logo-img" />
-            </div>
-            <div class="speed-widget">
-              <div class="speed-value">{{ formatSpeed(speed()) }}</div>
-              <div class="speed-label">Download Speed</div>
-              <div class="speed-actions">
-                <button class="speed-btn" (click)="togglePause()" [title]="paused() ? 'Resume' : 'Pause'">
-                  <mat-icon>{{ paused() ? 'play_arrow' : 'pause' }}</mat-icon>
-                </button>
-              </div>
-            </div>
+        <header>
+          <div>
+            <span class="brand">rust<span>nzb</span></span>
+            <span class="ver">v{{ version }}</span>
           </div>
-
-          <div class="sidebar-nav">
-            <div class="nav-section">Downloads</div>
-            <a class="nav-item" routerLink="/queue" routerLinkActive="active">
-              <mat-icon>download</mat-icon> Queue
-              @if (queueCount() > 0) { <span class="nav-badge">{{ queueCount() }}</span> }
-            </a>
-            <a class="nav-item" routerLink="/history" routerLinkActive="active">
-              <mat-icon>history</mat-icon> History
-            </a>
-
-            <div class="nav-section">Automation</div>
-            <a class="nav-item" routerLink="/rss" routerLinkActive="active">
-              <mat-icon>rss_feed</mat-icon> RSS Feeds
-            </a>
-            <a class="nav-item" routerLink="/groups" routerLinkActive="active">
-              <mat-icon>forum</mat-icon> Groups
-            </a>
-
-            <div class="nav-section">System</div>
-            <a class="nav-item" routerLink="/settings" routerLinkActive="active">
-              <mat-icon>settings</mat-icon> Settings
-            </a>
-            <a class="nav-item" routerLink="/logs" routerLinkActive="active">
-              <mat-icon>terminal</mat-icon> Logs
-            </a>
+          <div class="status">
+            <span class="pill" [class.ok]="!paused()" [class.warn]="paused()">
+              ● {{ paused() ? 'Paused' : 'Daemon running' }}
+            </span>
+            <span class="pill">Speed: <b>{{ formatSpeed(speed()) }}</b></span>
+            <span class="pill">Queue: <b>{{ queueCount() }}</b></span>
+            <span class="pill">Free: <b>{{ formatBytes(diskFree()) }}</b></span>
           </div>
+        </header>
 
-          <div class="sidebar-footer">
-            <div class="sidebar-stats">
-              <div class="sidebar-stat">
-                <span>Disk Free</span>
-                <span class="sidebar-stat-value">{{ formatBytes(diskFree()) }}</span>
-              </div>
-              <div class="sidebar-stat">
-                <span>Status</span>
-                <span class="sidebar-stat-value connected">Connected</span>
-              </div>
-            </div>
-            <button class="logout-btn" (click)="onLogout()">
-              <mat-icon>logout</mat-icon> Sign out
-            </button>
-          </div>
+        <nav class="top">
+          <a routerLink="/queue"    routerLinkActive="active">Queue</a>
+          <a routerLink="/history"  routerLinkActive="active">History</a>
+          <a routerLink="/groups"   routerLinkActive="active">Search</a>
+          <a routerLink="/rss"      routerLinkActive="active">RSS</a>
+          <a routerLink="/logs"     routerLinkActive="active">Logs</a>
+          <a routerLink="/settings" routerLinkActive="active">Settings</a>
+          <div class="spacer"></div>
+          <button class="action primary" (click)="onAddNzb()">+ Upload NZB</button>
+          <button class="action" (click)="togglePause()">
+            {{ paused() ? '▶ Resume all' : '❚❚ Pause all' }}
+          </button>
+          <button class="action muted" (click)="onLogout()" title="Sign out">Sign out</button>
         </nav>
 
-        <!-- Main content -->
-        <div class="content">
-          <!-- Page header -->
-          <div class="page-header">
-            <div class="page-title">
-              <mat-icon class="page-icon">{{ pageIcon() }}</mat-icon>
-              {{ pageTitle() }}
-            </div>
-            <div class="page-actions">
-              @if (isQueuePage()) {
-                <button class="btn btn-primary" (click)="onAddNzb()">
-                  <mat-icon>add</mat-icon> Add NZB
-                </button>
-                <button class="btn btn-icon" (click)="togglePause()" [title]="paused() ? 'Resume All' : 'Pause All'">
-                  <mat-icon>{{ paused() ? 'play_arrow' : 'pause' }}</mat-icon>
-                </button>
-              }
-            </div>
-          </div>
-
-          <!-- Router outlet -->
-          <div class="page-content">
-            <router-outlet />
-          </div>
-        </div>
+        <main>
+          <router-outlet />
+        </main>
       </div>
     }
   `,
   styles: [`
     :host { display: block; height: 100vh; overflow: hidden; }
 
-    /* Shell layout */
-    .shell { display: flex; height: 100vh; }
+    .shell { display: flex; flex-direction: column; height: 100vh; }
 
-    /* Sidebar */
-    .sidebar {
-      width: 220px; background: #010409; border-right: 1px solid #21262d;
-      display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
-    }
-    .sidebar-header { padding: 16px 16px 16px; border-bottom: 1px solid #21262d; }
-    .logo { display: flex; align-items: center; justify-content: center; }
-    .logo-img { width: 180px; height: auto; }
-    .speed-widget {
-      margin-top: 14px; background: #161b22; border: 1px solid #21262d;
-      border-radius: 8px; padding: 10px 12px; position: relative;
-    }
-    .speed-value {
-      font-family: 'JetBrains Mono', Consolas, monospace;
-      font-size: 20px; font-weight: 700; color: #3fb950;
-    }
-    .speed-label { font-size: 11px; color: #484f58; margin-top: 2px; }
-    .speed-actions { position: absolute; top: 10px; right: 10px; }
-    .speed-btn {
-      background: none; border: 1px solid #30363d; color: #8b949e;
-      border-radius: 4px; cursor: pointer; width: 28px; height: 28px;
-      display: flex; align-items: center; justify-content: center; padding: 0;
-    }
-    .speed-btn:hover { background: #21262d; color: #c9d1d9; }
-    .speed-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
-
-    /* Nav */
-    .sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
-    .nav-section {
-      padding: 14px 16px 6px; font-size: 10px; font-weight: 600;
-      color: #484f58; text-transform: uppercase; letter-spacing: 1px;
-    }
-    .nav-item {
-      display: flex; align-items: center; gap: 10px; padding: 8px 16px;
-      color: #8b949e; cursor: pointer; font-size: 13px; font-weight: 500;
-      text-decoration: none; border-left: 2px solid transparent;
-      transition: all 0.15s;
-    }
-    .nav-item:hover { color: #c9d1d9; background: #161b22; text-decoration: none; }
-    .nav-item.active { color: #e6edf3; background: #161b22; border-left-color: #f0883e; }
-    .nav-item mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .nav-badge {
-      margin-left: auto; background: #f0883e; color: #0d1117;
-      font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px;
-    }
-
-    /* Footer */
-    .sidebar-footer { padding: 12px 16px; border-top: 1px solid #21262d; }
-    .sidebar-stats { font-size: 11px; color: #484f58; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-    .sidebar-stat { display: flex; justify-content: space-between; }
-    .sidebar-stat-value { color: #8b949e; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 11px; }
-    .sidebar-stat-value.connected { color: #3fb950; }
-    .logout-btn {
-      display: flex; align-items: center; gap: 8px; width: 100%;
-      padding: 6px 8px; border-radius: 4px; border: none;
-      background: transparent; color: #484f58; cursor: pointer; font-size: 12px;
-    }
-    .logout-btn:hover { background: #161b22; color: #c9d1d9; }
-    .logout-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
-
-    /* Main content area */
-    .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-    .page-header {
+    /* ---- Header ---- */
+    header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 24px; border-bottom: 1px solid #21262d; background: #161b22; flex-shrink: 0;
+      padding: 12px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
     }
-    .page-title {
-      font-size: 18px; font-weight: 700; color: #e6edf3;
-      display: flex; align-items: center; gap: 10px;
-    }
-    .page-icon { font-size: 24px; width: 24px; height: 24px; color: #f0883e; }
-    .page-actions { display: flex; gap: 8px; }
+    .brand { font-weight: 700; font-size: 16px; letter-spacing: .2px; }
+    .brand span { color: var(--accent); }
+    .ver { color: var(--mute); font-size: 11px; margin-left: 8px; font-weight: 400; }
+    .status { display: flex; gap: 10px; align-items: center; font-size: 12px; }
 
-    .btn {
-      padding: 7px 16px; border-radius: 6px; border: 1px solid #30363d;
-      background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 13px;
-      font-weight: 500; display: flex; align-items: center; gap: 6px; transition: all 0.15s;
+    /* ---- Top nav ---- */
+    nav.top {
+      display: flex;
+      padding: 0 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+      overflow-x: auto;
+      align-items: center;
     }
-    .btn:hover { background: #30363d; }
-    .btn-primary { background: #238636; border-color: #2ea043; color: white; }
-    .btn-primary:hover { background: #2ea043; }
-    .btn-icon { padding: 7px 8px; }
-    .btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    nav.top a {
+      color: var(--mute);
+      padding: 10px 16px;
+      border-bottom: 2px solid transparent;
+      text-decoration: none;
+      font-size: 14px;
+      white-space: nowrap;
+      transition: color .15s;
+    }
+    nav.top a:hover { color: var(--text); text-decoration: none; }
+    nav.top a.active { color: var(--text); border-bottom-color: var(--accent); }
 
-    .page-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    nav.top .spacer { flex: 1; }
+    nav.top .action {
+      background: none; border: none;
+      color: var(--text); padding: 10px 14px;
+      cursor: pointer; font: inherit; font-size: 13px;
+      opacity: .85;
+    }
+    nav.top .action:hover { opacity: 1; }
+    nav.top .action.primary { color: var(--accent2); font-weight: 600; }
+    nav.top .action.muted { color: var(--mute); font-size: 12px; }
+
+    /* ---- Main area ---- */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      max-width: 1320px;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
+    }
   `],
 })
 export class App implements OnInit, OnDestroy {
+  // Version string shown in the header. Kept in sync with package.json manually.
+  readonly version = '0.2.4';
+
   speed = signal(0);
   paused = signal(false);
   queueCount = signal(0);
@@ -257,32 +176,6 @@ export class App implements OnInit, OnDestroy {
   togglePause(): void {
     const action = this.paused() ? '/queue/resume' : '/queue/pause';
     this.api.post(action).subscribe(() => this.pollStatus());
-  }
-
-  isQueuePage(): boolean {
-    return this.router.url === '/queue';
-  }
-
-  pageTitle(): string {
-    const url = this.router.url;
-    if (url.startsWith('/queue')) return 'Queue';
-    if (url.startsWith('/history')) return 'History';
-    if (url.startsWith('/rss')) return 'RSS Feeds';
-    if (url.startsWith('/groups')) return 'Groups';
-    if (url.startsWith('/settings')) return 'Settings';
-    if (url.startsWith('/logs')) return 'Logs';
-    return 'Queue';
-  }
-
-  pageIcon(): string {
-    const url = this.router.url;
-    if (url.startsWith('/queue')) return 'download';
-    if (url.startsWith('/history')) return 'history';
-    if (url.startsWith('/rss')) return 'rss_feed';
-    if (url.startsWith('/groups')) return 'forum';
-    if (url.startsWith('/settings')) return 'settings';
-    if (url.startsWith('/logs')) return 'terminal';
-    return 'download';
   }
 
   formatSpeed(bps: number): string {
