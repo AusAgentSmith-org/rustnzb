@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
@@ -7,13 +7,34 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   workers: 1,
-  reporter: 'list',
+  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   globalSetup: './global-setup.ts',
   globalTeardown: './global-teardown.ts',
-  use: {
-    baseURL: 'http://localhost:9190',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-  },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+
+  projects: [
+    // ── Main: authenticated, seeded data ──────────────────────────────────────
+    {
+      name: 'main',
+      testIgnore: ['**/first-boot.spec.ts', '**/auth.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:9190',
+        storageState: 'auth-state.json',
+        trace: 'on-first-retry',
+        screenshot: 'only-on-failure',
+      },
+    },
+    // ── Fresh: no credentials (first-boot + auth flow tests) ─────────────────
+    {
+      name: 'fresh',
+      testMatch: ['**/first-boot.spec.ts', '**/auth.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:9191',
+        // No storageState — tests manage their own tokens
+        trace: 'on-first-retry',
+        screenshot: 'only-on-failure',
+      },
+    },
+  ],
 });
