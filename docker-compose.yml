@@ -1,14 +1,19 @@
+volumes:
+  rustnzb-config:
+  rustnzb-data:
+  rustnzb-downloads:
+
 services:
   rustnzb:
-    image: ${DOCKERHUB_USERNAME:-ausagentsmith}/rustnzb:latest
+    image: ghcr.io/ausagentsmith-org/rustnzb:latest
     container_name: rustnzb
     restart: unless-stopped
     ports:
       - "9095:9090"
     volumes:
-      - ./config:/config
-      - ./data:/data
-      - /mnt/data3/downloads:/downloads
+      - rustnzb-config:/config
+      - rustnzb-data:/data
+      - rustnzb-downloads:/downloads
     environment:
       - PUID=1000
       - PGID=1000

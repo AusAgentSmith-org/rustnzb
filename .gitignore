@@ -12,3 +12,7 @@ e2e/test-results/
 
 # Codesight
 .codesight/
+
+# Local dev files
+.cgcignore
+mockups/
