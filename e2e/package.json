@@ -6,7 +6,7 @@
   "scripts": {
     "test": "playwright test",
     "test:main": "playwright test --project=main",
-    "test:fresh": "playwright test --project=fresh",
+    "test:fresh": "playwright test --project=fresh --project=fresh-auth",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug"

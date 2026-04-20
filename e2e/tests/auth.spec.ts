@@ -107,7 +107,13 @@ test.describe.serial('Authentication', () => {
     // Should be back at /login
     await expect(page).toHaveURL(/\/login/);
 
-    // Verify session is actually gone: navigating to /queue should redirect again
+    // Verify session is actually gone: navigating to /queue should redirect again.
+    // NB: injectToken() used addInitScript which re-runs on every navigation, so
+    // queue the opposite (clear storage) to simulate a real logged-out user.
+    await page.addInitScript(() => {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+    });
     await page.goto('/queue');
     await expect(page).toHaveURL(/\/login/);
   });

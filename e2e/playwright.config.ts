@@ -24,14 +24,29 @@ export default defineConfig({
         screenshot: 'only-on-failure',
       },
     },
-    // ── Fresh: no credentials (first-boot + auth flow tests) ─────────────────
+    // ── Fresh/first-boot: runs first; expects no credentials on startup ──────
+    // Split into two projects so auth.spec.ts waits for first-boot.spec.ts to
+    // finish (and create credentials) before running. Playwright does not
+    // guarantee file-alphabetical ordering otherwise — `auth` comes before
+    // `first-boot` alphabetically, which would break 10.2+.
     {
       name: 'fresh',
-      testMatch: ['**/first-boot.spec.ts', '**/auth.spec.ts'],
+      testMatch: ['**/first-boot.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         baseURL: 'http://localhost:9191',
         // No storageState — tests manage their own tokens
+        trace: 'on-first-retry',
+        screenshot: 'only-on-failure',
+      },
+    },
+    {
+      name: 'fresh-auth',
+      testMatch: ['**/auth.spec.ts'],
+      dependencies: ['fresh'],
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:9191',
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
       },

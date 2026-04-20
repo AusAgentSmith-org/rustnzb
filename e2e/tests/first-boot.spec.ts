@@ -115,7 +115,7 @@ test.describe.serial('First boot', () => {
     await page.getByRole('button', { name: 'Set up manually' }).click();
 
     await expect(page).toHaveURL(/\/settings/);
-    await expect(page.getByText('News Servers')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'News servers' })).toBeVisible();
   });
 
   // ── 1.6 Welcome shows welcome page when no servers are configured ──────────
