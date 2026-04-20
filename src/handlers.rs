@@ -1621,36 +1621,59 @@ pub async fn h_import_sabnzbd_api(
     Json(req): Json<ImportApiRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let base_url = req.url.trim_end_matches('/');
-    let url = format!(
-        "{}/sabnzbd/api?mode=get_config&output=json&apikey={}",
-        base_url, req.api_key
-    );
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| ApiError::from(anyhow::anyhow!("HTTP client error: {e}")))?;
 
-    let resp = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to connect to SABnzbd: {e}")))?;
+    // SABnzbd exposes its API at /api (default) or /sabnzbd/api (when configured
+    // with a URL base prefix). Try /api first, fall back to /sabnzbd/api.
+    let candidates = [
+        format!(
+            "{}/api?mode=get_config&output=json&apikey={}",
+            base_url, req.api_key
+        ),
+        format!(
+            "{}/sabnzbd/api?mode=get_config&output=json&apikey={}",
+            base_url, req.api_key
+        ),
+    ];
 
-    if !resp.status().is_success() {
-        return Err(ApiError::from(anyhow::anyhow!(
-            "SABnzbd returned HTTP {}",
-            resp.status()
-        )));
+    let mut last_err = String::new();
+    for url in &candidates {
+        let resp = match client.get(url).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                last_err = format!("Failed to connect to SABnzbd: {e}");
+                continue;
+            }
+        };
+
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            last_err = format!("SABnzbd API not found at {url}");
+            continue;
+        }
+
+        if !resp.status().is_success() {
+            return Err(ApiError::from(anyhow::anyhow!(
+                "SABnzbd returned HTTP {} — check your API key",
+                resp.status()
+            )));
+        }
+
+        let json: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| ApiError::from(anyhow::anyhow!("Invalid JSON from SABnzbd: {e}")))?;
+
+        let preview = sabnzbd_import::parse_sabnzbd_api_response(&json);
+        return Ok(Json(preview));
     }
 
-    let json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Invalid JSON from SABnzbd: {e}")))?;
-
-    let preview = sabnzbd_import::parse_sabnzbd_api_response(&json);
-    Ok(Json(preview))
+    Err(ApiError::from(anyhow::anyhow!(
+        "Could not reach SABnzbd API — {last_err}"
+    )))
 }
 
 /// Apply an import preview — writes servers, categories, general settings to config.

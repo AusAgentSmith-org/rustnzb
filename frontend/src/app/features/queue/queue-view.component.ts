@@ -64,50 +64,55 @@ interface PipelineStep {
     </div>
 
     <!-- ============ Per-server connection pool ============ -->
-    <div class="panel pool-panel">
+    <div class="panel pool-panel" [class.collapsed]="poolCollapsed()">
       <h3>NNTP connection pool
         <span class="hint">priority failover · TLS via rustls · live</span>
+        <button class="collapse-btn" (click)="togglePool()" [title]="poolCollapsed() ? 'Expand' : 'Collapse'">
+          {{ poolCollapsed() ? '▸' : '▾' }}
+        </button>
       </h3>
-      <div class="body">
-        @if (servers().length === 0) {
-          <div class="empty">No servers configured. <a routerLink="/settings">Add one →</a></div>
-        }
-        @for (s of serversWithConns(); track s.id) {
-          <div class="srv-block">
-            <div class="srv-head">
-              <div>
-                <span class="srv-name" [class.dim]="!s.enabled">{{ s.name || s.host }}</span>
-                <span class="prio">
-                  priority {{ s.priority }} · {{ s.connections }} slots
-                  @if (!s.enabled) { · disabled }
-                </span>
+      @if (!poolCollapsed()) {
+        <div class="body">
+          @if (servers().length === 0) {
+            <div class="empty">No servers configured. <a routerLink="/settings">Add one →</a></div>
+          }
+          @for (s of serversWithConns(); track s.id) {
+            <div class="srv-block">
+              <div class="srv-head">
+                <div>
+                  <span class="srv-name" [class.dim]="!s.enabled">{{ s.name || s.host }}</span>
+                  <span class="prio">
+                    priority {{ s.priority }} · {{ s.connections }} slots
+                    @if (!s.enabled) { · disabled }
+                  </span>
+                </div>
+                <div class="srv-meta">
+                  @if (s.enabled) {
+                    {{ s.active }} active · {{ s.idle }} idle
+                  } @else {
+                    off
+                  }
+                </div>
               </div>
-              <div class="srv-meta">
-                @if (s.enabled) {
-                  {{ s.active }} active · {{ s.idle }} idle
-                } @else {
-                  off
+              <div class="conn-grid">
+                @for (i of gridRange(s.connections); track i) {
+                  <div class="c"
+                       [class.active]="s.enabled && i < s.active"
+                       [class.idle]="s.enabled && i >= s.active && i < s.active + s.idle"
+                       [class.err]="!s.enabled"></div>
                 }
               </div>
             </div>
-            <div class="conn-grid">
-              @for (i of gridRange(s.connections); track i) {
-                <div class="c"
-                     [class.active]="s.enabled && i < s.active"
-                     [class.idle]="s.enabled && i >= s.active && i < s.active + s.idle"
-                     [class.err]="!s.enabled"></div>
-              }
-            </div>
+          }
+          <div class="legend">
+            <span class="sw a">Active transfer</span>
+            <span class="sw i">Idle (pooled)</span>
+            <span class="sw f">Free slot</span>
+            <span class="sw e">Disabled / error</span>
+            <span style="margin-left:auto">Transport: NNTPS · rustls (ring)</span>
           </div>
-        }
-        <div class="legend">
-          <span class="sw a">Active transfer</span>
-          <span class="sw i">Idle (pooled)</span>
-          <span class="sw f">Free slot</span>
-          <span class="sw e">Disabled / error</span>
-          <span style="margin-left:auto">Transport: NNTPS · rustls (ring)</span>
         </div>
-      </div>
+      }
     </div>
 
     <!-- ============ Post-processing pipeline (shown when a job is in PP) ============ -->
@@ -323,6 +328,12 @@ interface PipelineStep {
     .panel.pool-panel { font-size: 10.5px; }
     .panel.pool-panel h3 { padding: 6px 10px; font-size: 11px; }
     .panel.pool-panel .body { padding: 8px 10px; }
+    .panel.pool-panel.collapsed h3 { border-bottom: none; }
+    .collapse-btn {
+      background: none; border: none; cursor: pointer; color: var(--mute);
+      font-size: 13px; padding: 0 4px; margin-left: 4px; line-height: 1;
+    }
+    .collapse-btn:hover { color: var(--text); }
     .srv-block { padding: 6px 0; border-bottom: 1px solid var(--line); }
     .srv-block:last-of-type { border: none; padding-bottom: 0; }
     .srv-block:first-of-type { padding-top: 0; }
@@ -441,6 +452,15 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   status = signal<StatusResponse | null>(null);
   selectedIds = signal<Set<string>>(new Set());
   paused = signal(false);
+
+  readonly POOL_KEY = 'rustnzb.poolPanelCollapsed';
+  poolCollapsed = signal(localStorage.getItem('rustnzb.poolPanelCollapsed') === 'true');
+
+  togglePool(): void {
+    const next = !this.poolCollapsed();
+    this.poolCollapsed.set(next);
+    localStorage.setItem(this.POOL_KEY, String(next));
+  }
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 

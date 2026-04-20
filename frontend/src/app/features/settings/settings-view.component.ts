@@ -514,7 +514,7 @@ function emptyCategory(): CategoryConfig {
       box-shadow: inset 2px 0 0 var(--accent);
     }
 
-    .settings-main { min-width: 0; }
+    .settings-main { min-width: 0; padding-top: 10px; }
 
     /* Server rows */
     .srv-row {

@@ -102,7 +102,8 @@ interface ImportPreview {
                 <input
                   type="text"
                   class="form-input"
-                  [(ngModel)]="sabnzbdUrl"
+                  [ngModel]="sabnzbdUrl()"
+                  (ngModelChange)="sabnzbdUrl.set($event)"
                   placeholder="http://localhost:8080"
                 />
               </div>
@@ -111,7 +112,8 @@ interface ImportPreview {
                 <input
                   type="text"
                   class="form-input mono"
-                  [(ngModel)]="sabnzbdApiKey"
+                  [ngModel]="sabnzbdApiKey()"
+                  (ngModelChange)="sabnzbdApiKey.set($event)"
                   placeholder="32-character hex key"
                   autocomplete="off"
                 />
@@ -405,8 +407,8 @@ export class WelcomeComponent implements OnInit {
   step = signal<Step>('landing');
   method = signal<ImportMethod>('api');
 
-  sabnzbdUrl = '';
-  sabnzbdApiKey = '';
+  sabnzbdUrl = signal('');
+  sabnzbdApiKey = signal('');
   selectedFile: File | null = null;
 
   fetching = signal(false);
@@ -448,19 +450,19 @@ export class WelcomeComponent implements OnInit {
     this.connectError.set('');
 
     if (this.method() === 'api') {
-      if (!this.sabnzbdUrl.trim()) {
+      if (!this.sabnzbdUrl().trim()) {
         this.connectError.set('SABnzbd URL is required.');
         return;
       }
-      if (!this.sabnzbdApiKey.trim()) {
+      if (!this.sabnzbdApiKey().trim()) {
         this.connectError.set('API key is required.');
         return;
       }
 
       this.fetching.set(true);
       this.api.post<ImportPreview>('/setup/import-sabnzbd-api', {
-        url: this.sabnzbdUrl.trim(),
-        api_key: this.sabnzbdApiKey.trim(),
+        url: this.sabnzbdUrl().trim(),
+        api_key: this.sabnzbdApiKey().trim(),
       }).subscribe({
         next: (p) => {
           this.fetching.set(false);

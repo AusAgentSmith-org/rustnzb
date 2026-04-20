@@ -119,7 +119,7 @@ import { WidthModeService } from './core/services/width-mode.service';
     /* ---- Header ---- */
     header {
       background: var(--panel);
-      border-bottom: 1px solid var(--line);
+      border-bottom: 4px solid var(--bg);
       flex-shrink: 0;
     }
     header .wrap {
@@ -215,8 +215,7 @@ import { WidthModeService } from './core/services/width-mode.service';
       overflow-y: auto;
     }
     main .wrap {
-      padding-top: 20px;
-      padding-bottom: 20px;
+      padding-bottom: 28px;
     }
 
     /* ---- Width-mode toggle (segmented control) ---- */
@@ -341,7 +340,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 B';
+    if (!bytes) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
