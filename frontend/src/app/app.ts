@@ -240,7 +240,7 @@ import { WidthModeService } from './core/services/width-mode.service';
 })
 export class App implements OnInit, OnDestroy {
   // Version string shown in the header. Kept in sync with package.json manually.
-  readonly version = '0.2.4';
+  readonly version = '1.0.3';
 
   speed = signal(0);
   paused = signal(false);
