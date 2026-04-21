@@ -11,7 +11,7 @@ steps:
     image: rust:1.88-bookworm
     commands:
       - |
-        python3 -c "
+        python3 << 'PYEOF'
         lines = open('Cargo.toml').readlines()
         result = []
         in_patch = False
@@ -28,8 +28,7 @@ steps:
                 result.append(line)
         open('Cargo.toml', 'w').writelines(result)
         print('Stripped [patch.*] sections from Cargo.toml')
-        "
-      - grep -c '\[patch\.' Cargo.toml && echo 'WARNING: patch sections remain' || echo 'OK: no patch sections'
+        PYEOF
 
   # ─── Quality checks (run on all events) ──────────────────────────────────
 
