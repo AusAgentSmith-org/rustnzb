@@ -105,19 +105,15 @@ test.describe('2. News Server Management', () => {
 
     // Clear the host field (it may have a placeholder but no value)
     const hostInput = page.getByPlaceholder('news.example.com');
+    await expect(hostInput).toBeVisible();
     await hostInput.clear();
 
     await page.getByRole('button', { name: 'Save' }).click();
 
-    // Either the browser prevents submission (input still visible and focused)
-    // or an error message appears — either way we must still be on the settings page
+    // Client-side validation keeps the form open — wait (up to 10s) for the
+    // host input to remain visible rather than doing an immediate point-in-time check.
     await expect(page).toHaveURL(/\/settings/);
-
-    // The form should still be open (host input still visible)
-    // OR an explicit validation error appears
-    const hostStillVisible = await hostInput.isVisible();
-    const errorVisible = await page.getByText(/required|invalid|host/i).isVisible();
-    expect(hostStillVisible || errorVisible).toBeTruthy();
+    await expect(hostInput).toBeVisible();
   });
 
   // ── 2.3 Edit existing server ──────────────────────────────────────────────
