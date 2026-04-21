@@ -1735,8 +1735,6 @@ dependencies = [
 [[package]]
 name = "nzb-dispatch"
 version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a1c7dbb53e62692fece0e06678f1945b5e79e0cdb22eff10736bdf92417a273"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1757,8 +1755,6 @@ dependencies = [
 [[package]]
 name = "nzb-news"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ed282ae6815633f105c63359c79e617a87e64e4f56ed9420d34c134dfe4c6bf"
 dependencies = [
  "nzb-nntp",
  "tokio",
@@ -1768,8 +1764,6 @@ dependencies = [
 [[package]]
 name = "nzb-nntp"
 version = "0.2.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c6588351d5b892cfd2fc8f87427acfbc4c42556647b370a093bca2051b1eba8"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1810,8 +1804,6 @@ dependencies = [
 [[package]]
 name = "nzb-web"
 version = "0.4.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "696ed885bad27bb61a738b5dffe213b626412eee9f12a42256e3f4eb2da0feb1"
 dependencies = [
  "anyhow",
  "arc-swap",

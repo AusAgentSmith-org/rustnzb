@@ -144,4 +144,10 @@ arc-swap.workspace = true
 
 
 
+[patch.crates-io]
+nzb-web = { path = "../libs/nzb-web" }
+nzb-dispatch = { path = "../libs/nzb-dispatch" }
+nzb-nntp = { path = "../libs/nzb-nntp" }
+nzb-news = { path = "../libs/nzb-news" }
+
 [profile.release]
