@@ -52,7 +52,7 @@ test.describe('11. Navigation & Shell', () => {
     // At least one pill should contain connection/daemon state text
     const statusText = await pills.allInnerTexts();
     const hasConnectionState = statusText.some((t) =>
-      /Daemon running|Connected|Paused|Connecting/i.test(t),
+      /Daemon running|Connected|Paused|Connecting|Live/i.test(t),
     );
     expect(hasConnectionState).toBeTruthy();
   });
