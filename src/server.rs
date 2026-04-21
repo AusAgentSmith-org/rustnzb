@@ -231,9 +231,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/articles/{message_id}", get(group_handlers::h_article_get));
 
-    // WebDAV media library management endpoint (only compiled when feature is on)
+    // WebDAV media library management endpoints (only compiled when feature is on)
     #[cfg(feature = "webdav")]
-    let api_routes = api_routes.route("/dav/add", post(handlers::h_dav_add));
+    let api_routes = api_routes
+        .route("/dav/add", post(handlers::h_dav_add))
+        .route("/dav/status", get(handlers::h_dav_status));
 
     // Arr-compatible API (Sonarr/Radarr) — uses its own API key auth
     // Sonarr/Radarr hit /api (the standard SABnzbd path), so register both.

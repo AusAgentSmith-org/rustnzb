@@ -1810,6 +1810,73 @@ pub struct DavAddResponse {
     pub dav_id: String,
 }
 
+// ── DAV pipeline status types ──────────────────────────────────────────────
+
+#[cfg(feature = "webdav")]
+#[derive(Serialize)]
+pub struct DavQueueEntry {
+    pub job_name: String,
+    pub queued_at: String,
+}
+
+#[cfg(feature = "webdav")]
+#[derive(Serialize)]
+pub struct DavHistoryEntry {
+    pub job_name: String,
+    pub status: String,
+    pub fail_message: Option<String>,
+    pub completed_at: String,
+}
+
+#[cfg(feature = "webdav")]
+#[derive(Serialize)]
+pub struct DavStatusResponse {
+    pub queue: Vec<DavQueueEntry>,
+    pub history: Vec<DavHistoryEntry>,
+}
+
+/// GET /api/dav/status — pipeline queue + history for media library status overlay.
+#[cfg(feature = "webdav")]
+pub async fn h_dav_status(
+    axum::Extension(dav): axum::Extension<Option<Arc<crate::dav::DavHandle>>>,
+) -> Result<Json<DavStatusResponse>, ApiError> {
+    let dav = dav
+        .as_ref()
+        .ok_or_else(|| ApiError::from(anyhow::anyhow!("WebDAV library not initialised")))?;
+
+    let status = dav
+        .pipeline_status()
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!("DAV status query failed: {e}")))?;
+
+    use nzbdav_core::models::DownloadStatus;
+
+    let queue = status
+        .queue
+        .into_iter()
+        .map(|q| DavQueueEntry {
+            job_name: q.job_name,
+            queued_at: q.created_at.and_utc().to_rfc3339(),
+        })
+        .collect();
+
+    let history = status
+        .history
+        .into_iter()
+        .map(|h| DavHistoryEntry {
+            job_name: h.job_name,
+            status: match h.download_status {
+                DownloadStatus::Completed => "completed".into(),
+                DownloadStatus::Failed => "failed".into(),
+            },
+            fail_message: h.fail_message,
+            completed_at: h.created_at.and_utc().to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(DavStatusResponse { queue, history }))
+}
+
 /// POST /api/dav/add?id=<history-id>
 /// Feeds a completed download's NZB into the WebDAV streaming pipeline.
 /// The item must exist in history (completed or failed) with NZB data retained.

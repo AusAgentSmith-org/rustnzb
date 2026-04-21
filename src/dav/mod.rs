@@ -108,6 +108,19 @@ impl DavHandle {
         info!(job_name, "queued for DAV pipeline");
         Ok(item_id)
     }
+
+    /// Return the current state of the DAV pipeline: queued items + history.
+    pub async fn pipeline_status(&self) -> anyhow::Result<DavPipelineStatus> {
+        let db = open_db(&self.db_path)?;
+        let queue = db.list_queue_items().await?;
+        let history = db.list_history_items(0, 200).await?;
+        Ok(DavPipelineStatus { queue, history })
+    }
+}
+
+pub struct DavPipelineStatus {
+    pub queue: Vec<QueueItem>,
+    pub history: Vec<HistoryItem>,
 }
 
 impl Drop for DavHandle {

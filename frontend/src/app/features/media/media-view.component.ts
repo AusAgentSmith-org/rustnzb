@@ -11,12 +11,33 @@ interface DavFile {
   contentType: string;
 }
 
+interface DavQueueEntry {
+  job_name: string;
+  queued_at: string;
+}
+
+interface DavHistoryEntry {
+  job_name: string;
+  status: 'completed' | 'failed';
+  fail_message: string | null;
+  completed_at: string;
+}
+
+interface DavPipelineStatus {
+  queue: DavQueueEntry[];
+  history: DavHistoryEntry[];
+}
+
 interface Release {
   href: string;
   name: string;
   files: DavFile[];
   expanded: boolean;
   loading: boolean;
+  /** Set when the pipeline reports a failure for this job */
+  failMessage: string | null;
+  /** True while the item is in the DAV pipeline queue */
+  queued: boolean;
 }
 
 const VIDEO_EXTS = new Set(['mkv', 'mp4', 'avi', 'mov', 'wmv', 'ts', 'm4v', 'webm', 'flv', 'mpg', 'mpeg']);
@@ -63,19 +84,32 @@ const AUDIO_EXTS = new Set(['mp3', 'flac', 'aac', 'ogg', 'wav', 'm4a', 'opus']);
             <tbody>
               @for (rel of releases(); track rel.href) {
                 <!-- Release directory row -->
-                <tr class="rel-row" (click)="toggle(rel)">
+                <tr class="rel-row" [class.rel-failed]="rel.failMessage" (click)="!rel.failMessage && toggle(rel)">
                   <td>
-                    <span class="toggle-icon">{{ rel.expanded ? '▾' : '▸' }}</span>
+                    @if (!rel.failMessage) {
+                      <span class="toggle-icon">{{ rel.expanded ? '▾' : '▸' }}</span>
+                    }
                     <span class="rel-name">{{ rel.name }}</span>
                     @if (rel.loading) { <span class="loading-dot">…</span> }
+                    @if (rel.queued) { <span class="status-chip queued">processing</span> }
+                    @if (rel.failMessage) { <span class="status-chip failed" [title]="rel.failMessage">failed</span> }
                   </td>
-                  <td><span class="badge dir">folder</span></td>
+                  <td>
+                    @if (!rel.failMessage) { <span class="badge dir">folder</span> }
+                  </td>
                   <td></td>
                   <td></td>
                 </tr>
 
+                <!-- Failure detail row -->
+                @if (rel.failMessage) {
+                  <tr class="fail-row">
+                    <td colspan="4" class="fail-msg">{{ rel.failMessage }}</td>
+                  </tr>
+                }
+
                 <!-- File rows when expanded -->
-                @if (rel.expanded) {
+                @if (rel.expanded && !rel.failMessage) {
                   @for (f of rel.files; track f.href) {
                     <tr class="file-row" [class.video]="isVideo(f)" [class.audio]="isAudio(f)">
                       <td>
@@ -98,7 +132,7 @@ const AUDIO_EXTS = new Set(['mp3', 'flac', 'aac', 'ogg', 'wav', 'm4a', 'opus']);
                     </tr>
                   }
                   @if (rel.files.length === 0 && !rel.loading) {
-                    <tr class="file-row"><td colspan="4" class="empty-sub">Empty or still processing</td></tr>
+                    <tr class="file-row"><td colspan="4" class="empty-sub">Still processing…</td></tr>
                   }
                 }
               }
@@ -164,6 +198,13 @@ const AUDIO_EXTS = new Set(['mp3', 'flac', 'aac', 'ogg', 'wav', 'm4a', 'opus']);
 
     .row-action.play { color: var(--purple); border-color: var(--purple); }
 
+    .rel-failed { opacity: .7; cursor: default; }
+    .status-chip { font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; margin-left: 8px; }
+    .status-chip.queued { background: rgba(59,130,246,.15); color: var(--accent); }
+    .status-chip.failed { background: rgba(239,68,68,.15); color: var(--danger); }
+    .fail-row td { background: rgba(239,68,68,.05); }
+    .fail-msg { color: var(--danger); font-size: 11px; padding: 4px 12px 6px 32px !important; opacity: .85; }
+
     .hint-block { color: var(--mute); font-size: 12px; margin: 0 0 12px; line-height: 1.6; }
     table.clients td { font-size: 13px; }
     table.clients td:last-child { color: var(--mute); font-size: 12px; }
@@ -179,6 +220,7 @@ export class MediaViewComponent implements OnInit, OnDestroy {
   loading = signal(false);
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pipelineStatus: DavPipelineStatus = { queue: [], history: [] };
 
   ngOnInit(): void {
     this.loadContent();
@@ -191,24 +233,42 @@ export class MediaViewComponent implements OnInit, OnDestroy {
 
   loadContent(): void {
     this.loading.set(this.releases().length === 0);
-    // davRelPath is the WebDAV-relative path (without /dav prefix)
-    this.propfind('/content', 1).then(items => {
+    Promise.all([
+      this.propfind('/content', 1),
+      this.http.get<DavPipelineStatus>('/api/dav/status').toPromise().catch(() => null),
+    ]).then(([items, status]) => {
+      if (status) this.pipelineStatus = status;
       const existing = this.releases();
       const self = ['/content', '/content/'];
       const dirs = items.filter(i => i.isDir && !self.includes(i.href) && !self.includes(i.href + '/'));
       const updated = dirs.map(d => {
         const prev = existing.find(r => r.href === d.href);
-        return prev ?? { href: d.href, name: d.name, files: [], expanded: false, loading: false };
+        const base = prev ?? { href: d.href, name: d.name, files: [], expanded: false, loading: false, failMessage: null, queued: false };
+        base.failMessage = this.lookupFailMessage(d.name);
+        base.queued = this.isQueued(d.name);
+        return base;
       });
       for (const rel of updated) {
-        if (rel.expanded && rel.files.length === 0) this.loadFiles(rel);
+        if (rel.expanded && rel.files.length === 0 && !rel.failMessage) this.loadFiles(rel);
       }
       this.releases.set(updated);
       this.loading.set(false);
     }).catch(() => this.loading.set(false));
   }
 
+  private lookupFailMessage(name: string): string | null {
+    const h = this.pipelineStatus.history.find(
+      e => e.status === 'failed' && e.job_name === name
+    );
+    return h?.fail_message ?? null;
+  }
+
+  private isQueued(name: string): boolean {
+    return this.pipelineStatus.queue.some(q => q.job_name === name);
+  }
+
   toggle(rel: Release): void {
+    if (rel.failMessage) return;
     rel.expanded = !rel.expanded;
     if (rel.expanded && rel.files.length === 0 && !rel.loading) {
       this.loadFiles(rel);
