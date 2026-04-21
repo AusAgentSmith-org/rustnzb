@@ -253,7 +253,7 @@ export class HistoryViewComponent implements OnInit, OnDestroy {
   }
 
   addToMedia(id: string): void {
-    this.api.post(`/dav/add?history_id=${id}`).subscribe({
+    this.api.post(`/dav/add?id=${id}`).subscribe({
       next: () => this.snack.open('Queued for Media Library', 'Close', { duration: 3000 }),
       error: () => this.snack.open('Failed to add to Media Library', 'Close', { duration: 3000 }),
     });

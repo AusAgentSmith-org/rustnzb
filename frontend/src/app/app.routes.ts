@@ -11,4 +11,5 @@ export const routes: Routes = [
   { path: 'groups', loadComponent: () => import('./features/groups/groups-view.component').then(m => m.GroupsViewComponent), canActivate: [authGuard] },
   { path: 'settings', loadComponent: () => import('./features/settings/settings-view.component').then(m => m.SettingsViewComponent), canActivate: [authGuard] },
   { path: 'logs', loadComponent: () => import('./features/logs/logs-view.component').then(m => m.LogsViewComponent), canActivate: [authGuard] },
+  { path: 'media', loadComponent: () => import('./features/media/media-view.component').then(m => m.MediaViewComponent), canActivate: [authGuard] },
 ];

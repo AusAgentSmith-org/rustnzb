@@ -27,6 +27,9 @@ import { WidthModeService } from './core/services/width-mode.service';
             <a routerLink="/history"  routerLinkActive="active">History</a>
             <a routerLink="/groups"   routerLinkActive="active">Search</a>
             <a routerLink="/rss"      routerLinkActive="active">RSS</a>
+            @if (webdavEnabled()) {
+              <a routerLink="/media" routerLinkActive="active">Media</a>
+            }
             <a routerLink="/logs"     routerLinkActive="active">Logs</a>
             <a routerLink="/settings" routerLinkActive="active">Settings</a>
             <div class="spacer"></div>
@@ -232,6 +235,7 @@ export class App implements OnInit, OnDestroy {
   paused = signal(false);
   queueCount = signal(0);
   diskFree = signal(0);
+  webdavEnabled = signal(false);
   authenticated = signal(false);
   pauseMenuOpen = false;
   customPauseMin: number | null = null;
@@ -278,6 +282,7 @@ export class App implements OnInit, OnDestroy {
         this.paused.set(s.paused);
         this.queueCount.set(s.queue_size);
         this.diskFree.set(s.disk_free_bytes);
+        this.webdavEnabled.set(!!s.webdav_enabled);
       },
       error: () => {},
     });
