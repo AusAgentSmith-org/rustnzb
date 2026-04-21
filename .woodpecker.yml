@@ -6,6 +6,31 @@ when:
   - event: pull_request
 
 steps:
+  # ─── Strip local [patch.*] overrides (not available in CI) ───────────────
+  - name: strip-patches
+    image: rust:1.88-bookworm
+    commands:
+      - |
+        python3 -c "
+        lines = open('Cargo.toml').readlines()
+        result = []
+        in_patch = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('[patch.'):
+                in_patch = True
+                continue
+            if in_patch:
+                if stripped.startswith('[') and not stripped.startswith('#'):
+                    in_patch = False
+                    result.append(line)
+            else:
+                result.append(line)
+        open('Cargo.toml', 'w').writelines(result)
+        print('Stripped [patch.*] sections from Cargo.toml')
+        "
+      - grep -c '\[patch\.' Cargo.toml && echo 'WARNING: patch sections remain' || echo 'OK: no patch sections'
+
   # ─── Quality checks (run on all events) ──────────────────────────────────
 
   - name: fmt
