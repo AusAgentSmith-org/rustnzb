@@ -144,6 +144,7 @@ pub struct StatusResponse {
     pub disk_space_free: u64,
     pub min_free_space_bytes: u64,
     pub pause_remaining_secs: Option<i64>,
+    pub webdav_enabled: bool,
 }
 
 #[derive(Serialize)]
@@ -628,6 +629,8 @@ pub async fn h_history_retry(
 /// GET /api/status -- Overall application status.
 pub async fn h_status(
     State(state): State<Arc<AppState>>,
+    #[cfg(feature = "webdav")]
+    axum::Extension(dav): axum::Extension<Option<Arc<crate::dav::DavHandle>>>,
 ) -> Result<Json<StatusResponse>, ApiError> {
     let qm = &state.queue_manager;
     let config = state.config();
@@ -640,6 +643,10 @@ pub async fn h_status(
         disk_space_free: get_disk_space_free(&config.general.complete_dir),
         min_free_space_bytes: qm.min_free_space(),
         pause_remaining_secs: qm.pause_remaining_secs(),
+        #[cfg(feature = "webdav")]
+        webdav_enabled: dav.is_some(),
+        #[cfg(not(feature = "webdav"))]
+        webdav_enabled: false,
     }))
 }
 
@@ -1783,4 +1790,59 @@ pub async fn h_setup_apply(
     }
 
     Ok(Json(serde_json::json!({ "status": true })))
+}
+
+// ---------------------------------------------------------------------------
+// WebDAV media library handlers
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "webdav")]
+#[derive(Deserialize)]
+pub struct DavAddQuery {
+    pub id: String,
+}
+
+#[cfg(feature = "webdav")]
+#[derive(Serialize)]
+pub struct DavAddResponse {
+    pub status: bool,
+    pub dav_id: String,
+}
+
+/// POST /api/dav/add?id=<history-id>
+/// Feeds a completed download's NZB into the WebDAV streaming pipeline.
+/// The item must exist in history (completed or failed) with NZB data retained.
+#[cfg(feature = "webdav")]
+pub async fn h_dav_add(
+    State(state): State<Arc<AppState>>,
+    axum::Extension(dav): axum::Extension<Option<Arc<crate::dav::DavHandle>>>,
+    Query(q): Query<DavAddQuery>,
+) -> Result<Json<DavAddResponse>, ApiError> {
+    let dav = dav.as_ref().ok_or_else(|| {
+        ApiError::from(anyhow::anyhow!("WebDAV library not initialised"))
+    })?;
+    let qm = &state.queue_manager;
+
+    let entry = qm
+        .history_get(&q.id)
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::not_found("history item not found"))?;
+
+    let nzb_data = qm
+        .history_get_nzb_data(&q.id)
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::not_found("NZB data not retained for this item"))?;
+
+    let file_name: String = entry.name.clone();
+    let job_name = file_name.trim_end_matches(".nzb").to_string();
+
+    let dav_id = dav
+        .enqueue_nzb(&file_name, &job_name, &nzb_data)
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!("DAV enqueue failed: {e}")))?;
+
+    Ok(Json(DavAddResponse {
+        status: true,
+        dav_id: dav_id.to_string(),
+    }))
 }

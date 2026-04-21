@@ -87,6 +87,15 @@ name = "rustnzb"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+webdav = [
+    "dep:nzbdav-core",
+    "dep:nzbdav-stream",
+    "dep:nzbdav-dav",
+    "dep:nzbdav-pipeline",
+]
+
 [dependencies]
 nzb-web = { workspace = true }
 rustls = { workspace = true }
@@ -119,6 +128,14 @@ mime_guess = "2"
 libc = "0.2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 flate2 = { workspace = true }
+parking_lot = { workspace = true }
+tokio-util = { version = "0.7", features = ["rt"] }
+
+# WebDAV feature (opt-in: cargo build --features webdav)
+nzbdav-core = { version = "0.4.1", registry = "forgejo", optional = true }
+nzbdav-stream = { version = "0.4.1", registry = "forgejo", optional = true }
+nzbdav-dav = { version = "0.4.1", registry = "forgejo", optional = true }
+nzbdav-pipeline = { version = "0.4.1", registry = "forgejo", optional = true, default-features = false }
 
 [package.metadata.deb]
 maintainer = "AusAgentSmith <admin@rustnzb.dev>"
@@ -149,5 +166,11 @@ nzb-web = { path = "../libs/nzb-web" }
 nzb-dispatch = { path = "../libs/nzb-dispatch" }
 nzb-nntp = { path = "../libs/nzb-nntp" }
 nzb-news = { path = "../libs/nzb-news" }
+
+[patch.forgejo]
+nzbdav-core = { path = "../nzbdav-rs/crates/nzbdav-core" }
+nzbdav-stream = { path = "../nzbdav-rs/crates/nzbdav-stream" }
+nzbdav-dav = { path = "../nzbdav-rs/crates/nzbdav-dav" }
+nzbdav-pipeline = { path = "../nzbdav-rs/crates/nzbdav-pipeline" }
 
 [profile.release]

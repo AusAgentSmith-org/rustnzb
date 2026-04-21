@@ -231,6 +231,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/articles/{message_id}", get(group_handlers::h_article_get));
 
+    // WebDAV media library management endpoint (only compiled when feature is on)
+    #[cfg(feature = "webdav")]
+    let api_routes = api_routes
+        .route("/dav/add", post(handlers::h_dav_add));
+
     // Arr-compatible API (Sonarr/Radarr) — uses its own API key auth
     // Sonarr/Radarr hit /api (the standard SABnzbd path), so register both.
     let sabnzbd_route = Router::new()
@@ -326,12 +331,16 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
 }
 
-/// Start the HTTP server.
+/// Start the HTTP server with a default router.
 pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
+    let router = build_router(state.clone());
+    serve(state, router).await
+}
+
+/// Start the HTTP server with a pre-built (possibly augmented) router.
+pub async fn serve(state: Arc<AppState>, router: Router) -> anyhow::Result<()> {
     let config = state.config();
     let addr = format!("{}:{}", config.general.listen_addr, config.general.port);
-
-    let router = build_router(state.clone());
     let listener = TcpListener::bind(&addr).await?;
 
     info!("HTTP server listening on http://{addr}");
@@ -342,7 +351,6 @@ pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    // After server stops, shut down queue manager
     info!("HTTP server stopped, shutting down queue manager...");
     state.queue_manager.shutdown().await;
     info!("Graceful shutdown complete");

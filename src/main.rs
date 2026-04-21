@@ -10,7 +10,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use nzb_web::nzb_core::config::AppConfig;
 use nzb_web::{LogBuffer, LogBufferLayer, StartupConfig};
 
-use rustnzb::{handlers, server};
+use rustnzb::handlers;
 
 #[derive(Parser, Debug)]
 #[command(name = "rustnzb", version, about = "Usenet NZB download client")]
@@ -277,7 +277,38 @@ async fn main() -> anyhow::Result<()> {
 
     // Start HTTP server
     info!("Starting HTTP API server");
-    crate::server::run(result.state).await?;
+
+    #[cfg(feature = "webdav")]
+    {
+        use axum::Extension;
+        use std::sync::Arc;
+
+        let servers = result.queue_manager.get_servers();
+        let data_dir = result.state.config().general.data_dir.clone();
+        let dav_handle: Option<Arc<rustnzb::dav::DavHandle>> =
+            rustnzb::dav::DavHandle::init(&data_dir, servers)
+                .await
+                .inspect_err(|e| tracing::warn!("WebDAV init failed, running without it: {e}"))
+                .ok()
+                .map(Arc::new);
+
+        let router = {
+            let mut r = rustnzb::server::build_router(result.state.clone());
+            if let Some(ref dav) = dav_handle {
+                r = r.nest("/dav", nzbdav_dav::dav_router(Arc::clone(&dav.store)));
+                info!("WebDAV media library mounted at /dav");
+            }
+            // Always layer Option<Arc<DavHandle>> so h_status and h_dav_add can extract it.
+            r.layer(Extension(dav_handle))
+        };
+
+        rustnzb::server::serve(result.state, router).await?;
+    }
+
+    #[cfg(not(feature = "webdav"))]
+    {
+        rustnzb::server::run(result.state).await?;
+    }
 
     Ok(())
 }
