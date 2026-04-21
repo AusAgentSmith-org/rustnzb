@@ -269,6 +269,9 @@ steps:
     when:
       - event: push
         branch: main
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -279,11 +282,16 @@ steps:
       tags:
         - latest
         - ${CI_COMMIT_SHA}
+      build_args_from_env:
+        - GIT_AUTH_TOKEN
 
   - name: build-and-push-release
     image: woodpeckerci/plugin-docker-buildx
     when:
       - event: tag
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -296,6 +304,8 @@ steps:
         - latest
       build_args:
         - RELEASE_OPTIMIZED=true
+      build_args_from_env:
+        - GIT_AUTH_TOKEN
 
   - name: push-ghcr
     image: quay.io/skopeo/stable
