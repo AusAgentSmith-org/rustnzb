@@ -8,9 +8,9 @@ use flate2::read::GzDecoder;
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use nzb_web::nzb_core::config::{CategoryConfig, RssFeedConfig, ServerConfig};
 #[cfg(feature = "webdav")]
 use nzb_web::nzb_core::config::DavConfig;
+use nzb_web::nzb_core::config::{CategoryConfig, RssFeedConfig, ServerConfig};
 use nzb_web::nzb_core::models::*;
 use nzb_web::nzb_core::nzb_parser;
 use nzb_web::nzb_core::sabnzbd_import;
