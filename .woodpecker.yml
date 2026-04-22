@@ -5,6 +5,9 @@ when:
   - event: manual
   - event: pull_request
 
+labels:
+  platform: linux/amd64
+
 steps:
   # ─── Strip local [patch.*] overrides (not available in CI) ───────────────
   - name: strip-patches
