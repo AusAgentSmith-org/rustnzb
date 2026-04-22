@@ -242,6 +242,7 @@ interface PipelineStep {
               <th>Speed</th>
               <th>ETA</th>
               <th>Status</th>
+              <th>Priority</th>
               <th style="width:130px"></th>
             </tr>
           </thead>
@@ -255,12 +256,9 @@ interface PipelineStep {
                 </td>
                 <td>
                   <div class="job-name">{{ job.name }}</div>
-                  <div class="job-tags">
-                    @if (job.category) { <span class="tag cat">{{ job.category }}</span> }
-                    <button class="tag pri-btn" [class.pri-low]="job.priority === 0" [class.pri-normal]="job.priority === 1" [class.pri-high]="job.priority === 2" [class.pri-force]="job.priority === 3" (click)="cyclePriority(job)" [title]="'Priority: ' + priorityLabel(job.priority) + ' — click to change'">
-                      {{ priorityLabel(job.priority) }}
-                    </button>
-                  </div>
+                  @if (job.category) {
+                    <div class="job-tags"><span class="tag cat">{{ job.category }}</span></div>
+                  }
                 </td>
                 <td>{{ formatBytes(job.total_bytes) }}</td>
                 <td>
@@ -276,6 +274,11 @@ interface PipelineStep {
                 <td>{{ job.speed_bps > 0 ? formatSpeed(job.speed_bps) : '—' }}</td>
                 <td>{{ job.speed_bps > 0 ? eta(job) : '—' }}</td>
                 <td><span class="status-pill" [class]="statusClass(job.status)">{{ displayStatus(job.status) }}</span></td>
+                <td>
+                  <button class="pri-btn" [class.pri-low]="job.priority === 0" [class.pri-normal]="job.priority === 1" [class.pri-high]="job.priority === 2" [class.pri-force]="job.priority === 3" (click)="cyclePriority(job)" title="Click to change priority">
+                    {{ priorityLabel(job.priority) }}
+                  </button>
+                </td>
                 <td class="actions">
                   @if (job.status === 'paused') {
                     <button class="row-action" (click)="resumeJob(job.id)" title="resume">▶</button>
@@ -288,7 +291,7 @@ interface PipelineStep {
             }
 
             @if (filteredJobs().length === 0) {
-              <tr><td colspan="8" class="empty-cell">
+              <tr><td colspan="9" class="empty-cell">
                 @if (jobs().length === 0) {
                   No downloads in queue. Click <b>+ Upload NZB</b> in the top bar to add one.
                 } @else {
@@ -437,15 +440,15 @@ interface PipelineStep {
     .job-name { font-size: 13px; color: var(--text); }
     .job-tags { margin-top: 3px; }
     .pri-btn {
-      background: none; border: 1px solid var(--line); border-radius: 3px;
-      color: var(--mute); cursor: pointer; font: inherit; font-size: 10px;
-      padding: 0 5px; line-height: 16px; transition: color .15s, border-color .15s;
+      background: none; border: 1px solid var(--line); border-radius: 4px;
+      color: var(--text); cursor: pointer; font: inherit; font-size: 11px;
+      padding: 2px 8px; line-height: 18px; transition: all .15s; white-space: nowrap;
     }
-    .pri-btn:hover { color: var(--text); border-color: var(--accent); }
-    .pri-btn.pri-low    { color: var(--mute); }
-    .pri-btn.pri-normal { color: var(--mute); }
-    .pri-btn.pri-high   { color: var(--accent); border-color: var(--accent); }
-    .pri-btn.pri-force  { color: var(--purple, #a78bfa); border-color: var(--purple, #a78bfa); }
+    .pri-btn:hover { border-color: var(--accent); background: rgba(59,130,246,.08); }
+    .pri-btn.pri-low    { color: var(--mute); border-color: var(--line); }
+    .pri-btn.pri-normal { color: var(--text); border-color: var(--line); }
+    .pri-btn.pri-high   { color: var(--accent); border-color: var(--accent); background: rgba(59,130,246,.08); }
+    .pri-btn.pri-force  { color: #fff; border-color: #a78bfa; background: rgba(167,139,250,.25); }
     .prog-sub { color: var(--mute); font-size: 11px; margin-top: 2px; }
     .actions { white-space: nowrap; }
     .empty-cell {
