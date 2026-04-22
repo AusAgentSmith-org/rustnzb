@@ -292,6 +292,62 @@ async fn main() -> anyhow::Result<()> {
                 .ok()
                 .map(Arc::new);
 
+        // Spawn background task: auto-send completed downloads to DAV pipeline
+        // when DavConfig.auto_send_all or category_rules matches.
+        if let Some(ref dav) = dav_handle {
+            let dav_clone = Arc::clone(dav);
+            let state_clone = result.state.clone();
+            let mut completions = result.queue_manager.subscribe_completions();
+            tokio::spawn(async move {
+                loop {
+                    match completions.recv().await {
+                        Ok(event) => {
+                            if event.status != nzb_web::nzb_core::models::JobStatus::Completed {
+                                continue;
+                            }
+                            let dav_cfg = state_clone.config().dav.clone();
+                            let should_send = dav_cfg.auto_send_all
+                                || dav_cfg.category_rules.contains(&event.category);
+                            if !should_send {
+                                continue;
+                            }
+                            // Look up NZB data from history.
+                            let nzb_data = match state_clone
+                                .queue_manager
+                                .history_get_nzb_data(&event.id)
+                            {
+                                Ok(Some(d)) => d,
+                                Ok(None) => {
+                                    tracing::warn!(
+                                        job = %event.name,
+                                        "DAV auto-send: no NZB data retained"
+                                    );
+                                    continue;
+                                }
+                                Err(e) => {
+                                    tracing::warn!(job = %event.name, error = %e, "DAV auto-send: DB error");
+                                    continue;
+                                }
+                            };
+                            let file_name = format!("{}.nzb", event.name);
+                            if let Err(e) = dav_clone
+                                .enqueue_nzb(&file_name, &event.name, &nzb_data)
+                                .await
+                            {
+                                tracing::warn!(job = %event.name, error = %e, "DAV auto-send: enqueue failed");
+                            } else {
+                                tracing::info!(job = %event.name, "DAV auto-send: queued");
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("DAV auto-send: missed {n} completion events (lagged)");
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
+        }
+
         let router = {
             let mut r = rustnzb::server::build_router(result.state.clone());
             if let Some(ref dav) = dav_handle {

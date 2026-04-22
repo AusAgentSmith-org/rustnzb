@@ -235,7 +235,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     #[cfg(feature = "webdav")]
     let api_routes = api_routes
         .route("/dav/add", post(handlers::h_dav_add))
-        .route("/dav/status", get(handlers::h_dav_status));
+        .route("/dav/status", get(handlers::h_dav_status))
+        .route(
+            "/config/dav",
+            get(handlers::h_dav_config_get).put(handlers::h_dav_config_set),
+        );
 
     // Arr-compatible API (Sonarr/Radarr) — uses its own API key auth
     // Sonarr/Radarr hit /api (the standard SABnzbd path), so register both.

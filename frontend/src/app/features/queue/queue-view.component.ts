@@ -257,9 +257,9 @@ interface PipelineStep {
                   <div class="job-name">{{ job.name }}</div>
                   <div class="job-tags">
                     @if (job.category) { <span class="tag cat">{{ job.category }}</span> }
-                    @if (priorityLabel(job.priority) !== 'Normal') {
-                      <span class="tag pri">{{ priorityLabel(job.priority) }}</span>
-                    }
+                    <button class="tag pri-btn" [class.pri-low]="job.priority === 0" [class.pri-normal]="job.priority === 1" [class.pri-high]="job.priority === 2" [class.pri-force]="job.priority === 3" (click)="cyclePriority(job)" [title]="'Priority: ' + priorityLabel(job.priority) + ' — click to change'">
+                      {{ priorityLabel(job.priority) }}
+                    </button>
                   </div>
                 </td>
                 <td>{{ formatBytes(job.total_bytes) }}</td>
@@ -436,6 +436,16 @@ interface PipelineStep {
     /* Table overrides */
     .job-name { font-size: 13px; color: var(--text); }
     .job-tags { margin-top: 3px; }
+    .pri-btn {
+      background: none; border: 1px solid var(--line); border-radius: 3px;
+      color: var(--mute); cursor: pointer; font: inherit; font-size: 10px;
+      padding: 0 5px; line-height: 16px; transition: color .15s, border-color .15s;
+    }
+    .pri-btn:hover { color: var(--text); border-color: var(--accent); }
+    .pri-btn.pri-low    { color: var(--mute); }
+    .pri-btn.pri-normal { color: var(--mute); }
+    .pri-btn.pri-high   { color: var(--accent); border-color: var(--accent); }
+    .pri-btn.pri-force  { color: var(--purple, #a78bfa); border-color: var(--purple, #a78bfa); }
     .prog-sub { color: var(--mute); font-size: 11px; margin-top: 2px; }
     .actions { white-space: nowrap; }
     .empty-cell {
@@ -704,6 +714,14 @@ export class QueueViewComponent implements OnInit, OnDestroy {
 
   pauseJob(id: string): void { this.api.post(`/queue/${id}/pause`).subscribe(() => this.loadQueue()); }
   resumeJob(id: string): void { this.api.post(`/queue/${id}/resume`).subscribe(() => this.loadQueue()); }
+
+  cyclePriority(job: NzbJob): void {
+    const next = (job.priority + 1) % 4;
+    this.api.put(`/queue/${job.id}/priority`, { priority: next }).subscribe({
+      next: () => this.loadQueue(),
+      error: () => {},
+    });
+  }
   deleteJob(id: string): void {
     this.api.delete(`/queue/${id}`).subscribe(() => this.loadQueue());
   }

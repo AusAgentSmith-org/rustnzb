@@ -9,6 +9,8 @@ use http::StatusCode;
 use serde::{Deserialize, Serialize};
 
 use nzb_web::nzb_core::config::{CategoryConfig, RssFeedConfig, ServerConfig};
+#[cfg(feature = "webdav")]
+use nzb_web::nzb_core::config::DavConfig;
 use nzb_web::nzb_core::models::*;
 use nzb_web::nzb_core::nzb_parser;
 use nzb_web::nzb_core::sabnzbd_import;
@@ -1913,4 +1915,34 @@ pub async fn h_dav_add(
         status: true,
         dav_id: dav_id.to_string(),
     }))
+}
+
+// ---------------------------------------------------------------------------
+// DAV config handlers
+// ---------------------------------------------------------------------------
+
+/// GET /api/config/dav -- Get DAV auto-send configuration.
+#[cfg(feature = "webdav")]
+pub async fn h_dav_config_get(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<DavConfig>, ApiError> {
+    Ok(Json(state.config().dav.clone()))
+}
+
+/// PUT /api/config/dav -- Update DAV auto-send configuration.
+///
+/// When `auto_send_all` is true the `category_rules` list is cleared — the two
+/// modes are mutually exclusive.
+#[cfg(feature = "webdav")]
+pub async fn h_dav_config_set(
+    State(state): State<Arc<AppState>>,
+    Json(mut body): Json<DavConfig>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.auto_send_all {
+        body.category_rules.clear();
+    }
+    let mut config = (*state.config()).clone();
+    config.dav = body;
+    state.update_config(config).map_err(ApiError::from)?;
+    Ok(Json(serde_json::json!({ "status": true })))
 }

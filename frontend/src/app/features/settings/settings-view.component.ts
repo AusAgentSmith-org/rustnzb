@@ -1,9 +1,10 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
+import { StatusResponse } from '../../core/models/queue.model';
 
 interface ServerConfig {
   id: string; name: string; host: string; port: number; ssl: boolean; ssl_verify: boolean;
@@ -26,8 +27,13 @@ interface ServerStats {
 
 type Tab =
   | 'servers' | 'rss-cfg'
-  | 'categories' | 'postproc' | 'paths'
+  | 'categories' | 'postproc' | 'paths' | 'dav'
   | 'general' | 'api' | 'telemetry' | 'about';
+
+interface DavConfig {
+  auto_send_all: boolean;
+  category_rules: string[];
+}
 
 function emptyServer(): ServerConfig {
   return {
@@ -59,6 +65,9 @@ function emptyCategory(): CategoryConfig {
         <button [class.active]="tab === 'categories'" (click)="tab = 'categories'">Categories</button>
         <button [class.active]="tab === 'postproc'"   (click)="tab = 'postproc'">Post-processing</button>
         <button [class.active]="tab === 'paths'"      (click)="tab = 'paths'">Paths &amp; disk</button>
+        @if (webdavEnabled()) {
+          <button [class.active]="tab === 'dav'" (click)="tab = 'dav'">Media Library (DAV)</button>
+        }
 
         <div class="sg">System</div>
         <button [class.active]="tab === 'general'"    (click)="tab = 'general'">General</button>
@@ -403,6 +412,51 @@ function emptyCategory(): CategoryConfig {
           </div>
         }
 
+        <!-- =========== MEDIA LIBRARY (DAV) =========== -->
+        @if (tab === 'dav') {
+          <div class="section-head">
+            <div>
+              <h2>Media Library (DAV)</h2>
+              <div class="sub">Stream completed downloads directly via WebDAV.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Auto-send to Media Library</h3>
+            <div class="body">
+              <div class="form">
+                <label>Send all downloads</label>
+                <div class="inline">
+                  <label class="toggle">
+                    <input type="checkbox" [(ngModel)]="davConfig.auto_send_all" (change)="onAutoSendAllChange()" />
+                    <span>Automatically queue every completed download into the Media Library</span>
+                  </label>
+                </div>
+
+                @if (!davConfig.auto_send_all) {
+                  <label>Auto-send categories</label>
+                  <div class="dav-cats">
+                    @if (categories().length === 0) {
+                      <span class="dim">No categories configured — add categories first.</span>
+                    }
+                    @for (cat of categories(); track cat.name) {
+                      <label class="check">
+                        <input type="checkbox"
+                               [checked]="davConfig.category_rules.includes(cat.name)"
+                               (change)="toggleDavCategory(cat.name, $event)" />
+                        {{ cat.name }}
+                      </label>
+                    }
+                  </div>
+                }
+              </div>
+              <div class="form-actions">
+                <button class="btn primary" (click)="saveDavConfig()">Save</button>
+              </div>
+            </div>
+          </div>
+        }
+
         <!-- =========== GENERAL =========== -->
         @if (tab === 'general') {
           <div class="section-head">
@@ -619,6 +673,9 @@ function emptyCategory(): CategoryConfig {
     .empty-cell { text-align: center; padding: 28px !important; color: var(--mute); font-size: 13px; }
 
     .form-actions { margin-top: 14px; display: flex; gap: 8px; }
+
+    .dav-cats { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+    .dim { color: var(--mute); font-size: 12px; }
   `],
 })
 export class SettingsViewComponent implements OnInit {
@@ -647,12 +704,30 @@ export class SettingsViewComponent implements OnInit {
   minFreeSpaceGB = 1;
   abortHopeless = true;
 
+  // Status / feature flags
+  status = signal<StatusResponse | null>(null);
+  webdavEnabled = computed(() => this.status()?.webdav_enabled ?? false);
+
+  // DAV config
+  davConfig: DavConfig = { auto_send_all: false, category_rules: [] };
+
   constructor(private api: ApiService, private snack: MatSnackBar) {}
 
   ngOnInit(): void {
     this.loadServers();
     this.loadCategories();
     this.loadGeneralSettings();
+    this.loadStatus();
+  }
+
+  loadStatus(): void {
+    this.api.get<StatusResponse>('/status').subscribe({
+      next: s => {
+        this.status.set(s);
+        if (s.webdav_enabled) this.loadDavConfig();
+      },
+      error: () => {},
+    });
   }
 
   // ======================== SERVERS ========================
@@ -929,6 +1004,39 @@ export class SettingsViewComponent implements OnInit {
     this.api.put('/config/history-retention', { retention: this.historyRetention }).subscribe({
       next: () => this.snack.open('History retention saved', 'Close', { duration: 2000 }),
       error: () => this.snack.open('Failed to save retention', 'Close', { duration: 3000 }),
+    });
+  }
+
+  // ======================== DAV CONFIG ========================
+
+  loadDavConfig(): void {
+    this.api.get<DavConfig>('/config/dav').subscribe({
+      next: cfg => this.davConfig = { ...cfg },
+      error: () => {},
+    });
+  }
+
+  onAutoSendAllChange(): void {
+    if (this.davConfig.auto_send_all) {
+      this.davConfig.category_rules = [];
+    }
+  }
+
+  toggleDavCategory(name: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    if (checked) {
+      if (!this.davConfig.category_rules.includes(name)) {
+        this.davConfig.category_rules = [...this.davConfig.category_rules, name];
+      }
+    } else {
+      this.davConfig.category_rules = this.davConfig.category_rules.filter(r => r !== name);
+    }
+  }
+
+  saveDavConfig(): void {
+    this.api.put('/config/dav', this.davConfig).subscribe({
+      next: () => this.snack.open('Media Library settings saved', 'Close', { duration: 2000 }),
+      error: () => this.snack.open('Failed to save Media Library settings', 'Close', { duration: 3000 }),
     });
   }
 }
