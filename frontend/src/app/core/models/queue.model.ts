@@ -34,12 +34,14 @@ export interface QueueResponse {
 }
 
 export interface StatusResponse {
+  version: string;
   speed_bps: number;
+  speed_limit_bps: number;
   queue_size: number;
-  queue_remaining_bytes: number;
-  disk_free_bytes: number;
+  disk_space_free: number;
+  min_free_space_bytes: number;
   paused: boolean;
-  uptime_secs: number;
+  pause_remaining_secs: number | null;
   webdav_enabled: boolean;
 }
 
