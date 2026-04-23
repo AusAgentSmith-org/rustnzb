@@ -152,6 +152,41 @@ steps:
       - event: tag
       - event: manual
 
+  - name: build-linux-arm64
+    image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n' > $CARGO_HOME/config.toml
+      - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
+      - apt-get update && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu protobuf-compiler
+      - rustup target add aarch64-unknown-linux-gnu
+      - export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+      - export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+      - export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+      - if [ -n "$CI_COMMIT_TAG" ]; then export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_STRIP=symbols; fi
+      - cargo build --release --target aarch64-unknown-linux-gnu
+      - ls -lh target/aarch64-unknown-linux-gnu/release/rustnzb
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          TAG="$CI_COMMIT_TAG"
+          mkdir -p dist-arm64/rustnzb-$TAG
+          cp target/aarch64-unknown-linux-gnu/release/rustnzb dist-arm64/rustnzb-$TAG/
+          cp config.example.toml dist-arm64/rustnzb-$TAG/
+          cp README.md dist-arm64/rustnzb-$TAG/
+          tar -czf "rustnzb-$TAG-linux-aarch64.tar.gz" -C dist-arm64 "rustnzb-$TAG"
+          ls -lh "rustnzb-$TAG-linux-aarch64.tar.gz"
+          cargo install cargo-deb --registry crates-io
+          cargo deb --no-build --no-strip --target aarch64-unknown-linux-gnu -o "rustnzb-$TAG-arm64.deb"
+          ls -lh "rustnzb-$TAG-arm64.deb"
+        fi
+    when:
+      - event: push
+        branch: main
+      - event: tag
+      - event: manual
+
   - name: build-windows
     image: rust:1.88-bookworm
     environment:
@@ -201,13 +236,14 @@ steps:
       - |
         set -ex
         TAG="$CI_COMMIT_TAG"
+        ARTEFACTS="rustnzb-$TAG-linux-x86_64.tar.gz rustnzb-$TAG-linux-aarch64.tar.gz rustnzb-$TAG-windows-x86_64-setup.exe rustnzb-$TAG-amd64.deb rustnzb-$TAG-arm64.deb"
         echo "=== Artifacts in workspace ==="
-        ls -lh "rustnzb-$TAG-linux-x86_64.tar.gz" "rustnzb-$TAG-windows-x86_64-setup.exe" "rustnzb-$TAG-amd64.deb"
+        ls -lh $ARTEFACTS
         echo "Publishing release $TAG"
-        sha256sum "rustnzb-$TAG-linux-x86_64.tar.gz" "rustnzb-$TAG-windows-x86_64-setup.exe" "rustnzb-$TAG-amd64.deb" > "SHA256SUMS-$TAG.txt"
+        sha256sum $ARTEFACTS > "SHA256SUMS-$TAG.txt"
         ls -lh "SHA256SUMS-$TAG.txt"
         ssh -i ~/.ssh/id_ed25519 -F ~/.ssh/config root@100.92.4.57 "mkdir -p /root/downloads/rustnzb/$TAG"
-        scp -O -F ~/.ssh/config -i ~/.ssh/id_ed25519 "rustnzb-$TAG-linux-x86_64.tar.gz" "rustnzb-$TAG-windows-x86_64-setup.exe" "rustnzb-$TAG-amd64.deb" "SHA256SUMS-$TAG.txt" root@100.92.4.57:/root/downloads/rustnzb/$TAG/
+        scp -O -F ~/.ssh/config -i ~/.ssh/id_ed25519 $ARTEFACTS "SHA256SUMS-$TAG.txt" root@100.92.4.57:/root/downloads/rustnzb/$TAG/
         ssh -i ~/.ssh/id_ed25519 -F ~/.ssh/config root@100.92.4.57 "ln -sfn $TAG /root/downloads/rustnzb/latest"
         echo "Published https://dl.rustnzb.dev/latest/"
 
@@ -230,9 +266,11 @@ steps:
 
         BODY="## Downloads\n\n"
         BODY="$BODY- **Linux x86_64**: \`rustnzb-$TAG-linux-x86_64.tar.gz\`\n"
+        BODY="$BODY- **Linux aarch64**: \`rustnzb-$TAG-linux-aarch64.tar.gz\`\n"
         BODY="$BODY- **Windows x86_64 installer**: \`rustnzb-$TAG-windows-x86_64-setup.exe\`\n"
-        BODY="$BODY- **Debian/Ubuntu**: \`rustnzb-$TAG-amd64.deb\`\n"
-        BODY="$BODY- **Docker**: \`ghcr.io/ausagentsmith-org/rustnzb:$TAG\`\n"
+        BODY="$BODY- **Debian/Ubuntu (amd64)**: \`rustnzb-$TAG-amd64.deb\`\n"
+        BODY="$BODY- **Debian/Ubuntu (arm64)**: \`rustnzb-$TAG-arm64.deb\`\n"
+        BODY="$BODY- **Docker (multi-arch: amd64/arm64)**: \`ghcr.io/ausagentsmith-org/rustnzb:$TAG\`\n"
         BODY="$BODY\nSHA256 checksums in \`SHA256SUMS-$TAG.txt\`"
 
         EXISTING_ID=$(curl -s -H "Authorization: token $FORGEJO_TOKEN" \
@@ -253,8 +291,10 @@ steps:
 
         for file in \
           "rustnzb-$TAG-linux-x86_64.tar.gz" \
+          "rustnzb-$TAG-linux-aarch64.tar.gz" \
           "rustnzb-$TAG-windows-x86_64-setup.exe" \
           "rustnzb-$TAG-amd64.deb" \
+          "rustnzb-$TAG-arm64.deb" \
           "SHA256SUMS-$TAG.txt"; do
           [ -f "$file" ] || continue
           echo "Uploading $file"
@@ -282,6 +322,7 @@ steps:
         from_secret: git_auth_token
       password:
         from_secret: git_auth_token
+      platforms: linux/amd64,linux/arm64
       tags:
         - latest
         - ${CI_COMMIT_SHA}
@@ -302,6 +343,7 @@ steps:
         from_secret: git_auth_token
       password:
         from_secret: git_auth_token
+      platforms: linux/amd64,linux/arm64
       tags:
         - ${CI_COMMIT_TAG}
         - latest
@@ -323,8 +365,8 @@ steps:
       - SRC="docker://repo.indexarr.net/indexarr/rustnzbd:$CI_COMMIT_TAG"
       - SRC_CREDS="--src-creds=$FORGEJO_TOKEN:$FORGEJO_TOKEN"
       - DST_CREDS="--dest-creds=AusAgentSmith:$GH_TOKEN"
-      - skopeo copy $SRC_CREDS $DST_CREDS $SRC "docker://ghcr.io/ausagentsmith-org/rustnzb:$CI_COMMIT_TAG"
-      - skopeo copy $SRC_CREDS $DST_CREDS $SRC "docker://ghcr.io/ausagentsmith-org/rustnzb:latest"
+      - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS $SRC "docker://ghcr.io/ausagentsmith-org/rustnzb:$CI_COMMIT_TAG"
+      - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS $SRC "docker://ghcr.io/ausagentsmith-org/rustnzb:latest"
 
   - name: github-release
     image: alpine:3.23
@@ -343,9 +385,11 @@ steps:
 
         BODY="## Downloads\n\n"
         BODY="$BODY- **Linux x86_64**: \`rustnzb-$TAG-linux-x86_64.tar.gz\`\n"
+        BODY="$BODY- **Linux aarch64**: \`rustnzb-$TAG-linux-aarch64.tar.gz\`\n"
         BODY="$BODY- **Windows x86_64 installer**: \`rustnzb-$TAG-windows-x86_64-setup.exe\`\n"
-        BODY="$BODY- **Debian/Ubuntu**: \`rustnzb-$TAG-amd64.deb\`\n"
-        BODY="$BODY- **Docker**: \`ghcr.io/ausagentsmith-org/rustnzb:$TAG\`\n"
+        BODY="$BODY- **Debian/Ubuntu (amd64)**: \`rustnzb-$TAG-amd64.deb\`\n"
+        BODY="$BODY- **Debian/Ubuntu (arm64)**: \`rustnzb-$TAG-arm64.deb\`\n"
+        BODY="$BODY- **Docker (multi-arch: amd64/arm64)**: \`ghcr.io/ausagentsmith-org/rustnzb:$TAG\`\n"
         BODY="$BODY\nSHA256 checksums in \`SHA256SUMS-$TAG.txt\`"
 
         EXISTING_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
@@ -368,8 +412,10 @@ steps:
 
         for file in \
           "rustnzb-$TAG-linux-x86_64.tar.gz" \
+          "rustnzb-$TAG-linux-aarch64.tar.gz" \
           "rustnzb-$TAG-windows-x86_64-setup.exe" \
           "rustnzb-$TAG-amd64.deb" \
+          "rustnzb-$TAG-arm64.deb" \
           "SHA256SUMS-$TAG.txt"; do
           [ -f "$file" ] || continue
           echo "Uploading $file"
