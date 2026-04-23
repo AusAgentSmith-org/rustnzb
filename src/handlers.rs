@@ -364,8 +364,13 @@ fn enqueue_nzb(
     job.work_dir = qm.incomplete_dir().join(&job.id);
     job.output_dir = qm.complete_dir().join(&job.category).join(&job.name);
 
-    std::fs::create_dir_all(&job.work_dir)
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
+    std::fs::create_dir_all(&job.work_dir).map_err(|e| {
+        ApiError::from(anyhow::anyhow!(
+            "Failed to create work dir '{}': {}",
+            job.work_dir.display(),
+            e
+        ))
+    })?;
 
     let id = job.id.clone();
 
@@ -657,8 +662,13 @@ pub async fn h_history_retry(
     job.work_dir = qm.incomplete_dir().join(&job.id);
     job.output_dir = qm.complete_dir().join(&job.category).join(&job.name);
 
-    std::fs::create_dir_all(&job.work_dir)
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
+    std::fs::create_dir_all(&job.work_dir).map_err(|e| {
+        ApiError::from(anyhow::anyhow!(
+            "Failed to create work dir '{}': {}",
+            job.work_dir.display(),
+            e
+        ))
+    })?;
 
     let new_id = job.id.clone();
 
@@ -1261,8 +1271,13 @@ pub async fn h_rss_item_download(
         state.queue_manager.complete_dir().join(&job.name)
     };
 
-    std::fs::create_dir_all(&job.work_dir)
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
+    std::fs::create_dir_all(&job.work_dir).map_err(|e| {
+        ApiError::from(anyhow::anyhow!(
+            "Failed to create work dir '{}': {}",
+            job.work_dir.display(),
+            e
+        ))
+    })?;
 
     state
         .queue_manager

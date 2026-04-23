@@ -420,8 +420,13 @@ pub async fn h_header_download(
     job.work_dir = qm.incomplete_dir().join(&job.id);
     job.output_dir = qm.complete_dir().join(&job.category).join(&job.name);
 
-    std::fs::create_dir_all(&job.work_dir)
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
+    std::fs::create_dir_all(&job.work_dir).map_err(|e| {
+        ApiError::from(anyhow::anyhow!(
+            "Failed to create work dir '{}': {}",
+            job.work_dir.display(),
+            e
+        ))
+    })?;
 
     let job_id = job.id.clone();
     tracing::info!(name = %job.name, id = %job.id, files = job.file_count, "Download from headers");
