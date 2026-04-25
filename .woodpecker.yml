@@ -318,9 +318,9 @@ steps:
     when:
       - event: push
         branch: main
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
+    secrets:
+      - source: git_auth_token
+        target: GIT_AUTH_TOKEN
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -339,9 +339,9 @@ steps:
     image: woodpeckerci/plugin-docker-buildx
     when:
       - event: tag
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
+    secrets:
+      - source: git_auth_token
+        target: GIT_AUTH_TOKEN
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -362,9 +362,9 @@ steps:
     image: woodpeckerci/plugin-docker-buildx
     when:
       - event: tag
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
+    secrets:
+      - source: git_auth_token
+        target: GIT_AUTH_TOKEN
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
