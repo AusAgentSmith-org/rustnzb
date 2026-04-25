@@ -64,8 +64,11 @@ RUN RUST_TARGET=$(cat /tmp/rust_target) && \
              CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
              CARGO_PROFILE_RELEASE_STRIP=symbols; \
     fi && \
+    mkdir -p /build/tmp && \
+    TMPDIR=/build/tmp CARGO_INCREMENTAL=0 \
     cargo zigbuild --release --features webdav,vendored-openssl --target "$RUST_TARGET" && \
-    cp "target/$RUST_TARGET/release/rustnzb" /build/rustnzb-out
+    cp "target/$RUST_TARGET/release/rustnzb" /build/rustnzb-out && \
+    rm -rf target /build/tmp
 
 
 FROM lscr.io/linuxserver/baseimage-alpine:3.21
