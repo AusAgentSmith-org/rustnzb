@@ -60,15 +60,14 @@ ARG RELEASE_OPTIMIZED=false
 
 RUN RUST_TARGET=$(cat /tmp/rust_target) && \
     if [ "$RELEASE_OPTIMIZED" = "true" ]; then \
-      export CARGO_PROFILE_RELEASE_LTO=fat \
+      export CARGO_PROFILE_RELEASE_LTO=thin \
              CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
              CARGO_PROFILE_RELEASE_STRIP=symbols; \
     fi && \
-    mkdir -p /build/tmp && \
-    TMPDIR=/build/tmp CARGO_INCREMENTAL=0 \
+    CARGO_INCREMENTAL=0 \
     cargo zigbuild --release --features webdav,vendored-openssl --target "$RUST_TARGET" && \
     cp "target/$RUST_TARGET/release/rustnzb" /build/rustnzb-out && \
-    rm -rf target /build/tmp
+    rm -rf target
 
 
 FROM lscr.io/linuxserver/baseimage-alpine:3.21
