@@ -307,7 +307,10 @@ steps:
 
   # ─── Docker (push to main = latest+sha; tag = version+latest) ────────────
 
-  - name: build-and-push
+  # Split per-arch to halve peak disk: building both platforms in one buildx
+  # step runs the cross-compiles in parallel and OOMs the runner's overlayfs
+  # (vendored OpenSSL + zopfli for arm64 alone needs >2GB scratch).
+  - name: build-and-push-amd64
     image: woodpeckerci/plugin-docker-buildx
     when:
       - event: push
@@ -322,14 +325,58 @@ steps:
         from_secret: git_auth_token
       password:
         from_secret: git_auth_token
-      platforms: linux/amd64,linux/arm64
+      platforms: linux/amd64
       tags:
-        - latest
-        - ${CI_COMMIT_SHA}
+        - latest-amd64
+        - ${CI_COMMIT_SHA}-amd64
       build_args_from_env:
         - GIT_AUTH_TOKEN
 
-  - name: build-and-push-release
+  - name: build-and-push-arm64
+    image: woodpeckerci/plugin-docker-buildx
+    when:
+      - event: push
+        branch: main
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    settings:
+      repo: repo.indexarr.net/indexarr/rustnzbd
+      registry: repo.indexarr.net
+      username:
+        from_secret: git_auth_token
+      password:
+        from_secret: git_auth_token
+      platforms: linux/arm64
+      tags:
+        - latest-arm64
+        - ${CI_COMMIT_SHA}-arm64
+      build_args_from_env:
+        - GIT_AUTH_TOKEN
+
+  - name: manifest
+    image: mplatform/manifest-tool:alpine
+    when:
+      - event: push
+        branch: main
+    environment:
+      REGISTRY_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - |
+        manifest-tool --username x-access-token --password "$REGISTRY_TOKEN" \
+          push from-args \
+          --platforms linux/amd64,linux/arm64 \
+          --template repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_SHA}-ARCH \
+          --target repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_SHA}
+      - |
+        manifest-tool --username x-access-token --password "$REGISTRY_TOKEN" \
+          push from-args \
+          --platforms linux/amd64,linux/arm64 \
+          --template repo.indexarr.net/indexarr/rustnzbd:latest-ARCH \
+          --target repo.indexarr.net/indexarr/rustnzbd:latest
+
+  - name: build-and-push-release-amd64
     image: woodpeckerci/plugin-docker-buildx
     when:
       - event: tag
@@ -343,14 +390,58 @@ steps:
         from_secret: git_auth_token
       password:
         from_secret: git_auth_token
-      platforms: linux/amd64,linux/arm64
+      platforms: linux/amd64
       tags:
-        - ${CI_COMMIT_TAG}
-        - latest
+        - ${CI_COMMIT_TAG}-amd64
+        - latest-amd64
       build_args:
         - RELEASE_OPTIMIZED=true
       build_args_from_env:
         - GIT_AUTH_TOKEN
+
+  - name: build-and-push-release-arm64
+    image: woodpeckerci/plugin-docker-buildx
+    when:
+      - event: tag
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    settings:
+      repo: repo.indexarr.net/indexarr/rustnzbd
+      registry: repo.indexarr.net
+      username:
+        from_secret: git_auth_token
+      password:
+        from_secret: git_auth_token
+      platforms: linux/arm64
+      tags:
+        - ${CI_COMMIT_TAG}-arm64
+        - latest-arm64
+      build_args:
+        - RELEASE_OPTIMIZED=true
+      build_args_from_env:
+        - GIT_AUTH_TOKEN
+
+  - name: manifest-release
+    image: mplatform/manifest-tool:alpine
+    when:
+      - event: tag
+    environment:
+      REGISTRY_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - |
+        manifest-tool --username x-access-token --password "$REGISTRY_TOKEN" \
+          push from-args \
+          --platforms linux/amd64,linux/arm64 \
+          --template repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_TAG}-ARCH \
+          --target repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_TAG}
+      - |
+        manifest-tool --username x-access-token --password "$REGISTRY_TOKEN" \
+          push from-args \
+          --platforms linux/amd64,linux/arm64 \
+          --template repo.indexarr.net/indexarr/rustnzbd:latest-ARCH \
+          --target repo.indexarr.net/indexarr/rustnzbd:latest
 
   - name: push-ghcr
     image: quay.io/skopeo/stable
