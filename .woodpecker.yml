@@ -318,9 +318,6 @@ steps:
     when:
       - event: push
         branch: main
-    secrets:
-      - source: git_auth_token
-        target: GIT_AUTH_TOKEN
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -333,15 +330,12 @@ steps:
         - latest
         - ${CI_COMMIT_SHA}
       build_args_from_env:
-        - GIT_AUTH_TOKEN
+        - PLUGIN_PASSWORD
 
   - name: build-and-push-release-amd64
     image: woodpeckerci/plugin-docker-buildx
     when:
       - event: tag
-    secrets:
-      - source: git_auth_token
-        target: GIT_AUTH_TOKEN
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -356,15 +350,12 @@ steps:
       build_args:
         - RELEASE_OPTIMIZED=true
       build_args_from_env:
-        - GIT_AUTH_TOKEN
+        - PLUGIN_PASSWORD
 
   - name: build-and-push-release-arm64
     image: woodpeckerci/plugin-docker-buildx
     when:
       - event: tag
-    secrets:
-      - source: git_auth_token
-        target: GIT_AUTH_TOKEN
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -379,7 +370,7 @@ steps:
       build_args:
         - RELEASE_OPTIMIZED=true
       build_args_from_env:
-        - GIT_AUTH_TOKEN
+        - PLUGIN_PASSWORD
 
   - name: manifest-release
     image: mplatform/manifest-tool:alpine
