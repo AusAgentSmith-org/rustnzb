@@ -25,7 +25,6 @@ pub struct DavHandle {
     /// Persistent connection reused by enqueue_nzb / pipeline_status; the queue
     /// loop uses its own connections to avoid blocking the main runtime.
     db: Arc<SqliteDavDatabase>,
-    db_path: String,
     cancel: CancellationToken,
     _thread: std::thread::JoinHandle<()>,
 }
@@ -85,7 +84,6 @@ impl DavHandle {
         Ok(Self {
             store,
             db: db_for_handle,
-            db_path,
             cancel,
             _thread: thread,
         })
