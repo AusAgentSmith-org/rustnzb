@@ -240,11 +240,6 @@ async fn main() -> anyhow::Result<()> {
 
     info!("rustnzb v{}", env!("CARGO_PKG_VERSION"));
 
-    // If OTEL metrics enabled, spawn a metrics reporter
-    if config.otel.enabled && _otel_meter_provider.is_some() {
-        // We'll spawn the reporter after initialization when we have the queue_manager
-    }
-
     // Initialize the engine (config, DB, queue manager, background services)
     let result = nzb_web::startup::initialize(
         StartupConfig {
@@ -292,40 +287,31 @@ async fn main() -> anyhow::Result<()> {
                 .ok()
                 .map(Arc::new);
 
-        // Spawn background task: auto-send completed downloads to DAV pipeline
-        // when DavConfig.auto_send_all or category_rules matches.
+        // Spawn background task: auto-send jobs to DAV streaming pipeline immediately
+        // on add (before download begins) when DavConfig.auto_send_all or
+        // category_rules matches. This enables on-demand Usenet streaming from
+        // the /dav endpoint without waiting for the download to complete.
         if let Some(ref dav) = dav_handle {
             let dav_clone = Arc::clone(dav);
             let state_clone = result.state.clone();
-            let mut completions = result.queue_manager.subscribe_completions();
+            let mut additions = result.queue_manager.subscribe_additions();
             tokio::spawn(async move {
                 loop {
-                    match completions.recv().await {
+                    match additions.recv().await {
                         Ok(event) => {
-                            if event.status != nzb_web::nzb_core::models::JobStatus::Completed {
-                                continue;
-                            }
                             let dav_cfg = state_clone.config().dav.clone();
                             let should_send = dav_cfg.auto_send_all
                                 || dav_cfg.category_rules.contains(&event.category);
                             if !should_send {
                                 continue;
                             }
-                            // Look up NZB data from history.
-                            let nzb_data = match state_clone
-                                .queue_manager
-                                .history_get_nzb_data(&event.id)
-                            {
-                                Ok(Some(d)) => d,
-                                Ok(None) => {
+                            let nzb_data = match event.nzb_data {
+                                Some(d) => d,
+                                None => {
                                     tracing::warn!(
                                         job = %event.name,
-                                        "DAV auto-send: no NZB data retained"
+                                        "DAV auto-send: no NZB data at add time"
                                     );
-                                    continue;
-                                }
-                                Err(e) => {
-                                    tracing::warn!(job = %event.name, error = %e, "DAV auto-send: DB error");
                                     continue;
                                 }
                             };
@@ -336,11 +322,11 @@ async fn main() -> anyhow::Result<()> {
                             {
                                 tracing::warn!(job = %event.name, error = %e, "DAV auto-send: enqueue failed");
                             } else {
-                                tracing::info!(job = %event.name, "DAV auto-send: queued");
+                                tracing::info!(job = %event.name, "DAV auto-send: queued for streaming");
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                            tracing::warn!("DAV auto-send: missed {n} completion events (lagged)");
+                            tracing::warn!("DAV auto-send: missed {n} add events (lagged)");
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                     }
@@ -351,8 +337,29 @@ async fn main() -> anyhow::Result<()> {
         let router = {
             let mut r = rustnzb::server::build_router(result.state.clone());
             if let Some(ref dav) = dav_handle {
-                r = r.nest("/dav", nzbdav_dav::dav_router(Arc::clone(&dav.store)));
-                info!("WebDAV media library mounted at /dav");
+                let auth_state = result.state.clone();
+                let dav_auth = axum::middleware::from_fn(
+                    move |headers: axum::http::HeaderMap,
+                          req: axum::extract::Request,
+                          next: axum::middleware::Next| {
+                        let st = auth_state.clone();
+                        async move { rustnzb::dav::auth::dav_auth(st, headers, req, next).await }
+                    },
+                );
+                let dav_router = nzbdav_dav::dav_router(Arc::clone(&dav.store)).layer(dav_auth);
+                r = r.nest("/dav", dav_router);
+                let cfg = result.state.config();
+                if cfg.dav.username.is_none()
+                    && cfg.dav.password.is_none()
+                    && cfg.dav.api_key.is_none()
+                {
+                    tracing::warn!(
+                        "WebDAV media library mounted at /dav (UNAUTHENTICATED — \
+                         set dav.username/password or dav.api_key in config)"
+                    );
+                } else {
+                    info!("WebDAV media library mounted at /dav (auth enabled)");
+                }
             }
             // Always layer Option<Arc<DavHandle>> so h_status and h_dav_add can extract it.
             r.layer(Extension(dav_handle))

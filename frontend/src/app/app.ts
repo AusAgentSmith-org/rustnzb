@@ -281,7 +281,7 @@ export class App implements OnInit, OnDestroy {
         this.speed.set(s.speed_bps);
         this.paused.set(s.paused);
         this.queueCount.set(s.queue_size);
-        this.diskFree.set(s.disk_free_bytes);
+        this.diskFree.set(s.disk_space_free);
         this.webdavEnabled.set(!!s.webdav_enabled);
       },
       error: () => {},

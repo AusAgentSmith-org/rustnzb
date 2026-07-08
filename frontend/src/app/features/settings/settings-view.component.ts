@@ -33,6 +33,16 @@ type Tab =
 interface DavConfig {
   auto_send_all: boolean;
   category_rules: string[];
+  username: string | null;
+  password: string | null;
+  api_key: string | null;
+}
+
+interface GeneralDirs {
+  data_dir: string;
+  incomplete_dir: string;
+  complete_dir: string;
+  watch_dir: string | null;
 }
 
 function emptyServer(): ServerConfig {
@@ -378,13 +388,42 @@ function emptyCategory(): CategoryConfig {
 
           <div class="panel">
             <h3>Directories</h3>
-            <div class="body" style="font-size:13px;line-height:1.8">
-              <div><b>Data dir</b> — SQLite, queue state, job blobs · set via <code>RUSTNZB_DATA_DIR</code> or <code>--data-dir</code></div>
-              <div><b>Downloads</b> — <code>/downloads/complete</code> (configured per category)</div>
-              <div><b>Incomplete</b> — <code>/downloads/incomplete</code></div>
-              <div><b>Watch dir</b> — <code>/downloads/watch</code> · <code>.nzb</code> drops auto-enqueue</div>
-              <div><b>Temp</b> — <code>&lt;data&gt;/tmp</code></div>
-              <div><b>Logs</b> — <code>&lt;data&gt;/logs</code></div>
+            <div class="body dir-table">
+              <div class="dir-row">
+                <span class="dir-label">Data dir</span>
+                <code class="dir-val">{{ dirs()?.data_dir ?? '…' }}</code>
+                <span class="dir-hint">SQLite, queue state, job blobs · set via <code>RUSTNZB_DATA_DIR</code> or <code>--data-dir</code></span>
+              </div>
+              <div class="dir-row">
+                <span class="dir-label">Downloads</span>
+                <code class="dir-val">{{ dirs()?.complete_dir ?? '…' }}</code>
+                <span class="dir-hint">configured per category</span>
+              </div>
+              <div class="dir-row">
+                <span class="dir-label">Incomplete</span>
+                <code class="dir-val">{{ dirs()?.incomplete_dir ?? '…' }}</code>
+                <span class="dir-hint">in-progress download working area</span>
+              </div>
+              <div class="dir-row">
+                <span class="dir-label">Watch dir</span>
+                @if (dirs()?.watch_dir) {
+                  <code class="dir-val">{{ dirs()!.watch_dir }}</code>
+                  <span class="dir-hint"><code>.nzb</code> drops auto-enqueue</span>
+                } @else {
+                  <span class="dir-val dim">— not configured</span>
+                  <span class="dir-hint">set <code>watch_dir</code> in config to enable</span>
+                }
+              </div>
+              <div class="dir-row">
+                <span class="dir-label">Temp</span>
+                <code class="dir-val">{{ dirs() ? dirs()!.data_dir + '/tmp' : '…' }}</code>
+                <span class="dir-hint">transient working files</span>
+              </div>
+              <div class="dir-row">
+                <span class="dir-label">Logs</span>
+                <code class="dir-val">{{ dirs() ? dirs()!.data_dir + '/logs' : '…' }}</code>
+                <span class="dir-hint">per-job log files</span>
+              </div>
             </div>
           </div>
 
@@ -418,6 +457,92 @@ function emptyCategory(): CategoryConfig {
             <div>
               <h2>Media Library (DAV)</h2>
               <div class="sub">Stream completed downloads directly via WebDAV.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>WebDAV access</h3>
+            <div class="body">
+              @if (!davAuthConfigured()) {
+                <div class="dav-warn">
+                  ⚠ <b>WebDAV is currently unauthenticated.</b> Anyone who can reach
+                  <code>{{ davBaseUrl() }}</code> can stream your media. Set a username
+                  and password (or an API key) below.
+                </div>
+              }
+
+              <div class="form">
+                <label>DAV username</label>
+                <div class="inline">
+                  <input type="text" [(ngModel)]="davConfig.username" placeholder="e.g. plex" autocomplete="off" />
+                </div>
+
+                <label>DAV password</label>
+                <div class="inline">
+                  <input [type]="showDavPassword ? 'text' : 'password'" [(ngModel)]="davConfig.password" autocomplete="new-password" />
+                  <button class="btn sm" (click)="showDavPassword = !showDavPassword" type="button">
+                    {{ showDavPassword ? 'Hide' : 'Show' }}
+                  </button>
+                </div>
+
+                <label>DAV API key</label>
+                <div class="inline">
+                  <input [type]="showDavApiKey ? 'text' : 'password'" [(ngModel)]="davConfig.api_key" autocomplete="off"
+                         placeholder="X-Api-Key header value (optional)" />
+                  <button class="btn sm" (click)="showDavApiKey = !showDavApiKey" type="button">
+                    {{ showDavApiKey ? 'Hide' : 'Show' }}
+                  </button>
+                  <button class="btn sm" (click)="generateDavApiKey()" type="button">Generate</button>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button class="btn primary" (click)="saveDavConfig()">Save</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>WebDAV URLs</h3>
+            <div class="body">
+              <div class="dim" style="margin-bottom: 8px;">
+                Point a WebDAV client (Plex, Infuse, davfs2, rclone) at the root URL.
+                Browseable subpaths are listed for reference — clients only need the root.
+              </div>
+              <div class="dir-table">
+                <div class="dir-row">
+                  <div><b>Root</b></div>
+                  <div class="url-cell">
+                    <code>{{ davBaseUrl() }}</code>
+                    <button class="btn sm" (click)="copy(davBaseUrl())" type="button">Copy</button>
+                  </div>
+                </div>
+                <div class="dir-row">
+                  <div>Content</div>
+                  <div class="url-cell">
+                    <code>{{ davBaseUrl() }}/content</code>
+                    <button class="btn sm" (click)="copy(davBaseUrl() + '/content')" type="button">Copy</button>
+                  </div>
+                </div>
+                <div class="dir-row">
+                  <div>NZBs</div>
+                  <div class="url-cell">
+                    <code>{{ davBaseUrl() }}/nzbs</code>
+                    <button class="btn sm" (click)="copy(davBaseUrl() + '/nzbs')" type="button">Copy</button>
+                  </div>
+                </div>
+                <div class="dir-row">
+                  <div>Completed symlinks</div>
+                  <div class="url-cell">
+                    <code>{{ davBaseUrl() }}/completed-symlinks</code>
+                    <button class="btn sm" (click)="copy(davBaseUrl() + '/completed-symlinks')" type="button">Copy</button>
+                  </div>
+                </div>
+              </div>
+              <div class="dim" style="margin-top: 10px; font-size: 11px;">
+                Note: WebDAV clients must use the root URL <b>without a trailing slash</b>
+                (Axum nest quirk). Append-paths shown above already follow this rule.
+              </div>
             </div>
           </div>
 
@@ -570,7 +695,7 @@ function emptyCategory(): CategoryConfig {
           <div class="panel">
             <div class="body">
               <div class="form">
-                <label>Version</label><div>0.2.4</div>
+                <label>Version</label><div>1.2.3</div>
                 <label>Rust edition</label><div>2024</div>
                 <label>Web framework</label><div>Axum 0.8 + Tower</div>
                 <label>TLS</label><div>rustls 0.23 (ring)</div>
@@ -676,6 +801,33 @@ function emptyCategory(): CategoryConfig {
 
     .dav-cats { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
     .dim { color: var(--mute); font-size: 12px; }
+
+    .dav-warn {
+      background: rgba(255, 180, 0, 0.08);
+      border: 1px solid rgba(255, 180, 0, 0.35);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .dav-warn code { background: rgba(0,0,0,0.25); padding: 1px 4px; border-radius: 3px; }
+    .url-cell { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .url-cell code {
+      background: var(--panel2, rgba(255,255,255,0.04));
+      padding: 3px 7px;
+      border-radius: 4px;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .dir-table { display: flex; flex-direction: column; gap: 0; font-size: 13px; }
+    .dir-row { display: grid; grid-template-columns: 100px 1fr; gap: 8px 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); }
+    .dir-row:last-child { border: none; }
+    .dir-label { font-weight: 600; white-space: nowrap; }
+    .dir-val { grid-column: 2; font-size: 12px; }
+    .dir-hint { grid-column: 2; color: var(--mute); font-size: 11px; margin-top: -2px; }
   `],
 })
 export class SettingsViewComponent implements OnInit {
@@ -709,7 +861,12 @@ export class SettingsViewComponent implements OnInit {
   webdavEnabled = computed(() => this.status()?.webdav_enabled ?? false);
 
   // DAV config
-  davConfig: DavConfig = { auto_send_all: false, category_rules: [] };
+  davConfig: DavConfig = { auto_send_all: false, category_rules: [], username: null, password: null, api_key: null };
+  showDavPassword = false;
+  showDavApiKey = false;
+
+  // Directory paths (from /api/config)
+  dirs = signal<GeneralDirs | null>(null);
 
   constructor(private api: ApiService, private snack: MatSnackBar) {}
 
@@ -718,6 +875,7 @@ export class SettingsViewComponent implements OnInit {
     this.loadCategories();
     this.loadGeneralSettings();
     this.loadStatus();
+    this.loadDirs();
   }
 
   loadStatus(): void {
@@ -726,6 +884,13 @@ export class SettingsViewComponent implements OnInit {
         this.status.set(s);
         if (s.webdav_enabled) this.loadDavConfig();
       },
+      error: () => {},
+    });
+  }
+
+  loadDirs(): void {
+    this.api.get<{ general: GeneralDirs }>('/config').subscribe({
+      next: cfg => this.dirs.set(cfg.general),
       error: () => {},
     });
   }
@@ -1034,9 +1199,40 @@ export class SettingsViewComponent implements OnInit {
   }
 
   saveDavConfig(): void {
-    this.api.put('/config/dav', this.davConfig).subscribe({
+    // Send empty strings as null so the backend treats blanks as "unset".
+    const payload: DavConfig = {
+      ...this.davConfig,
+      username: this.davConfig.username?.trim() || null,
+      password: this.davConfig.password?.trim() || null,
+      api_key: this.davConfig.api_key?.trim() || null,
+    };
+    this.api.put('/config/dav', payload).subscribe({
       next: () => this.snack.open('Media Library settings saved', 'Close', { duration: 2000 }),
       error: () => this.snack.open('Failed to save Media Library settings', 'Close', { duration: 3000 }),
     });
+  }
+
+  davBaseUrl(): string {
+    // Use the browser origin so the URL also works behind a reverse proxy.
+    return `${window.location.origin}/dav`;
+  }
+
+  davAuthConfigured(): boolean {
+    const c = this.davConfig;
+    return !!(c.username?.trim() || c.password?.trim() || c.api_key?.trim());
+  }
+
+  generateDavApiKey(): void {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    this.davConfig.api_key = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    this.showDavApiKey = true;
+  }
+
+  copy(text: string): void {
+    navigator.clipboard.writeText(text).then(
+      () => this.snack.open('Copied', 'Close', { duration: 1500 }),
+      () => this.snack.open('Copy failed', 'Close', { duration: 2000 }),
+    );
   }
 }

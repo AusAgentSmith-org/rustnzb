@@ -8,15 +8,19 @@ use nzb_web::nzb_core::nzb_nntp::NntpConnection;
 use nzb_web::nzb_core::nzb_parser;
 use nzb_web::nzb_decode::yenc;
 
-fn usenet_farm_config() -> ServerConfig {
-    let mut c = ServerConfig::new("uf-test", "news.usenet.farm");
-    c.name = "Usenet Farm Test".to_string();
-    c.username = Some("uf8ea2a82f370952aa92".to_string());
-    c.password = Some("ff24a05910fd23cb0040ff".to_string());
+fn real_nntp_config() -> Option<ServerConfig> {
+    let host = std::env::var("NNTP_PRIMARY_HOST").ok()?;
+    let user = std::env::var("NNTP_PRIMARY_USER").ok()?;
+    let pass = std::env::var("NNTP_PRIMARY_PASS").ok()?;
+
+    let mut c = ServerConfig::new("real-nntp-test", &host);
+    c.name = format!("{host} test");
     c.connections = 1;
     c.ramp_up_delay_ms = 0;
     c.recv_buffer_size = 0;
-    c
+    c.username = Some(user);
+    c.password = Some(pass);
+    Some(c)
 }
 
 #[tokio::test]
@@ -27,6 +31,10 @@ async fn test_fetch_single_article_and_decode() {
         eprintln!("TestData not found or CI environment, skipping");
         return;
     }
+    let Some(config) = real_nntp_config() else {
+        eprintln!("Skipping: NNTP_PRIMARY_* env vars not set");
+        return;
+    };
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let job = nzb_parser::parse_nzb_file(nzb_path).unwrap();
@@ -56,7 +64,6 @@ async fn test_fetch_single_article_and_decode() {
     eprintln!("Message-ID: {}", article.message_id);
 
     // 2. Connect to NNTP server
-    let config = usenet_farm_config();
     let mut conn = NntpConnection::new("uf-test".to_string());
 
     let connect_result =
@@ -119,6 +126,10 @@ async fn test_fetch_multiple_articles_from_rar() {
         eprintln!("TestData not found or CI environment, skipping");
         return;
     }
+    let Some(config) = real_nntp_config() else {
+        eprintln!("Skipping: NNTP_PRIMARY_* env vars not set");
+        return;
+    };
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let job = nzb_parser::parse_nzb_file(nzb_path).unwrap();
@@ -138,7 +149,6 @@ async fn test_fetch_multiple_articles_from_rar() {
     );
 
     // Connect
-    let config = usenet_farm_config();
     let mut conn = NntpConnection::new("uf-test".to_string());
     conn.connect(&config).await.expect("Connection failed");
     eprintln!("Connected to {}", config.host);
@@ -207,12 +217,15 @@ async fn test_article_not_found_handling() {
         eprintln!("Skipping on CI — requires real NNTP server");
         return;
     }
+    let Some(config) = real_nntp_config() else {
+        eprintln!("Skipping: NNTP_PRIMARY_* env vars not set");
+        return;
+    };
 
     // Install rustls crypto provider for TLS connections
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     // Test that we handle 430 (article not found) gracefully
-    let config = usenet_farm_config();
     let mut conn = NntpConnection::new("uf-test".to_string());
     conn.connect(&config).await.expect("Connection failed");
 
