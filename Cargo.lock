@@ -1831,9 +1831,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-nntp"
-version = "0.2.19"
+version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93489dc8ec3133f755618a4887802088ebf78dd456d1a28885cf1553306f9f5d"
+checksum = "7069d86e09c7bb883acf2eff59c40e7c98734313c2eee438d4a3f3fa8413b008"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2759,10 +2759,12 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
+ "crc32fast",
  "flate2",
  "http",
  "libc",
  "mime_guess",
+ "nzb-nntp",
  "nzb-web",
  "nzbdav-core",
  "nzbdav-dav",

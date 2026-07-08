@@ -1,5 +1,7 @@
 # rustnzbd Uplift Plan: Add Newsreader & Angular UI
 
+Operational status for release work lives in [BUG.md](BUG.md). This file remains the longer-term product uplift roadmap.
+
 ## Goal
 
 Transform rustnzbd from a headless NZB downloader into a full **NZBGet competitor with built-in newsgroup browsing**. Two major workstreams:

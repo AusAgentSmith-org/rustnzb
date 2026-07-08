@@ -28,9 +28,35 @@ fn main() {
 
     // Try to run ng build if frontend exists
     if std::path::Path::new("frontend/package.json").exists() {
-        match Command::new("npx")
-            .args(["ng", "build", "--configuration=production"])
-            .current_dir("frontend")
+        let frontend_dir = "frontend";
+        let ng_bin = std::path::Path::new(frontend_dir).join("node_modules/.bin/ng");
+
+        if !ng_bin.exists() {
+            match Command::new("npm")
+                .args(["ci", "--no-audit", "--no-fund"])
+                .current_dir(frontend_dir)
+                .status()
+            {
+                Ok(status) if status.success() => {}
+                Ok(status) => {
+                    println!(
+                        "cargo:warning=Frontend dependency install failed with exit code {:?}",
+                        status.code()
+                    );
+                    write_placeholder(dist);
+                    return;
+                }
+                Err(e) => {
+                    println!("cargo:warning=Could not run npm ci: {e}");
+                    write_placeholder(dist);
+                    return;
+                }
+            }
+        }
+
+        match Command::new("npm")
+            .args(["run", "build", "--", "--configuration=production"])
+            .current_dir(frontend_dir)
             .status()
         {
             Ok(status) if status.success() => return,
@@ -41,7 +67,7 @@ fn main() {
                 );
             }
             Err(e) => {
-                println!("cargo:warning=Could not run ng build: {e}");
+                println!("cargo:warning=Could not run npm build: {e}");
             }
         }
     }

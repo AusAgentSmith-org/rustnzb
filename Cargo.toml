@@ -75,7 +75,7 @@ unicode-normalization = "0.1"
 
 # Shared NZB crates
 nzb-web = { version = "0.4.16", features = ["groups-db"] }
-nzb-nntp = { version = "0.2.19" }
+nzb-nntp = { version = "0.2.20" }
 nzb-core = { version = "0.2.14", features = ["groups-db"] }
 nzb-decode = { version = "0.1.2" }
 nzb-postproc = { version = "0.2.6" }
@@ -165,5 +165,7 @@ serde_json = { workspace = true }
 axum = { workspace = true }
 tempfile = "3"
 arc-swap.workspace = true
+nzb-nntp = { workspace = true, features = ["test-support"] }
+crc32fast = { workspace = true }
 
 [profile.release]
