@@ -1,6 +1,6 @@
 [general]
 listen_addr = "0.0.0.0"
-port = 8080
+port = 9090
 # api_key = "your-secret-api-key-here"
 incomplete_dir = "/downloads/incomplete"
 complete_dir = "/downloads/complete"

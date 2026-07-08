@@ -1,110 +1,18 @@
 //! End-to-end integration test: HTTP server -> upload NZB -> verify in queue.
 //!
-//! This test starts the HTTP server on a random port, uploads a real NZB file
-//! from TestData/ via the native API, and verifies it appears in the queue.
+//! This test starts the HTTP server on a random port, uploads fixture NZBs
+//! via the native API, and verifies they appear in the queue.
 //! It also exercises the SABnzbd compatibility API endpoints.
 
-use std::path::Path;
-use std::sync::Arc;
+mod support;
 
-use arc_swap::ArcSwap;
-use nzb_web::auth::{CredentialStore, TokenStore};
-use nzb_web::nzb_core::config::AppConfig;
-use nzb_web::nzb_core::db::Database;
-use nzb_web::{AppState, QueueManager};
-use rustnzb::server::build_router;
-
-/// Start the server on a random port and return the base URL.
-async fn start_test_server() -> (String, tokio::task::JoinHandle<()>) {
-    let config = AppConfig::default();
-    let db = Database::open_memory().expect("Failed to create in-memory database");
-
-    // Create a temp directory for incomplete/complete dirs
-    let tmp_dir = std::env::temp_dir().join(format!("rustnzb_test_{}", std::process::id()));
-    let incomplete_dir = tmp_dir.join("incomplete");
-    let complete_dir = tmp_dir.join("complete");
-    std::fs::create_dir_all(&incomplete_dir).ok();
-    std::fs::create_dir_all(&complete_dir).ok();
-
-    let log_buffer = nzb_web::LogBuffer::new();
-    let qm = QueueManager::new(
-        config.servers.clone(),
-        db,
-        incomplete_dir,
-        complete_dir,
-        log_buffer.clone(),
-        config.general.max_active_downloads,
-        config.categories.clone(),
-        config.general.min_free_space_bytes,
-        config.general.speed_limit_bps,
-        false,
-        config.general.abort_hopeless,
-        config.general.early_failure_check,
-        config.general.required_completion_pct,
-        config.general.article_timeout_secs,
-        None,
-    );
-    let token_store = Arc::new(TokenStore::new());
-    let credential_store = Arc::new(CredentialStore::new(tmp_dir.clone()));
-    let state = Arc::new(AppState::new(
-        Arc::new(ArcSwap::from_pointee(config)),
-        std::path::PathBuf::from("config.toml"),
-        qm,
-        log_buffer,
-        token_store,
-        credential_store,
-    ));
-
-    let router = build_router(state);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("Failed to bind random port");
-    let addr = listener.local_addr().expect("Failed to get local addr");
-    let base_url = format!("http://127.0.0.1:{}", addr.port());
-
-    let handle = tokio::spawn(async move {
-        axum::serve(listener, router).await.ok();
-    });
-
-    // Give the server a moment to start
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-    (base_url, handle)
-}
-
-/// Find an NZB file in TestData/
-fn find_test_nzb() -> Option<std::path::PathBuf> {
-    let dir = Path::new("TestData");
-    if !dir.exists() {
-        return None;
-    }
-
-    for entry in std::fs::read_dir(dir).ok()? {
-        let entry = entry.ok()?;
-        let path = entry.path();
-        if path.extension().map(|e| e == "nzb").unwrap_or(false) {
-            return Some(path);
-        }
-    }
-    None
-}
+use support::{sample_nzb_bytes, sample_nzb_variant_bytes, start_test_server};
 
 #[tokio::test]
 async fn test_upload_nzb_and_verify_queue() {
-    if std::env::var("CI").is_ok() {
-        eprintln!("Skipping on CI");
-        return;
-    }
-    let nzb_path = match find_test_nzb() {
-        Some(p) => p,
-        None => {
-            eprintln!("TestData not found, skipping integration test");
-            return;
-        }
-    };
-
-    let (base_url, _handle) = start_test_server().await;
+    let app = start_test_server(Vec::new()).await;
     let client = reqwest::Client::new();
+    let base_url = &app.base_url;
 
     // 1. Verify server is up: GET /api/status
     let resp = client
@@ -138,8 +46,8 @@ async fn test_upload_nzb_and_verify_queue() {
     eprintln!("Queue paused for testing");
 
     // 3. Upload NZB file via native API
-    let nzb_bytes = std::fs::read(&nzb_path).expect("Failed to read NZB file");
-    let nzb_filename = nzb_path.file_name().unwrap().to_string_lossy().to_string();
+    let nzb_bytes = sample_nzb_bytes();
+    let nzb_filename = "sample.nzb".to_string();
 
     let part = reqwest::multipart::Part::bytes(nzb_bytes.clone())
         .file_name(nzb_filename.clone())
@@ -255,17 +163,8 @@ async fn test_upload_nzb_and_verify_queue() {
     // 10. Test SABnzbd addfile via multipart POST.
     // Use a DIFFERENT NZB — nzb-web ≥0.4.6 rejects duplicate content-hashes,
     // and the first NZB is already in the queue from step 3.
-    let alt_nzb_path = std::fs::read_dir("TestData")
-        .unwrap()
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .find(|p| p.extension().map(|e| e == "nzb").unwrap_or(false) && *p != nzb_path)
-        .expect("need a second NZB in TestData for dedup test");
-    let alt_nzb_bytes = std::fs::read(&alt_nzb_path).expect("Failed to read alt NZB");
-    let alt_nzb_filename = alt_nzb_path
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
+    let alt_nzb_bytes = sample_nzb_variant_bytes();
+    let alt_nzb_filename = "sample-alt.nzb".to_string();
     let part2 = reqwest::multipart::Part::bytes(alt_nzb_bytes)
         .file_name(alt_nzb_filename)
         .mime_str("application/x-nzb")

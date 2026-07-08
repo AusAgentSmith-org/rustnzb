@@ -1,4 +1,5 @@
 use std::io::{Cursor, Read as _};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use axum::Json;
@@ -7,6 +8,136 @@ use axum::response::IntoResponse;
 use flate2::read::GzDecoder;
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
+
+// ---------------------------------------------------------------------------
+// Shared HTTP client — connection-pooling; created once, reused across requests
+// ---------------------------------------------------------------------------
+
+static HTTP_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("Failed to build shared HTTP client")
+});
+
+const MAX_NZB_DECOMPRESSED_BYTES: u64 = 100 * 1024 * 1024;
+const MAX_FETCH_BODY_BYTES: usize = 100 * 1024 * 1024;
+
+// ---------------------------------------------------------------------------
+// SSRF guard
+// ---------------------------------------------------------------------------
+
+#[derive(Debug)]
+struct FetchUrlPlan {
+    url: reqwest::Url,
+    resolved_addrs: Option<(String, Vec<SocketAddr>)>,
+}
+
+/// Returns `Err` if `raw_url` is not http/https or resolves to a private/reserved address.
+async fn validate_fetch_url(raw_url: &str) -> Result<FetchUrlPlan, ApiError> {
+    let url = reqwest::Url::parse(raw_url)
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Invalid URL: {e}")))?;
+
+    match url.scheme() {
+        "http" | "https" => {}
+        s => {
+            return Err(ApiError::from(anyhow::anyhow!(
+                "URL scheme '{s}' not allowed (must be http or https)"
+            )));
+        }
+    }
+
+    let host = url
+        .host_str()
+        .ok_or_else(|| ApiError::from(anyhow::anyhow!("URL has no host")))?
+        .to_string();
+
+    // IP literal: validate directly without a DNS round-trip.
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if !is_globally_routable(ip) {
+            return Err(ApiError::from(anyhow::anyhow!(
+                "URL targets a private/reserved address"
+            )));
+        }
+        return Ok(FetchUrlPlan {
+            url,
+            resolved_addrs: None,
+        });
+    }
+
+    // Hostname: resolve and check every returned address.
+    let port = url.port_or_known_default().unwrap_or(80);
+    let addrs: Vec<_> = tokio::net::lookup_host(format!("{host}:{port}"))
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!("DNS resolution failed for '{host}': {e}")))?
+        .collect();
+
+    if addrs.is_empty() {
+        return Err(ApiError::from(anyhow::anyhow!(
+            "DNS resolution returned no addresses for '{host}'"
+        )));
+    }
+
+    for addr in &addrs {
+        if !is_globally_routable(addr.ip()) {
+            return Err(ApiError::from(anyhow::anyhow!(
+                "URL resolves to a private/reserved address"
+            )));
+        }
+    }
+
+    Ok(FetchUrlPlan {
+        url,
+        resolved_addrs: Some((host, addrs)),
+    })
+}
+
+fn build_fetch_client(plan: &FetchUrlPlan) -> Result<reqwest::Client, ApiError> {
+    let mut builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30));
+    if let Some((host, addrs)) = &plan.resolved_addrs {
+        builder = builder.resolve_to_addrs(host, addrs.as_slice());
+    }
+    builder
+        .build()
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to build fetch client: {e}")))
+}
+
+async fn read_response_bytes_limited(
+    mut response: reqwest::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, ApiError> {
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to read response: {e}")))?
+    {
+        if body.len().saturating_add(chunk.len()) > max_bytes {
+            return Err(ApiError::from(anyhow::anyhow!(
+                "Fetched body exceeds the {} MB limit",
+                max_bytes / 1024 / 1024
+            )));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+fn is_globally_routable(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            !v4.is_loopback()
+                && !v4.is_private()
+                && !v4.is_link_local()
+                && !v4.is_broadcast()
+                && !v4.is_unspecified()
+                && !v4.is_documentation()
+        }
+        IpAddr::V6(v6) => {
+            !v6.is_loopback() && !v6.is_unspecified() && !v6.is_multicast() && !v6.is_unique_local()
+        }
+    }
+}
 
 #[cfg(feature = "webdav")]
 use nzb_web::nzb_core::config::DavConfig;
@@ -18,6 +149,21 @@ use nzb_web::nzb_core::sabnzbd_import;
 use nzb_web::error::ApiError;
 use nzb_web::log_buffer::LogEntry;
 use nzb_web::state::AppState;
+
+// ---------------------------------------------------------------------------
+// Priority helpers
+// ---------------------------------------------------------------------------
+
+/// Maps the integer priority wire format to the `Priority` enum.
+/// 0 = Low, 1 = Normal, 2 = High, 3 = Force; anything else → Normal.
+fn priority_from_i32(p: i32) -> Priority {
+    match p {
+        0 => Priority::Low,
+        2 => Priority::High,
+        3 => Priority::Force,
+        _ => Priority::Normal,
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Query parameters
@@ -198,8 +344,16 @@ fn extract_nzbs(file_name: &str, data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, 
         let mut decoder = GzDecoder::new(data);
         let mut decompressed = Vec::new();
         decoder
+            .by_ref()
+            .take(MAX_NZB_DECOMPRESSED_BYTES + 1)
             .read_to_end(&mut decompressed)
             .map_err(|e| anyhow::anyhow!("Failed to decompress gzip: {e}"))?;
+        if decompressed.len() as u64 > MAX_NZB_DECOMPRESSED_BYTES {
+            anyhow::bail!(
+                "Decompressed NZB exceeds the {} MB limit",
+                MAX_NZB_DECOMPRESSED_BYTES / 1024 / 1024
+            );
+        }
         let inner_name = file_name
             .strip_suffix(".gz")
             .or_else(|| file_name.strip_suffix(".GZ"))
@@ -213,16 +367,35 @@ fn extract_nzbs(file_name: &str, data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, 
         let mut archive = zip::ZipArchive::new(cursor)
             .map_err(|e| anyhow::anyhow!("Failed to read zip archive: {e}"))?;
         let mut nzbs = Vec::new();
+        let mut total_uncompressed = 0u64;
         for i in 0..archive.len() {
             let mut entry = archive
                 .by_index(i)
                 .map_err(|e| anyhow::anyhow!("Zip entry error: {e}"))?;
             let entry_name = entry.name().to_string();
             if entry_name.to_lowercase().ends_with(".nzb") {
+                total_uncompressed = total_uncompressed
+                    .checked_add(entry.size())
+                    .ok_or_else(|| anyhow::anyhow!("Zip archive size overflow"))?;
+                if total_uncompressed > MAX_NZB_DECOMPRESSED_BYTES {
+                    anyhow::bail!(
+                        "Decompressed NZB exceeds the {} MB limit",
+                        MAX_NZB_DECOMPRESSED_BYTES / 1024 / 1024
+                    );
+                }
+
                 let mut buf = Vec::new();
                 entry
+                    .by_ref()
+                    .take(MAX_NZB_DECOMPRESSED_BYTES + 1)
                     .read_to_end(&mut buf)
                     .map_err(|e| anyhow::anyhow!("Failed to read zip entry '{entry_name}': {e}"))?;
+                if buf.len() as u64 > MAX_NZB_DECOMPRESSED_BYTES {
+                    anyhow::bail!(
+                        "Decompressed NZB exceeds the {} MB limit",
+                        MAX_NZB_DECOMPRESSED_BYTES / 1024 / 1024
+                    );
+                }
                 nzbs.push((entry_name, buf));
             }
         }
@@ -250,27 +423,26 @@ fn enqueue_nzb(
             .to_string()
     });
 
-    let nzb_data = data.clone();
     let mut job = nzb_parser::parse_nzb(&name, &data).map_err(ApiError::from)?;
 
     if let Some(ref cat) = q.category {
         job.category = cat.clone();
     }
     if let Some(prio) = q.priority {
-        job.priority = match prio {
-            0 => Priority::Low,
-            2 => Priority::High,
-            3 => Priority::Force,
-            _ => Priority::Normal,
-        };
+        job.priority = priority_from_i32(prio);
     }
 
     let qm = &state.queue_manager;
     job.work_dir = qm.incomplete_dir().join(&job.id);
     job.output_dir = qm.complete_dir().join(&job.category).join(&job.name);
 
-    std::fs::create_dir_all(&job.work_dir)
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
+    std::fs::create_dir_all(&job.work_dir).map_err(|e| {
+        ApiError::from(anyhow::anyhow!(
+            "Failed to create work dir '{}': {}",
+            job.work_dir.display(),
+            e
+        ))
+    })?;
 
     let id = job.id.clone();
 
@@ -282,7 +454,7 @@ fn enqueue_nzb(
         "NZB added to queue"
     );
 
-    qm.add_job(job, Some(nzb_data)).map_err(ApiError::from)?;
+    qm.add_job(job, Some(data)).map_err(ApiError::from)?;
     Ok(id)
 }
 
@@ -336,10 +508,7 @@ pub async fn h_queue_set_priority(
     Json(body): Json<SetPriorityBody>,
 ) -> Result<Json<SimpleResponse>, ApiError> {
     let priority = match body.priority {
-        0 => Priority::Low,
-        1 => Priority::Normal,
-        2 => Priority::High,
-        3 => Priority::Force,
+        0..=3 => priority_from_i32(body.priority),
         _ => return Err(ApiError::from(anyhow::anyhow!("Invalid priority value"))),
     };
     state
@@ -370,15 +539,17 @@ pub async fn h_queue_add_url(
         return Err(ApiError::from(anyhow::anyhow!("No URL provided")));
     }
 
+    let fetch_plan = validate_fetch_url(&body.url).await?;
     tracing::info!(url = %body.url, "Fetching NZB from URL");
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| ApiError::from(anyhow::anyhow!("HTTP client error: {e}")))?;
-
+    let client = fetch_plan
+        .resolved_addrs
+        .as_ref()
+        .map(|_| build_fetch_client(&fetch_plan))
+        .transpose()?
+        .unwrap_or_else(|| HTTP_CLIENT.clone());
     let response = client
-        .get(&body.url)
+        .get(fetch_plan.url.clone())
         .send()
         .await
         .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to fetch URL: {e}")))?;
@@ -390,71 +561,36 @@ pub async fn h_queue_add_url(
         )));
     }
 
-    let data = response
-        .bytes()
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to read response: {e}")))?;
+    let data = read_response_bytes_limited(response, MAX_FETCH_BODY_BYTES).await?;
 
-    // Derive job name from URL filename or user-provided name
-    let job_name = body.name.unwrap_or_else(|| {
-        body.url
-            .rsplit('/')
-            .next()
-            .and_then(|s| s.split('?').next())
-            .unwrap_or("unknown")
-            .strip_suffix(".nzb")
-            .unwrap_or(
-                body.url
-                    .rsplit('/')
-                    .next()
-                    .and_then(|s| s.split('?').next())
-                    .unwrap_or("unknown"),
-            )
-            .to_string()
-    });
+    // Derive file name from URL path for archive extraction and job naming.
+    let file_name = body
+        .url
+        .rsplit('/')
+        .next()
+        .and_then(|s| s.split('?').next())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("download.nzb")
+        .to_string();
 
-    let nzb_data = data.to_vec();
-    let mut job = nzb_parser::parse_nzb(&job_name, &data).map_err(ApiError::from)?;
+    let q = AddNzbQuery {
+        name: body.name,
+        category: body.category.filter(|c| !c.is_empty()),
+        priority: body.priority,
+    };
 
-    if let Some(ref cat) = body.category
-        && !cat.is_empty()
-    {
-        job.category = cat.clone();
+    let nzbs = extract_nzbs(&file_name, &data).map_err(ApiError::from)?;
+    let mut nzo_ids = Vec::new();
+    for (nzb_name, nzb_data) in nzbs {
+        let id = enqueue_nzb(&state, &q, &nzb_name, nzb_data)?;
+        nzo_ids.push(id);
     }
-
-    if let Some(prio) = body.priority {
-        job.priority = match prio {
-            0 => Priority::Low,
-            2 => Priority::High,
-            3 => Priority::Force,
-            _ => Priority::Normal,
-        };
-    }
-
-    let qm = &state.queue_manager;
-    job.work_dir = qm.incomplete_dir().join(&job.id);
-    job.output_dir = qm.complete_dir().join(&job.category).join(&job.name);
-
-    std::fs::create_dir_all(&job.work_dir)
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
-
-    let id = job.id.clone();
-
-    tracing::info!(
-        name = %job.name,
-        id = %job.id,
-        files = job.file_count,
-        articles = job.article_count,
-        "NZB added to queue from URL"
-    );
-
-    qm.add_job(job, Some(nzb_data)).map_err(ApiError::from)?;
 
     Ok((
         StatusCode::OK,
         Json(AddNzbResponse {
             status: true,
-            nzo_ids: vec![id],
+            nzo_ids,
         }),
     ))
 }
@@ -601,8 +737,13 @@ pub async fn h_history_retry(
     job.work_dir = qm.incomplete_dir().join(&job.id);
     job.output_dir = qm.complete_dir().join(&job.category).join(&job.name);
 
-    std::fs::create_dir_all(&job.work_dir)
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
+    std::fs::create_dir_all(&job.work_dir).map_err(|e| {
+        ApiError::from(anyhow::anyhow!(
+            "Failed to create work dir '{}': {}",
+            job.work_dir.display(),
+            e
+        ))
+    })?;
 
     let new_id = job.id.clone();
 
@@ -1171,13 +1312,15 @@ pub async fn h_rss_item_download(
         .ok_or_else(|| ApiError::from(anyhow::anyhow!("No download URL for this item")))?;
 
     // Fetch the NZB
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| ApiError::from(anyhow::anyhow!("HTTP client error: {e}")))?;
-
+    let fetch_plan = validate_fetch_url(url).await?;
+    let client = fetch_plan
+        .resolved_addrs
+        .as_ref()
+        .map(|_| build_fetch_client(&fetch_plan))
+        .transpose()?
+        .unwrap_or_else(|| HTTP_CLIENT.clone());
     let response = client
-        .get(url)
+        .get(fetch_plan.url.clone())
         .send()
         .await
         .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to fetch NZB: {e}")))?;
@@ -1189,10 +1332,7 @@ pub async fn h_rss_item_download(
         )));
     }
 
-    let data = response
-        .bytes()
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to read response: {e}")))?;
+    let data = read_response_bytes_limited(response, MAX_FETCH_BODY_BYTES).await?;
 
     let mut job = nzb_parser::parse_nzb(&item.title, &data)
         .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to parse NZB: {e}")))?;
@@ -1209,8 +1349,13 @@ pub async fn h_rss_item_download(
         state.queue_manager.complete_dir().join(&job.name)
     };
 
-    std::fs::create_dir_all(&job.work_dir)
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to create work dir: {e}")))?;
+    std::fs::create_dir_all(&job.work_dir).map_err(|e| {
+        ApiError::from(anyhow::anyhow!(
+            "Failed to create work dir '{}': {}",
+            job.work_dir.display(),
+            e
+        ))
+    })?;
 
     state
         .queue_manager
@@ -1393,49 +1538,61 @@ pub async fn h_servers_health(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<ServerHealthResult>>, ApiError> {
     let servers = state.config().servers.clone();
-    let mut results = Vec::new();
 
-    for server in &servers {
-        if !server.enabled {
-            results.push(ServerHealthResult {
-                id: server.id.clone(),
-                name: server.name.clone(),
-                success: false,
-                message: "Disabled".into(),
-            });
-            continue;
-        }
-
-        let srv = server.clone();
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(15),
-            test_server_connection(srv),
-        )
-        .await;
-
-        match result {
-            Ok(Ok(msg)) => results.push(ServerHealthResult {
-                id: server.id.clone(),
-                name: server.name.clone(),
-                success: true,
-                message: msg,
-            }),
-            Ok(Err(msg)) => results.push(ServerHealthResult {
-                id: server.id.clone(),
-                name: server.name.clone(),
-                success: false,
-                message: msg,
-            }),
-            Err(_) => results.push(ServerHealthResult {
-                id: server.id.clone(),
-                name: server.name.clone(),
-                success: false,
-                message: "Connection timed out (15s)".into(),
-            }),
-        }
+    // Test all servers concurrently. Carry the original index so we can restore
+    // the configured order in the response.
+    let mut set = tokio::task::JoinSet::new();
+    for (idx, server) in servers.into_iter().enumerate() {
+        set.spawn(async move {
+            let result = if !server.enabled {
+                ServerHealthResult {
+                    id: server.id,
+                    name: server.name,
+                    success: false,
+                    message: "Disabled".into(),
+                }
+            } else {
+                let (id, name) = (server.id.clone(), server.name.clone());
+                match tokio::time::timeout(
+                    std::time::Duration::from_secs(15),
+                    test_server_connection(server),
+                )
+                .await
+                {
+                    Ok(Ok(msg)) => ServerHealthResult {
+                        id,
+                        name,
+                        success: true,
+                        message: msg,
+                    },
+                    Ok(Err(msg)) => ServerHealthResult {
+                        id,
+                        name,
+                        success: false,
+                        message: msg,
+                    },
+                    Err(_) => ServerHealthResult {
+                        id,
+                        name,
+                        success: false,
+                        message: "Connection timed out (15s)".into(),
+                    },
+                }
+            };
+            (idx, result)
+        });
     }
 
-    Ok(Json(results))
+    let mut indexed: Vec<(usize, ServerHealthResult)> = Vec::new();
+    while let Some(res) = set.join_next().await {
+        match res {
+            Ok(pair) => indexed.push(pair),
+            Err(e) => tracing::warn!("Server health check task panicked: {e}"),
+        }
+    }
+    indexed.sort_by_key(|(i, _)| *i);
+
+    Ok(Json(indexed.into_iter().map(|(_, r)| r).collect()))
 }
 
 /// GET /api/config/servers/stats -- Per-server download statistics.
@@ -1597,13 +1754,7 @@ pub async fn h_queue_bulk_action(
             "delete" => qm.remove_job(id),
             "priority" => {
                 let p = body.value.as_ref().and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-                let priority = match p {
-                    0 => Priority::Low,
-                    2 => Priority::High,
-                    3 => Priority::Force,
-                    _ => Priority::Normal,
-                };
-                qm.set_job_priority(id, priority)
+                qm.set_job_priority(id, priority_from_i32(p))
             }
             "category" => {
                 let cat = body.value.as_ref().and_then(|v| v.as_str()).unwrap_or("");
@@ -1674,10 +1825,13 @@ pub async fn h_import_sabnzbd_api(
 ) -> Result<impl IntoResponse, ApiError> {
     let base_url = req.url.trim_end_matches('/');
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| ApiError::from(anyhow::anyhow!("HTTP client error: {e}")))?;
+    let fetch_plan = validate_fetch_url(base_url).await?;
+    let client = fetch_plan
+        .resolved_addrs
+        .as_ref()
+        .map(|_| build_fetch_client(&fetch_plan))
+        .transpose()?
+        .unwrap_or_else(|| HTTP_CLIENT.clone());
 
     // SABnzbd exposes its API at /api (default) or /sabnzbd/api (when configured
     // with a URL base prefix). Try /api first, fall back to /sabnzbd/api.
@@ -1945,4 +2099,81 @@ pub async fn h_dav_config_set(
     config.dav = body;
     state.update_config(config).map_err(ApiError::from)?;
     Ok(Json(serde_json::json!({ "status": true })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        MAX_NZB_DECOMPRESSED_BYTES, extract_nzbs, sanitize_server_config, validate_fetch_url,
+    };
+    use std::io::Write;
+
+    use nzb_web::nzb_core::config::ServerConfig;
+    use zip::CompressionMethod;
+    use zip::write::SimpleFileOptions;
+
+    fn build_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let cursor = std::io::Cursor::new(Vec::new());
+        let mut writer = zip::ZipWriter::new(cursor);
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+
+        for (name, contents) in entries {
+            writer.start_file(name, options).unwrap();
+            writer.write_all(contents).unwrap();
+        }
+
+        writer.finish().unwrap().into_inner()
+    }
+
+    #[tokio::test]
+    async fn validate_fetch_url_rejects_private_ip_literals() {
+        let err = validate_fetch_url("http://127.0.0.1/file.nzb")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("private/reserved"));
+    }
+
+    #[tokio::test]
+    async fn validate_fetch_url_rejects_localhost_hostname() {
+        let err = validate_fetch_url("http://localhost/file.nzb")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("private/reserved"));
+    }
+
+    #[test]
+    fn extract_nzbs_rejects_zip_bombs() {
+        let oversized = vec![b'x'; (MAX_NZB_DECOMPRESSED_BYTES + 1) as usize];
+        let zip = build_zip(&[("oversized.nzb", oversized.as_slice())]);
+        let err = extract_nzbs("oversized.zip", &zip).unwrap_err();
+        assert!(err.to_string().contains("100 MB limit"));
+    }
+
+    #[test]
+    fn extract_nzbs_accepts_small_zip_nzb() {
+        let zip = build_zip(&[("sample.nzb", br#"<nzb><file subject="ok" /></nzb>"#)]);
+        let nzbs = extract_nzbs("sample.zip", &zip).unwrap();
+        assert_eq!(nzbs.len(), 1);
+        assert_eq!(nzbs[0].0, "sample.nzb");
+        assert_eq!(nzbs[0].1, br#"<nzb><file subject="ok" /></nzb>"#);
+    }
+
+    #[test]
+    fn sanitize_server_config_trims_string_fields() {
+        let mut server = ServerConfig::new("srv-1", " news.example.com \n");
+        server.name = " Primary ".into();
+        server.username = Some(" user ".into());
+        server.password = Some(" pass ".into());
+        server.proxy_url = Some(" socks5://proxy ".into());
+        server.trusted_fingerprint = Some(" abc123 ".into());
+
+        sanitize_server_config(&mut server);
+
+        assert_eq!(server.host, "news.example.com");
+        assert_eq!(server.name, "Primary");
+        assert_eq!(server.username.as_deref(), Some("user"));
+        assert_eq!(server.password.as_deref(), Some("pass"));
+        assert_eq!(server.proxy_url.as_deref(), Some("socks5://proxy"));
+        assert_eq!(server.trusted_fingerprint.as_deref(), Some("abc123"));
+    }
 }

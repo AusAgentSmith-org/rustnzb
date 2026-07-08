@@ -1,0 +1,486 @@
+when:
+  - event: push
+    branch: main
+  - event: tag
+  - event: manual
+  - event: pull_request
+
+labels:
+  platform: linux/amd64
+
+steps:
+  # ─── Quality checks (run on all events) ──────────────────────────────────
+
+  - name: fmt
+    image: rust:1.88-bookworm
+    environment:
+      RUSTNZB_SKIP_FRONTEND_BUILD: "1"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_REDIS: "redis://100.92.54.45:6380"
+    commands:
+      - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
+      - rustup component add rustfmt
+      - cargo fmt --all -- --check
+
+  - name: check
+    image: rust:1.88-bookworm
+    environment:
+      RUSTNZB_SKIP_FRONTEND_BUILD: "1"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_REDIS: "redis://100.92.54.45:6380"
+    commands:
+      - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
+      - cargo check --locked --all-targets --no-default-features
+      - cargo check --locked --features webdav
+      - sccache --show-stats
+
+  - name: test
+    image: rust:1.88-bookworm
+    environment:
+      CI: "1"
+      RUSTNZB_SKIP_FRONTEND_BUILD: "1"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_REDIS: "redis://100.92.54.45:6380"
+    commands:
+      - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
+      - cargo test --locked --no-default-features
+
+  - name: clippy
+    image: rust:1.88-bookworm
+    environment:
+      RUSTNZB_SKIP_FRONTEND_BUILD: "1"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_REDIS: "redis://100.92.54.45:6380"
+    commands:
+      - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
+      - rustup component add clippy
+      - cargo clippy --locked --all-targets --no-default-features -- -D warnings
+
+  # ─── Playwright E2E (push, PR, manual) ───────────────────────────────────
+  # Builds the frontend + debug binary, then runs the Playwright suite.
+  # Scoped to the `fresh`, `fresh-auth` projects and a subset of `main` that
+  # is known-green — the rest of the `main` project has bit-rotted against
+  # current UI/routing (Search→/groups, seed schema drift, etc.) and needs
+  # a dedicated cleanup pass before it can gate CI.
+  - name: e2e
+    image: rust:1.88-bookworm
+    environment:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_REDIS: "redis://100.92.54.45:6380"
+    when:
+      - event: push
+        branch: main
+      - event: pull_request
+      - event: manual
+    commands:
+      - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
+      - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/*
+      - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+      - apt-get install -y --no-install-recommends nodejs && apt-get clean && rm -rf /var/lib/apt/lists/*
+      # Frontend deps + production build (build.rs expects dist to exist)
+      - cd frontend && npm ci && npx ng build --configuration=production && cd ..
+      # Debug binary is enough for E2E (release takes too long for every PR)
+      - cargo build --locked --bin rustnzb
+      # Install Playwright (browsers + system deps)
+      - cd e2e && npm ci && npx playwright install --with-deps chromium
+      # Fresh + fresh-auth projects are currently green end-to-end
+      - npx playwright test --project=fresh --project=fresh-auth --reporter=list
+      # Main-project tests currently known to pass (server mgmt + navigation)
+      - npx playwright test --project=main tests/servers.spec.ts tests/navigation.spec.ts --reporter=list
+
+  # ─── Build (push to main + tags only) ────────────────────────────────────
+
+  - name: build-frontend
+    image: node:22-bookworm-slim
+    commands:
+      - cd frontend && npm ci && npx ng build --configuration=production
+    when:
+      - event: push
+        branch: main
+      - event: tag
+      - event: manual
+
+  - name: build-linux
+    image: rust:1.88-bookworm
+    environment:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_REDIS: "redis://100.92.54.45:6380"
+    commands:
+      - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
+      - if [ -n "$CI_COMMIT_TAG" ]; then export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_STRIP=symbols; fi
+      - cargo build --locked --release --features webdav
+      - ls -lh target/release/rustnzb
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          TAG="$CI_COMMIT_TAG"
+          mkdir -p dist-linux/rustnzb-$TAG
+          cp target/release/rustnzb dist-linux/rustnzb-$TAG/
+          cp config.example.toml dist-linux/rustnzb-$TAG/
+          cp README.md dist-linux/rustnzb-$TAG/
+          tar -czf "rustnzb-$TAG-linux-x86_64.tar.gz" -C dist-linux "rustnzb-$TAG"
+          ls -lh "rustnzb-$TAG-linux-x86_64.tar.gz"
+          cargo install cargo-deb --registry crates-io
+          cargo deb --no-build --no-strip -o "rustnzb-$TAG-amd64.deb"
+          ls -lh "rustnzb-$TAG-amd64.deb"
+        fi
+    when:
+      - event: push
+        branch: main
+      - event: tag
+      - event: manual
+
+  - name: build-linux-arm64
+    image: rust:1.88-bookworm
+    environment:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_REDIS: "redis://100.92.54.45:6380"
+    commands:
+      - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
+      - curl -fsSL "https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz" | tar -xJ -C /opt && mv /opt/zig-linux-x86_64-0.13.0 /opt/zig && ln -s /opt/zig/zig /usr/local/bin/zig
+      - cargo install cargo-zigbuild --version 0.20.0 --locked
+      - rustup target add aarch64-unknown-linux-gnu
+      - if [ -n "$CI_COMMIT_TAG" ]; then export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_STRIP=symbols; fi
+      - cargo zigbuild --locked --release --target aarch64-unknown-linux-gnu.2.17 --features webdav,vendored-openssl
+      - ls -lh target/aarch64-unknown-linux-gnu/release/rustnzb
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          TAG="$CI_COMMIT_TAG"
+          mkdir -p dist-arm64/rustnzb-$TAG
+          cp target/aarch64-unknown-linux-gnu/release/rustnzb dist-arm64/rustnzb-$TAG/
+          cp config.example.toml dist-arm64/rustnzb-$TAG/
+          cp README.md dist-arm64/rustnzb-$TAG/
+          tar -czf "rustnzb-$TAG-linux-aarch64.tar.gz" -C dist-arm64 "rustnzb-$TAG"
+          ls -lh "rustnzb-$TAG-linux-aarch64.tar.gz"
+          cargo install cargo-deb --registry crates-io
+          cargo deb --no-build --no-strip --target aarch64-unknown-linux-gnu -o "rustnzb-$TAG-arm64.deb"
+          ls -lh "rustnzb-$TAG-arm64.deb"
+        fi
+    when:
+      - event: push
+        branch: main
+      - event: tag
+      - event: manual
+
+  - name: build-windows
+    image: rust:1.88-bookworm
+    environment:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_REDIS: "redis://100.92.54.45:6380"
+    commands:
+      - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
+      - apt-get update && apt-get install -y --no-install-recommends clang llvm lld
+      - cargo install cargo-xwin@0.18.6 --index https://github.com/rust-lang/crates.io-index
+      - rustup target add x86_64-pc-windows-msvc
+      - rm -rf ~/.cache/cargo-xwin
+      - if [ -n "$CI_COMMIT_TAG" ]; then export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_STRIP=symbols; fi
+      - cargo xwin build --locked --release --target x86_64-pc-windows-msvc --features webdav
+      - ls -lh target/x86_64-pc-windows-msvc/release/rustnzb.exe
+    when:
+      - event: push
+        branch: main
+      - event: tag
+      - event: manual
+
+  - name: package-nsis
+    image: debian:bookworm-slim
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends nsis
+      - TAG="$CI_COMMIT_TAG"
+      - cp target/x86_64-pc-windows-msvc/release/rustnzb.exe installer/
+      - cd installer && makensis -DVERSION="$TAG" windows.nsi
+      - ls -lh "../rustnzb-$TAG-windows-x86_64-setup.exe"
+    when:
+      - event: tag
+
+  # ─── Publish artifacts (tags only) ───────────────────────────────────────
+
+  - name: publish-release
+    image: alpine:3.23
+    when:
+      - event: tag
+    environment:
+      DEPLOY_SSH_KEY:
+        from_secret: deploy_ssh_key
+    commands:
+      - apk add --no-cache openssh-client coreutils
+      - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+      - printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+      - chmod 600 ~/.ssh/id_ed25519
+      - printf 'StrictHostKeyChecking no\nUserKnownHostsFile /dev/null\nLogLevel ERROR\n' > ~/.ssh/config
+      - |
+        set -ex
+        TAG="$CI_COMMIT_TAG"
+        ARTEFACTS="rustnzb-$TAG-linux-x86_64.tar.gz rustnzb-$TAG-linux-aarch64.tar.gz rustnzb-$TAG-windows-x86_64-setup.exe rustnzb-$TAG-amd64.deb rustnzb-$TAG-arm64.deb"
+        echo "=== Artifacts in workspace ==="
+        ls -lh $ARTEFACTS
+        echo "Publishing release $TAG"
+        sha256sum $ARTEFACTS > "SHA256SUMS-$TAG.txt"
+        ls -lh "SHA256SUMS-$TAG.txt"
+        ssh -i ~/.ssh/id_ed25519 -F ~/.ssh/config root@100.92.4.57 "mkdir -p /root/downloads/rustnzb/$TAG"
+        scp -O -F ~/.ssh/config -i ~/.ssh/id_ed25519 $ARTEFACTS "SHA256SUMS-$TAG.txt" root@100.92.4.57:/root/downloads/rustnzb/$TAG/
+        ssh -i ~/.ssh/id_ed25519 -F ~/.ssh/config root@100.92.4.57 "ln -sfn $TAG /root/downloads/rustnzb/latest"
+        echo "Published https://dl.rustnzb.dev/latest/"
+
+  - name: forgejo-release
+    image: alpine:3.23
+    when:
+      - event: tag
+    environment:
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - apk add --no-cache curl jq
+      - |
+        TAG="$CI_COMMIT_TAG"
+        API="https://repo.indexarr.net/api/v1"
+        REPO="indexarr/rustnzb"
+        # stable if tag has no alpha/beta/rc suffix
+        echo "$TAG" | grep -qE '(alpha|beta|rc)' && PRERELEASE=true || PRERELEASE=false
+        echo "Creating Forgejo release $TAG (prerelease=$PRERELEASE)"
+
+        BODY="## Downloads\n\n"
+        BODY="$BODY- **Linux x86_64**: \`rustnzb-$TAG-linux-x86_64.tar.gz\`\n"
+        BODY="$BODY- **Linux aarch64**: \`rustnzb-$TAG-linux-aarch64.tar.gz\`\n"
+        BODY="$BODY- **Windows x86_64 installer**: \`rustnzb-$TAG-windows-x86_64-setup.exe\`\n"
+        BODY="$BODY- **Debian/Ubuntu (amd64)**: \`rustnzb-$TAG-amd64.deb\`\n"
+        BODY="$BODY- **Debian/Ubuntu (arm64)**: \`rustnzb-$TAG-arm64.deb\`\n"
+        BODY="$BODY- **Docker (multi-arch: amd64/arm64)**: \`ghcr.io/ausagentsmith-org/rustnzb:$TAG\`\n"
+        BODY="$BODY\nSHA256 checksums in \`SHA256SUMS-$TAG.txt\`"
+
+        EXISTING_ID=$(curl -s -H "Authorization: token $FORGEJO_TOKEN" \
+          "$API/repos/$REPO/releases/tags/$TAG" | jq -r '.id // empty')
+        if [ -n "$EXISTING_ID" ]; then
+          curl -s -X DELETE -H "Authorization: token $FORGEJO_TOKEN" \
+            "$API/repos/$REPO/releases/$EXISTING_ID"
+        fi
+
+        RELEASE_ID=$(curl -s -X POST \
+          -H "Authorization: token $FORGEJO_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"tag_name\":\"$TAG\",\"name\":\"rustnzb $TAG\",\"body\":\"$BODY\",\"draft\":false,\"prerelease\":$PRERELEASE}" \
+          "$API/repos/$REPO/releases" | jq -r '.id')
+
+        [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ] && { echo "ERROR: Failed to create Forgejo release"; exit 1; }
+        echo "Forgejo release created: ID=$RELEASE_ID"
+
+        for file in \
+          "rustnzb-$TAG-linux-x86_64.tar.gz" \
+          "rustnzb-$TAG-linux-aarch64.tar.gz" \
+          "rustnzb-$TAG-windows-x86_64-setup.exe" \
+          "rustnzb-$TAG-amd64.deb" \
+          "rustnzb-$TAG-arm64.deb" \
+          "SHA256SUMS-$TAG.txt"; do
+          [ -f "$file" ] || continue
+          echo "Uploading $file"
+          curl -sf -X POST \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            -F "attachment=@$file" \
+            "$API/repos/$REPO/releases/$RELEASE_ID/assets" > /dev/null
+        done
+        echo "Forgejo release $TAG complete"
+
+  # ─── Docker (push to main = latest+sha; tag = version+latest) ────────────
+
+  # Main-branch image is amd64-only. The arm64 cross-compile (vendored
+  # OpenSSL + aws-lc-sys + zstd, all built from C) exhausts the buildx
+  # plugin's in-container overlayfs at ~110s (`No space left on device`),
+  # and splitting per-arch didn't help because the plugin spins up its own
+  # dockerd per step. Multi-arch is only needed for tagged releases (GHCR
+  # publish) — until that's reworked to use prebuilt binaries, main pushes
+  # only produce :latest / :sha for amd64.
+  - name: build-and-push
+    image: woodpeckerci/plugin-docker-buildx
+    when:
+      - event: push
+        branch: main
+    settings:
+      repo: repo.indexarr.net/indexarr/rustnzbd
+      registry: repo.indexarr.net
+      username:
+        from_secret: git_auth_token
+      password:
+        from_secret: git_auth_token
+      platforms: linux/amd64
+      tags:
+        - latest
+        - ${CI_COMMIT_SHA}
+      build_args_from_env:
+        - PLUGIN_PASSWORD
+
+  - name: build-and-push-release-amd64
+    image: woodpeckerci/plugin-docker-buildx
+    when:
+      - event: tag
+    settings:
+      repo: repo.indexarr.net/indexarr/rustnzbd
+      registry: repo.indexarr.net
+      username:
+        from_secret: git_auth_token
+      password:
+        from_secret: git_auth_token
+      platforms: linux/amd64
+      tags:
+        - ${CI_COMMIT_TAG}-amd64
+        - latest-amd64
+      build_args:
+        - RELEASE_OPTIMIZED=true
+      build_args_from_env:
+        - PLUGIN_PASSWORD
+
+  - name: build-and-push-release-arm64
+    image: woodpeckerci/plugin-docker-buildx
+    when:
+      - event: tag
+    settings:
+      repo: repo.indexarr.net/indexarr/rustnzbd
+      registry: repo.indexarr.net
+      username:
+        from_secret: git_auth_token
+      password:
+        from_secret: git_auth_token
+      platforms: linux/arm64
+      tags:
+        - ${CI_COMMIT_TAG}-arm64
+        - latest-arm64
+      build_args:
+        - RELEASE_OPTIMIZED=true
+      build_args_from_env:
+        - PLUGIN_PASSWORD
+
+  - name: manifest-release
+    image: mplatform/manifest-tool:alpine
+    when:
+      - event: tag
+    environment:
+      REGISTRY_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - |
+        manifest-tool --username x-access-token --password "$REGISTRY_TOKEN" \
+          push from-args \
+          --platforms linux/amd64,linux/arm64 \
+          --template repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_TAG}-ARCH \
+          --target repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_TAG}
+      - |
+        manifest-tool --username x-access-token --password "$REGISTRY_TOKEN" \
+          push from-args \
+          --platforms linux/amd64,linux/arm64 \
+          --template repo.indexarr.net/indexarr/rustnzbd:latest-ARCH \
+          --target repo.indexarr.net/indexarr/rustnzbd:latest
+
+  - name: push-ghcr
+    image: quay.io/skopeo/stable
+    when:
+      - event: tag
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - SRC="docker://repo.indexarr.net/indexarr/rustnzbd:$CI_COMMIT_TAG"
+      - SRC_CREDS="--src-creds=$FORGEJO_TOKEN:$FORGEJO_TOKEN"
+      - DST_CREDS="--dest-creds=AusAgentSmith:$GH_TOKEN"
+      - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS $SRC "docker://ghcr.io/ausagentsmith-org/rustnzb:$CI_COMMIT_TAG"
+      - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS $SRC "docker://ghcr.io/ausagentsmith-org/rustnzb:latest"
+
+  - name: github-release
+    image: alpine:3.23
+    when:
+      - event: tag
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+    commands:
+      - apk add --no-cache curl jq
+      - |
+        TAG="$CI_COMMIT_TAG"
+        REPO="AusAgentSmith-org/rustnzb"
+        echo "$TAG" | grep -qE '(alpha|beta|rc)' && PRERELEASE=true || PRERELEASE=false
+        echo "Creating GitHub release $TAG (prerelease=$PRERELEASE)"
+
+        BODY="## Downloads\n\n"
+        BODY="$BODY- **Linux x86_64**: \`rustnzb-$TAG-linux-x86_64.tar.gz\`\n"
+        BODY="$BODY- **Linux aarch64**: \`rustnzb-$TAG-linux-aarch64.tar.gz\`\n"
+        BODY="$BODY- **Windows x86_64 installer**: \`rustnzb-$TAG-windows-x86_64-setup.exe\`\n"
+        BODY="$BODY- **Debian/Ubuntu (amd64)**: \`rustnzb-$TAG-amd64.deb\`\n"
+        BODY="$BODY- **Debian/Ubuntu (arm64)**: \`rustnzb-$TAG-arm64.deb\`\n"
+        BODY="$BODY- **Docker (multi-arch: amd64/arm64)**: \`ghcr.io/ausagentsmith-org/rustnzb:$TAG\`\n"
+        BODY="$BODY\nSHA256 checksums in \`SHA256SUMS-$TAG.txt\`"
+
+        EXISTING_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
+          "https://api.github.com/repos/$REPO/releases/tags/$TAG" | jq -r '.id // empty')
+        if [ -n "$EXISTING_ID" ]; then
+          curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO/releases/$EXISTING_ID"
+          curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO/git/refs/tags/$TAG" || true
+        fi
+
+        RELEASE_ID=$(curl -s -X POST \
+          -H "Authorization: token $GH_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"tag_name\":\"$TAG\",\"target_commitish\":\"main\",\"name\":\"rustnzb $TAG\",\"body\":\"$BODY\",\"draft\":false,\"prerelease\":$PRERELEASE}" \
+          "https://api.github.com/repos/$REPO/releases" | jq -r '.id')
+
+        [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ] && { echo "ERROR: Failed to create GitHub release"; exit 1; }
+        echo "GitHub release created: ID=$RELEASE_ID"
+
+        for file in \
+          "rustnzb-$TAG-linux-x86_64.tar.gz" \
+          "rustnzb-$TAG-linux-aarch64.tar.gz" \
+          "rustnzb-$TAG-windows-x86_64-setup.exe" \
+          "rustnzb-$TAG-amd64.deb" \
+          "rustnzb-$TAG-arm64.deb" \
+          "SHA256SUMS-$TAG.txt"; do
+          [ -f "$file" ] || continue
+          echo "Uploading $file"
+          curl -sf -X POST \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$file" \
+            "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$file" > /dev/null
+        done
+        echo "GitHub release $TAG complete"
+
+  # ─── Discord notifications ────────────────────────────────────────────────
+
+  - name: discord-success
+    image: alpine/curl
+    environment:
+      DISCORD_WEBHOOK_URL:
+        from_secret: discord_webhook_url
+    commands:
+      - |
+        HASH=$(echo $CI_COMMIT_SHA | head -c 7)
+        curl -sf -H "Content-Type: application/json" -d "{
+          \"embeds\": [{
+            \"title\": \"Build Successful\",
+            \"description\": \"**${CI_REPO}** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
+            \"color\": 5025616,
+            \"footer\": {\"text\": \"$CI_REPO • $CI_COMMIT_AUTHOR\"},
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+          }]
+        }" "$DISCORD_WEBHOOK_URL" || true
+    when:
+      - status: [success]
+
+  - name: discord-failure
+    image: alpine/curl
+    environment:
+      DISCORD_WEBHOOK_URL:
+        from_secret: discord_webhook_url
+    commands:
+      - |
+        HASH=$(echo $CI_COMMIT_SHA | head -c 7)
+        curl -sf -H "Content-Type: application/json" -d "{
+          \"embeds\": [{
+            \"title\": \"Build Failed\",
+            \"description\": \"**${CI_REPO}** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
+            \"color\": 15548997,
+            \"footer\": {\"text\": \"$CI_REPO • $CI_COMMIT_AUTHOR\"},
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+          }]
+        }" "$DISCORD_WEBHOOK_URL" || true
+    when:
+      - status: [failure]

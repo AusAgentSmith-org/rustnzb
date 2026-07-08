@@ -47,7 +47,10 @@ async fn h_spa_fallback(uri: axum::http::Uri) -> Response {
             let mime = mime_guess::from_path(path).first_or_octet_stream();
             return (
                 StatusCode::OK,
-                [(header::CONTENT_TYPE, mime.as_ref().to_string())],
+                [
+                    (header::CONTENT_TYPE, mime.as_ref().to_string()),
+                    (header::CACHE_CONTROL, cache_header_for(path).to_string()),
+                ],
                 content.data.into_owned(),
             )
                 .into_response();
@@ -64,13 +67,51 @@ fn serve_embedded_file(path: &str) -> Response {
             let mime = mime_guess::from_path(path).first_or_octet_stream();
             (
                 StatusCode::OK,
-                [(header::CONTENT_TYPE, mime.as_ref().to_string())],
+                [
+                    (header::CONTENT_TYPE, mime.as_ref().to_string()),
+                    (header::CACHE_CONTROL, cache_header_for(path).to_string()),
+                ],
                 content.data.into_owned(),
             )
                 .into_response()
         }
         None => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+/// Returns the appropriate Cache-Control header value for a static asset path.
+///
+/// - index.html: no-cache so browsers always revalidate; stale index.html after
+///   an upgrade would reference old hashed chunk filenames that no longer exist.
+/// - Angular-hashed assets (e.g. main-7QCIQPRR.js): immutable — the hash in the
+///   filename guarantees content identity, so these are safe to cache forever.
+/// - Everything else (favicons, logos): 1-hour TTL as a reasonable middle ground.
+fn cache_header_for(path: &str) -> &'static str {
+    if path == "index.html" {
+        "no-cache, must-revalidate"
+    } else if is_hashed_asset(path) {
+        "max-age=31536000, immutable"
+    } else {
+        "max-age=3600"
+    }
+}
+
+/// Detects Angular content-hashed filenames (e.g. `main-7QCIQPRR.js`).
+/// Angular's outputHashing=all appends an 8-character uppercase alphanumeric
+/// hash before the extension.
+fn is_hashed_asset(path: &str) -> bool {
+    let Some(dot_pos) = path.rfind('.') else {
+        return false;
+    };
+    let stem = &path[..dot_pos];
+    let Some(dash_pos) = stem.rfind('-') else {
+        return false;
+    };
+    let hash = &stem[dash_pos + 1..];
+    hash.len() == 8
+        && hash
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
 }
 
 /// Build the axum Router with all API routes.
@@ -384,5 +425,35 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => { info!("Received SIGINT, shutting down..."); },
         _ = terminate => { info!("Received SIGTERM, shutting down..."); },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{cache_header_for, is_hashed_asset};
+
+    #[test]
+    fn hashed_asset_detection() {
+        assert!(is_hashed_asset("main-7QCIQPRR.js"));
+        assert!(is_hashed_asset("styles-C2LX33AG.css"));
+        assert!(is_hashed_asset("chunk-2B3NUF5K.js"));
+        assert!(!is_hashed_asset("index.html"));
+        assert!(!is_hashed_asset("favicon.ico"));
+        assert!(!is_hashed_asset("logo.png"));
+        // lowercase hash chars should not match (Angular uses uppercase)
+        assert!(!is_hashed_asset("main-7qciqprr.js"));
+        // hash too short
+        assert!(!is_hashed_asset("main-7QCIQPR.js"));
+    }
+
+    #[test]
+    fn cache_headers() {
+        assert_eq!(cache_header_for("index.html"), "no-cache, must-revalidate");
+        assert_eq!(
+            cache_header_for("main-7QCIQPRR.js"),
+            "max-age=31536000, immutable"
+        );
+        assert_eq!(cache_header_for("favicon.ico"), "max-age=3600");
+        assert_eq!(cache_header_for("logo.png"), "max-age=3600");
     }
 }

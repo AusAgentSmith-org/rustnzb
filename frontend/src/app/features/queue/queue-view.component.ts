@@ -560,8 +560,8 @@ export class QueueViewComponent implements OnInit, OnDestroy {
 
   speedValue = computed(() => this.formatSpeedValue(this.status()?.speed_bps ?? 0));
   speedUnit = computed(() => this.formatSpeedUnit(this.status()?.speed_bps ?? 0));
-  diskFreeValue = computed(() => this.formatBytesValue(this.status()?.disk_free_bytes ?? 0));
-  diskFreeUnit = computed(() => this.formatBytesUnit(this.status()?.disk_free_bytes ?? 0));
+  diskFreeValue = computed(() => this.formatBytesValue(this.status()?.disk_space_free ?? 0));
+  diskFreeUnit = computed(() => this.formatBytesUnit(this.status()?.disk_space_free ?? 0));
   diskUsedPct = computed(() => 28); // No total-disk endpoint; placeholder bar.
 
   serversEnabled = computed(() => this.servers().filter(s => s.enabled).length);

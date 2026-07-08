@@ -1,23 +1,53 @@
-FROM rust:1.88-alpine3.21 AS builder
+FROM --platform=$BUILDPLATFORM rust:1.88-bookworm AS builder
 
-RUN apk add --no-cache musl-dev build-base protoc openssl-dev openssl-libs-static curl nodejs npm git
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        protobuf-compiler \
+        curl \
+        pkg-config \
+        ca-certificates \
+        git \
+        xz-utils \
+        make \
+        perl && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# zig + cargo-zigbuild: cross-compile Rust (incl. C deps) to musl targets
+ENV ZIG_VERSION=0.13.0
+RUN BUILD_ARCH=$(uname -m) && \
+    curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${BUILD_ARCH}-${ZIG_VERSION}.tar.xz" | tar -xJ -C /opt && \
+    mv "/opt/zig-linux-${BUILD_ARCH}-${ZIG_VERSION}" /opt/zig && \
+    ln -s /opt/zig/zig /usr/local/bin/zig
+RUN cargo install cargo-zigbuild --version 0.20.0 --locked
+
+# Map TARGETPLATFORM → Rust triple (musl, matches alpine runtime)
+RUN case "$TARGETPLATFORM" in \
+      "linux/amd64") echo "x86_64-unknown-linux-musl" > /tmp/rust_target ;; \
+      "linux/arm64") echo "aarch64-unknown-linux-musl" > /tmp/rust_target ;; \
+      *) echo "Unsupported TARGETPLATFORM: $TARGETPLATFORM" >&2 && exit 1 ;; \
+    esac && \
+    rustup target add "$(cat /tmp/rust_target)"
 
 WORKDIR /build
 
-# Install Angular dependencies first (cached layer)
+# Frontend deps cached layer
 COPY frontend/package.json frontend/package-lock.json frontend/
 RUN cd frontend && npm ci
 
-# Copy frontend source and build
+# Frontend build
 COPY frontend frontend
 RUN cd frontend && npx ng build --configuration=production
 
-# Copy Rust source
+# Rust source
 COPY Cargo.toml Cargo.lock build.rs ./
 COPY src src
 COPY tests tests
 
-# Configure git + cargo registry for private Forgejo deps
+# Forgejo cargo registry auth (needed for private nzbdav-* crates)
 ARG GIT_AUTH_TOKEN
 ARG PLUGIN_PASSWORD
 RUN TOKEN="${GIT_AUTH_TOKEN:-$PLUGIN_PASSWORD}" && \
@@ -26,16 +56,18 @@ RUN TOKEN="${GIT_AUTH_TOKEN:-$PLUGIN_PASSWORD}" && \
     printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$TOKEN" > $CARGO_HOME/credentials.toml
 RUN sed -i '/^\[patch\./,/^$/d' Cargo.toml
 
-# RELEASE_OPTIMIZED=true enables fat LTO + single codegen-unit (slow but smaller binary)
 ARG RELEASE_OPTIMIZED=false
 
-# Build Rust binary (build.rs skips ng build since dist already exists)
-RUN if [ "$RELEASE_OPTIMIZED" = "true" ]; then \
-      export CARGO_PROFILE_RELEASE_LTO=fat \
+RUN RUST_TARGET=$(cat /tmp/rust_target) && \
+    if [ "$RELEASE_OPTIMIZED" = "true" ]; then \
+      export CARGO_PROFILE_RELEASE_LTO=thin \
              CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
              CARGO_PROFILE_RELEASE_STRIP=symbols; \
     fi && \
-    cargo build --release --features webdav
+    CARGO_INCREMENTAL=0 \
+    cargo zigbuild --release --features webdav,vendored-openssl --target "$RUST_TARGET" && \
+    cp "target/$RUST_TARGET/release/rustnzb" /build/rustnzb-out && \
+    rm -rf target
 
 
 FROM lscr.io/linuxserver/baseimage-alpine:3.21
@@ -45,7 +77,7 @@ RUN apk add --no-cache \
         curl \
         7zip
 
-COPY --from=builder /build/target/release/rustnzb /usr/local/bin/rustnzb
+COPY --from=builder /build/rustnzb-out /usr/local/bin/rustnzb
 
 # s6 init: create directories and fix permissions
 COPY root/ /
