@@ -279,7 +279,7 @@ steps:
         done
         echo "Forgejo release $TAG complete"
 
-  # ─── Docker (push to main = latest+sha; tag = version+latest) ────────────
+  # ─── Docker (push to main = dev+sha; tag = version+latest) ───────────────
 
   # Main-branch image is amd64-only. The arm64 cross-compile (vendored
   # OpenSSL + aws-lc-sys + zstd, all built from C) exhausts the buildx
@@ -287,8 +287,8 @@ steps:
   # and splitting per-arch didn't help because the plugin spins up its own
   # dockerd per step. Multi-arch is only needed for tagged releases (GHCR
   # publish) — until that's reworked to use prebuilt binaries, main pushes
-  # only produce :latest / :sha for amd64.
-  - name: build-and-push
+  # only produce :dev / :sha for amd64.
+  - name: build-and-push-dev
     image: woodpeckerci/plugin-docker-buildx
     when:
       - event: push
@@ -302,10 +302,46 @@ steps:
         from_secret: git_auth_token
       platforms: linux/amd64
       tags:
-        - latest
+        - dev
         - ${CI_COMMIT_SHA}
       build_args_from_env:
         - PLUGIN_PASSWORD
+
+  - name: push-ghcr-dev
+    image: quay.io/skopeo/stable
+    when:
+      - event: push
+        branch: main
+    depends_on:
+      - build-and-push-dev
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - SRC_CREDS="--src-creds=$FORGEJO_TOKEN:$FORGEJO_TOKEN"
+      - DST_CREDS="--dest-creds=AusAgentSmith:$GH_TOKEN"
+      - skopeo copy $SRC_CREDS $DST_CREDS "docker://repo.indexarr.net/indexarr/rustnzbd:dev" "docker://ghcr.io/ausagentsmith-org/rustnzb:dev"
+      - skopeo copy $SRC_CREDS $DST_CREDS "docker://repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_SHA}" "docker://ghcr.io/ausagentsmith-org/rustnzb:${CI_COMMIT_SHA}"
+
+  - name: verify-dev-images
+    image: quay.io/skopeo/stable
+    when:
+      - event: push
+        branch: main
+    depends_on:
+      - push-ghcr-dev
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch amd64 "docker://repo.indexarr.net/indexarr/rustnzbd:dev" > /dev/null
+      - skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch amd64 "docker://repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_SHA}" > /dev/null
+      - skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch amd64 "docker://ghcr.io/ausagentsmith-org/rustnzb:dev" > /dev/null
+      - skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch amd64 "docker://ghcr.io/ausagentsmith-org/rustnzb:${CI_COMMIT_SHA}" > /dev/null
 
   - name: build-and-push-release-amd64
     image: woodpeckerci/plugin-docker-buildx
@@ -351,6 +387,9 @@ steps:
     image: mplatform/manifest-tool:alpine
     when:
       - event: tag
+    depends_on:
+      - build-and-push-release-amd64
+      - build-and-push-release-arm64
     environment:
       REGISTRY_TOKEN:
         from_secret: git_auth_token
@@ -372,6 +411,8 @@ steps:
     image: quay.io/skopeo/stable
     when:
       - event: tag
+    depends_on:
+      - manifest-release
     environment:
       GH_TOKEN:
         from_secret: gh_release_token
@@ -383,6 +424,27 @@ steps:
       - DST_CREDS="--dest-creds=AusAgentSmith:$GH_TOKEN"
       - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS $SRC "docker://ghcr.io/ausagentsmith-org/rustnzb:$CI_COMMIT_TAG"
       - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS $SRC "docker://ghcr.io/ausagentsmith-org/rustnzb:latest"
+
+  - name: verify-release-images
+    image: quay.io/skopeo/stable
+    when:
+      - event: tag
+    depends_on:
+      - push-ghcr
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch amd64 "docker://repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_TAG}" > /dev/null
+      - skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch arm64 "docker://repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_TAG}" > /dev/null
+      - skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch amd64 "docker://repo.indexarr.net/indexarr/rustnzbd:latest" > /dev/null
+      - skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch arm64 "docker://repo.indexarr.net/indexarr/rustnzbd:latest" > /dev/null
+      - skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch amd64 "docker://ghcr.io/ausagentsmith-org/rustnzb:${CI_COMMIT_TAG}" > /dev/null
+      - skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch arm64 "docker://ghcr.io/ausagentsmith-org/rustnzb:${CI_COMMIT_TAG}" > /dev/null
+      - skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch amd64 "docker://ghcr.io/ausagentsmith-org/rustnzb:latest" > /dev/null
+      - skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch arm64 "docker://ghcr.io/ausagentsmith-org/rustnzb:latest" > /dev/null
 
   - name: github-release
     image: alpine:3.23
