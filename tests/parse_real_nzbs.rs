@@ -1,5 +1,21 @@
+mod support;
+
 use nzb_web::nzb_core::nzb_parser;
 use std::path::Path;
+
+#[test]
+fn parse_sample_fixture_nzb() {
+    let data = support::sample_nzb_bytes();
+    let job = nzb_parser::parse_nzb("sample.nzb", &data).expect("fixture should parse");
+    assert_eq!(job.file_count, 1);
+    assert_eq!(job.article_count, 1);
+    assert!(job.total_bytes > 0);
+    assert_eq!(job.files[0].filename, "sample.bin");
+    assert_eq!(
+        job.files[0].articles[0].message_id,
+        "sample-article-001@rustnzb.test"
+    );
+}
 
 #[test]
 fn parse_all_test_nzbs() {
