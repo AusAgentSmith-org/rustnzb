@@ -17,10 +17,10 @@ fn main() {
     // If a real dist already exists (e.g. CI pre-built it or a prior build
     // succeeded), skip rebuilding. Placeholder output should not suppress a
     // later retry once npm connectivity is restored.
-    if let Ok(existing) = std::fs::read_to_string(std::path::Path::new(dist).join("index.html")) {
-        if existing != PLACEHOLDER_HTML {
-            return;
-        }
+    if let Ok(existing) = std::fs::read_to_string(std::path::Path::new(dist).join("index.html"))
+        && existing != PLACEHOLDER_HTML
+    {
+        return;
     }
 
     if env::var_os("RUSTNZB_SKIP_FRONTEND_BUILD").is_some() {
