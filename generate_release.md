@@ -103,6 +103,12 @@ Notes:
 
 ## Phase 1 — Publish NZB crates to crates.io + Forgejo
 
+Hard requirements:
+
+- All release builds and quality gates must pass from the monorepo workspace using the vendored `crates/` members.
+- Any commit, tag, or publish action for this release train must be authored as `AusAgentSmith`, not `sprooty`.
+- `origin` (Forgejo) is primary, `github` is the public mirror. Push to both where applicable.
+
 ### Crates in scope
 
 In dependency order (must publish bottom-up):
@@ -117,11 +123,15 @@ Level 3:                     nzb-news     (→ nzb-dispatch)
 Level 4:                     nzb-web      (→ nzb-news, nzb-decode, nzb-postproc)
 ```
 
-All crates live under `~/Working/Active/apps/libs/<crate>/`.
+All shared crates live under `~/Working/Active/apps/rustnzbd/crates/<crate>/`.
 
 ### Pre-flight
 
 ```bash
+# Ensure git identity is correct for release work
+git config user.name "AusAgentSmith"
+git config user.email "admin@rustnzb.dev"
+
 # Ensure crates.io token is loaded
 export CARGO_REGISTRY_TOKEN=$(infisical secrets get CARGO_CRATES_IO_TOKEN \
   --domain https://se.sprooty.com \
@@ -132,13 +142,21 @@ export CARGO_REGISTRY_TOKEN=$(infisical secrets get CARGO_CRATES_IO_TOKEN \
 # Used implicitly by --registry forgejo
 ```
 
+For app-level verification, build and test from the monorepo root so the workspace member graph is the same as CI.
+
+Keep the root `[patch.crates-io]` entries in place while the `nzbdav-*` crates
+remain external Forgejo dependencies. They still resolve `nzb-*` crates by
+published version, and removing the patch currently breaks
+`cargo build -p rustnzb --release --features webdav` by mixing registry and
+workspace copies of the shared crates.
+
 ### Per-crate procedure (repeat in dependency order)
 
 For each crate `C`:
 
 1. **Sync working tree**
    ```bash
-   cd ~/Working/Active/apps/libs/$C
+   cd ~/Working/Active/apps/rustnzbd/crates/$C
    git checkout main && git pull
    ```
 
@@ -179,15 +197,17 @@ For each crate `C`:
 
 ### Update consuming apps
 
-After all crates publish, bump versions in each consuming app's root `Cargo.toml`:
+After all crates publish, bump versions in each consuming app manifest:
 
 - `~/Working/Active/apps/rustnzbd/Cargo.toml`
+- `~/Working/Active/apps/rustnzbd/apps/rustnzb/Cargo.toml` when app-local
+  metadata such as `cargo-deb` assets need to change
 - `~/Working/Active/apps/Arz/Cargo.toml`
 - `~/Working/Active/apps/nzb-mirror/Cargo.toml`
 - `~/Working/Active/apps/rustnzbindxer/Cargo.toml`
 - `~/Working/Active/apps/rustNewsreader/Cargo.toml`
 
-Strip or refresh any `[patch.*]` sections that point at local checkouts. CI strips them anyway, but local builds should match.
+For `rustnzb`, the shared crates are now workspace members, so app-level updates happen inside this monorepo rather than through local patch sections.
 
 ---
 
@@ -206,11 +226,11 @@ Drop or commit stray files (`Dockerfile.local`, `e2e/playwright-report/`, etc.).
 
 ### 2. Bump rustnzb version
 
-Edit `Cargo.toml` → `[package] version = "X.Y.Z"`. Update any in-repo references (changelog, frontend `package.json` if mirrored).
+Edit the root `Cargo.toml` → `[workspace.package] version = "X.Y.Z"`. Update any in-repo references (changelog, frontend `package.json` if mirrored).
 
 ```bash
 cargo update -p rustnzb               # refresh lock entry
-cargo build --release --features webdav   # smoke verify
+cargo build -p rustnzb --release --features webdav   # smoke verify
 cargo test --workspace
 ```
 
@@ -222,9 +242,17 @@ git commit -m "release: vX.Y.Z"
 git push origin main
 ```
 
-Wait for the Forgejo dev image publish to complete for this commit. A `main`
-pipeline can still end red if unrelated quality gates fail after
-`build-and-push-dev` has already published the deployable image.
+Wait for Woodpecker CI to go green (Forgejo build, Docker push, GHCR mirror).
+
+Important:
+
+- A push to `rustnzb` builds and publishes images, but it does not by itself
+  roll Node B.
+- Node B runs `rustnzb` inside the `personal-arr` Komodo stack from the
+  `indexarr/ops` repo.
+- To validate a real deployment, update the image reference in
+  `ops/personal/arr/compose.yaml`, push that repo, then trigger
+  `DeployStack personal-arr`.
 
 Expected Docker result for a normal `main` push:
 
@@ -235,36 +263,11 @@ Expected Docker result for a normal `main` push:
 
 `latest` should remain unchanged here.
 
-### 3a. Deploy a dev build to Komodo
-
-For Komodo-managed stacks, deploy the exact Forgejo commit image, not `:dev`
-and not GHCR:
-
-1. Confirm Woodpecker published:
-   - `repo.indexarr.net/indexarr/rustnzbd:<full-commit-sha>`
-2. Update the target stack in `indexarr/ops` to pin that exact image tag.
-   Current arr stack path:
-   - `personal/arr/compose.yaml`
-3. Push the ops commit, then trigger a redeploy:
-
-```bash
-mydevenv2-agent-auth run -- python3 \
-  ~/.codex/skills/komodo-stack-deploy/scripts/deploy_stack.py personal-arr
-```
-
-4. Verify the live container on Node B:
-
-```bash
-tailscale ssh sprooty@winrarhost \
-  'docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | grep rustnzb'
-```
-
-Notes:
-
-- Prefer the Forgejo `:<sha>` tag for dev deploys. GHCR mirror steps can be
-  skipped if earlier jobs fail, even when the Forgejo image already exists.
-- Do not advance `latest` for dev testing. `latest` remains tied to the most
-  recent tagged release.
+Current caveat: the Dockerfile still authenticates to Forgejo with build args
+(`GIT_AUTH_TOKEN` / `PLUGIN_PASSWORD`) so private `nzbdav-*` crates can
+resolve. Docker warns about this during build because args are not secret-safe.
+Treat local and CI logs for these builds as sensitive until the auth path is
+converted to BuildKit secrets or another secret-mount flow.
 
 ### 4. Tag the release on Forgejo
 
@@ -323,8 +326,7 @@ gh release create vX.Y.Z \
 
 ### 7. Verify
 
-- [ ] Forgejo dev image exists for the `main` commit SHA you plan to deploy
-- [ ] Tag pipeline green
+- [ ] Forgejo CI green on `main` and tag
 - [ ] Komodo deployed new container (check `http://192.168.1.75:3011`)
 - [ ] `dl.rustnzb.dev/vX.Y.Z/` contains Linux + Windows binaries
 - [ ] Forgejo has `repo.indexarr.net/indexarr/rustnzbd:vX.Y.Z`
@@ -341,10 +343,9 @@ gh release create vX.Y.Z \
 
 - **Bad crate published**: crates.io is immutable. Yank with `cargo yank --version X.Y.Z <crate>`, then publish a fixed patch version.
 - **Bad rustnzb release**: revert the offending commit on `main`, bump patch version, repeat Phase 2. Force-pushing tags is forbidden.
-- **Bad Komodo deploy**: edit the image SHA in the relevant
-  `repo.indexarr.net/indexarr/ops` stack compose file back to the previous SHA
-  (currently `personal/arr/compose.yaml` for the arr stack), push that ops
-  commit, then re-trigger DeployStack via the Komodo API or the deploy script.
+- **Bad Komodo deploy**: edit the image tag/SHA in
+  `repo.indexarr.net/indexarr/ops` `personal/arr/compose.yaml` back to the
+  previous value and re-trigger `DeployStack` for `personal-arr`.
 
 ---
 

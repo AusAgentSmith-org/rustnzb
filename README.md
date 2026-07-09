@@ -77,9 +77,13 @@ Open `http://localhost:9090` and add your NNTP servers via the web UI.
 ```bash
 git clone https://github.com/AusAgentSmith-org/rustnzb.git
 cd rustnzb
-cp config.example.toml config.toml
+cp apps/rustnzb/config.example.toml config.toml
 docker compose up -d
 ```
+
+For the real homelab deployment on Node B, do not treat this repo's local
+`docker-compose.yml` as the source of truth. Runtime state is managed through
+the `indexarr/ops` repo stack `personal/arr` and deployed through Komodo.
 
 ### Desktop App
 
@@ -94,8 +98,8 @@ Download the latest installer from [GitHub Releases](https://github.com/AusAgent
 ```bash
 git clone https://github.com/AusAgentSmith-org/rustnzb.git
 cd rustnzb
-cp config.example.toml config.toml
-cargo build --release
+cp apps/rustnzb/config.example.toml config.toml
+cargo build -p rustnzb --release
 ./target/release/rustnzb
 ```
 
@@ -165,7 +169,7 @@ rustnzb uses TOML configuration with CLI and environment variable overrides.
 
 **Priority:** CLI args > environment variables > TOML file > defaults
 
-Most settings can be configured through the web UI. See [`config.example.toml`](config.example.toml) for the full reference.
+Most settings can be configured through the web UI. See [`apps/rustnzb/config.example.toml`](apps/rustnzb/config.example.toml) for the full reference.
 
 ### Key Environment Variables
 
@@ -221,11 +225,30 @@ The SABnzbd-compatible API is available at `/sabnzbd/api`.
 ## Development
 
 ```bash
-cargo build              # Debug build
-cargo build --release    # Release build
+cargo build -p rustnzb              # Debug build
+cargo build -p rustnzb --release    # Release build
 cargo test --workspace   # All tests
 cargo test -p nzb-decode # Single crate
 ```
+
+Release-feature app build from the monorepo root:
+
+```bash
+cargo build -p rustnzb --release --features webdav
+```
+
+The root `[patch.crates-io]` section is still intentional after the monorepo
+cutover. The private external `nzbdav-*` crates still resolve shared `nzb-*`
+dependencies by published version, so removing the patch currently makes
+`--features webdav` builds pull mixed registry and workspace copies of
+`nzb-core` / `nzb-nntp`.
+
+Local and CI Docker builds also still pass Forgejo registry credentials through
+`--build-arg GIT_AUTH_TOKEN` (falling back to `PLUGIN_PASSWORD`) so the private
+`nzbdav-*` crates can resolve during image builds. Docker warns about this
+pattern because build args are not secret-safe; use short-lived tokens and do
+not retain verbose build logs longer than needed until this moves to a
+BuildKit-secret flow.
 
 ---
 

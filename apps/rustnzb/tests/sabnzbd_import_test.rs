@@ -1,13 +1,21 @@
 use nzb_web::nzb_core::sabnzbd_import::*;
 
+fn sab_benchmark_ini() -> String {
+    std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("benchnzb/configs/sabnzbd.ini"),
+    )
+    .expect("benchnzb/configs/sabnzbd.ini should exist")
+}
+
 // ---------------------------------------------------------------------------
 // INI parsing — using benchnzb/configs/sabnzbd.ini
 // ---------------------------------------------------------------------------
 
 #[test]
 fn parse_benchmark_ini() {
-    let content = std::fs::read_to_string("benchnzb/configs/sabnzbd.ini")
-        .expect("benchnzb/configs/sabnzbd.ini should exist");
+    let content = sab_benchmark_ini();
     let preview = parse_sabnzbd_ini(&content);
 
     // Should have exactly 1 server
@@ -36,7 +44,7 @@ fn parse_benchmark_ini() {
 
 #[test]
 fn parse_benchmark_ini_categories() {
-    let content = std::fs::read_to_string("benchnzb/configs/sabnzbd.ini").unwrap();
+    let content = sab_benchmark_ini();
     let preview = parse_sabnzbd_ini(&content);
 
     assert_eq!(preview.categories.len(), 1);
@@ -48,7 +56,7 @@ fn parse_benchmark_ini_categories() {
 
 #[test]
 fn parse_benchmark_ini_general() {
-    let content = std::fs::read_to_string("benchnzb/configs/sabnzbd.ini").unwrap();
+    let content = sab_benchmark_ini();
     let preview = parse_sabnzbd_ini(&content);
 
     assert_eq!(

@@ -1,5 +1,194 @@
 # rustnzbd Uplift Plan: Add Newsreader & Angular UI
 
+Path note after the 2026-07-09 monorepo migration:
+
+- app crate paths previously written as `src/...`, `tests/...`, or `frontend/...`
+  now live under `apps/rustnzb/`
+- shared `nzb-*` crate paths previously written as `../libs/<crate>/...` now
+  live under `crates/<crate>/...`
+- this plan predates the monorepo cutover; keep that translation in mind while
+  using the implementation notes below
+
+## Review Blockers Before Further Uplift
+
+The current codebase has a few correctness and hardening issues that should be fixed before expanding the feature surface further.
+
+### Priority blockers from 2026-07-07 review
+
+1. Server reconfiguration can strand active jobs:
+   - `../libs/nzb-dispatch/src/news_engine.rs`
+   - `../libs/nzb-news/src/downloader.rs`
+   - Mid-download server edits can leave jobs stuck in `Downloading` because `Cancelled` work from the old downloader is not resolved against job completion accounting.
+
+2. `add-url` SSRF guard is not binding the actual outbound request:
+   - `src/handlers.rs`
+   - The hostname is validated first, then reqwest resolves it again later, leaving a DNS rebinding / TOCTOU gap.
+
+3. ZIP-based NZB ingestion has no decompressed size limit:
+   - `src/handlers.rs`
+   - `.gz` is capped, `.zip` is not. Large archive expansion can still force unbounded allocation.
+
+4. Group header watermark can advance on failed insert:
+   - `src/group_handlers.rs`
+   - `../libs/nzb-core/src/groups_db.rs`
+   - A failed header batch can still move `last_scanned`, causing permanent header loss for that range.
+
+5. Startup config sanitization does not affect the live runtime config:
+   - `src/main.rs`
+   - `../libs/nzb-web/src/startup.rs`
+   - The trim/sanitize pass runs on an early config copy that is discarded before engine startup.
+
+Current implementation state on 2026-07-07:
+- Addressed in `rustnzb` branch `codex/woodpecker-published-crates` / commit
+  `fc08a8d`:
+  - blocker 2 (`add-url` DNS rebinding / TOCTOU)
+  - blocker 3 (ZIP/response size caps)
+  - blocker 4 (header watermark advancement after failed insert)
+- Addressed in shared crates:
+  - blocker 5 (`nzb-web`) in branch `codex/startup-sanitize-fix`, commit
+    `fed2161`
+  - GitHub issue `#10` / `nzb-nntp` TLS feature cleanup in branch
+    `codex/ring-only-tokio-rustls`, commit `45ebc32`
+- Shared-crate issue now addressed in this session:
+  - issue `#9` / `nzb-postproc` in branch
+    `codex/par2-rename-before-extract`, commit `23a8279`
+- Still pending in shared crates:
+  - blocker 1 (`nzb-dispatch` / `nzb-news`)
+- Still pending upstream:
+  - `rust-par2` issues `#3` and `#4`
+
+Detailed write-up:
+- See `BUG.md`
+
+### Crate publication status to keep in mind
+
+Checked against crates.io on 2026-07-07:
+
+- Published and current there:
+  - `nzb-decode 0.1.2`
+  - `rust-par2 0.1.2`
+  - `yenc-simd 0.1.1`
+- Workspace is ahead of crates.io:
+  - `nzb-web`: workspace `0.4.20`, crates.io `0.4.15`
+  - `nzb-nntp`: workspace `0.2.22`, crates.io `0.2.18`
+  - `nzb-core`: workspace `0.2.16`, crates.io `0.2.12`
+  - `nzb-postproc`: workspace `0.2.6`, crates.io `0.2.5`
+  - `nzb-news`: workspace `0.1.12`, crates.io `0.1.10`
+  - `nzb-dispatch`: workspace `0.2.6`, crates.io `0.2.4`
+- WebDAV crates are published to crates.io at `0.4.0`, but this app depends on `0.4.1` from Forgejo:
+  - `nzbdav-core`
+  - `nzbdav-stream`
+  - `nzbdav-dav`
+  - `nzbdav-pipeline`
+- The root `[patch.crates-io]` section is intentionally still present after the
+  monorepo migration because those external `nzbdav-*` crates otherwise pull a
+  second registry copy of shared `nzb-*` dependencies during `--features
+  webdav` builds.
+
+### Release constraints
+
+- Local path overrides are for development only. Any release gate for this app or its shared crates must pass using published dependencies from Forgejo/crates.io, not unpublished local checkouts.
+- Before any commit/tag/publish/push for release work, set the repo-local git identity to `AusAgentSmith` so release history is not authored as `sprooty`.
+- This repo has a Forgejo primary remote and a GitHub mirror remote already configured; release flow must keep both in sync.
+- Add a full dependency version review across `rustnzb` and the shared crates
+  before calling the release/uplift line complete. That review should cover:
+  - pinned versions vs latest published versions
+  - duplicated transitive TLS/runtime stacks
+  - stale patches or branch-only assumptions
+  - whether each crate version consumed by `rustnzb` is actually published and
+    buildable without local overrides
+
+### GitHub cutover tasks
+
+Current state checked on 2026-07-07:
+
+- GitHub Actions are enabled for `AusAgentSmith-org/rustnzb`.
+- An org-scoped runner, `node-b-rustnzb`, is now online in the default runner
+  group with labels `self-hosted`, `Linux`, `X64`, and `rustnzb`.
+- `rustnzb` `main` on GitHub now contains a repo-local `CI` workflow and the
+  published-crates manifest cleanup needed for clean GitHub checkouts.
+- The GitHub-side CI branch line was validated locally with published
+  dependencies only:
+  - `cargo fmt --check`
+  - `cargo clippy --locked --all-targets --no-default-features -- -D warnings`
+  - `CI=1 RUSTNZB_SKIP_FRONTEND_BUILD=1 cargo test --locked --no-default-features`
+- `build.rs` now supports `RUSTNZB_SKIP_FRONTEND_BUILD=1` so Rust-only CI does
+  not block on an Angular production build.
+- Existing release/build work still assumes Forgejo-first flows in several
+  places and needs to be inverted carefully if GitHub becomes primary.
+- Manual `workflow_dispatch` against the new `CI` workflow returned GitHub API
+  `422` with `Actions has been disabled for this user`, so repo-level Actions
+  are enabled and the runner is healthy, but workflow execution still appears
+  blocked for the current PAT-backed user identity.
+- Forgejo has not yet been updated to mirror the new GitHub `main` state back
+  in the other direction, because `origin/main` and `github/main` diverged
+  before this cutover and the secondary-branch policy still needs an explicit
+  decision.
+- Pivot back to Forgejo/Woodpecker is now in progress because GitHub workflow
+  execution remains blocked for the current user identity.
+- A Forgejo branch carrying the published-crates and intake-hardening work has
+  been pushed as `codex/woodpecker-published-crates` at commit `fc08a8d`.
+- That Forgejo branch has already passed the equivalent local build/test gates
+  against published dependencies only:
+  - `cargo fmt --check`
+  - `RUSTNZB_SKIP_FRONTEND_BUILD=1 cargo check --locked --all-targets --no-default-features`
+  - `RUSTNZB_SKIP_FRONTEND_BUILD=1 cargo check --locked --features webdav`
+  - `CI=1 RUSTNZB_SKIP_FRONTEND_BUILD=1 cargo test --locked --no-default-features`
+  - `RUSTNZB_SKIP_FRONTEND_BUILD=1 cargo clippy --locked --all-targets --no-default-features -- -D warnings`
+  - `RUSTNZB_SKIP_FRONTEND_BUILD=1 cargo build --locked --release --features webdav`
+- Woodpecker pipeline verification for that branch still needs a successful API
+  trigger/readback.
+
+Current task status:
+
+1. Completed: deploy an org-scoped GitHub Actions runner on Node B via the
+   `ops` repo and Komodo, with narrow labels for `rustnzb`.
+2. Completed: land a GitHub Actions workflow in `rustnzb` that builds and
+   tests with published crates only, not local path overrides.
+3. Completed: push GitHub CI changes with the `AusAgentSmith` git identity.
+4. Partial: move GitHub toward the primary build/review surface for `rustnzb`;
+   execution is still blocked by the current GitHub user-level Actions error.
+5. Pending: keep Forgejo as the deliberate secondary mirror with an explicit
+   branch policy instead of an accidental divergence.
+6. In progress: remove Dependabot configuration and Dependabot workflows from
+   every repo in `AusAgentSmith-org`.
+7. Pending: audit org mirror repos and document GitHub-vs-Forgejo ownership per
+   repo.
+
+Dependabot cleanup status as of 2026-07-07:
+
+- Removed checked-in Dependabot config from writable repos that still owned it:
+  - `rustnzb`
+  - `rustTorrent`
+- Removed repo-local `dependabot-linear.yml` workflows from writable repos that
+  used them:
+  - `Indexarr_Website`
+  - `NoteTaker`
+  - `NoteTaker_Website`
+  - `rustTorrent_Website`
+  - `-rustnzbd_Website`
+  - `RustNZBIndexer`
+  - `pipeline-dash`
+  - `Newznab-API-Spec-Validator`
+- Remaining exception:
+  - `Indexarr` still contains `.github/workflows/dependabot-linear.yml`, but
+    the repo is archived and GitHub rejects writes with `403 Repository was
+    archived so is read-only`.
+- GitHub may continue to show generated `dynamic/dependabot/dependabot-updates`
+  workflow entries temporarily or due to higher-level policy, even after the
+  repo-owned config/workflow files are removed. The checked-in sources under
+  repository control have been removed everywhere except the archived repo.
+
+### Upstream dependency blockers for release confidence
+
+- `rust-par2` has two open functional issues on GitHub as of 2026-07-07:
+  - `#3` `repair()` fails on cross-file damage
+  - `#4` `verify()` undercounts recovery blocks in larger `.volNNN+MMM.par2`
+    files
+- Because `rustnzb` depends on `rust-par2`, these should be treated as release
+  blockers or require an explicit fallback strategy.
+- Detailed notes live in `BUG.md`.
+
 ## Goal
 
 Transform rustnzbd from a headless NZB downloader into a full **NZBGet competitor with built-in newsgroup browsing**. Two major workstreams:

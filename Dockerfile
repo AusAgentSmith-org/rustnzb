@@ -35,18 +35,18 @@ RUN case "$TARGETPLATFORM" in \
 WORKDIR /build
 
 # Frontend deps cached layer
-COPY frontend/package.json frontend/package-lock.json frontend/
-RUN cd frontend && npm ci
+COPY apps/rustnzb/frontend/package.json apps/rustnzb/frontend/package-lock.json apps/rustnzb/frontend/
+RUN cd apps/rustnzb/frontend && npm ci
 
 # Frontend build
-COPY frontend frontend
-RUN cd frontend && npx ng build --configuration=production
+COPY apps/rustnzb/frontend apps/rustnzb/frontend
+RUN cd apps/rustnzb/frontend && npx ng build --configuration=production
 
 # Rust source
-COPY Cargo.toml Cargo.lock build.rs ./
+COPY Cargo.toml Cargo.lock ./
+COPY apps/rustnzb/Cargo.toml apps/rustnzb/build.rs /build/apps/rustnzb/
+COPY apps/rustnzb/src /build/apps/rustnzb/src
 COPY crates crates
-COPY src src
-COPY tests tests
 
 # Forgejo cargo registry auth (needed for private nzbdav-* crates)
 ARG GIT_AUTH_TOKEN
@@ -61,7 +61,6 @@ RUN TOKEN="${GIT_AUTH_TOKEN:-$PLUGIN_PASSWORD}" && \
     git config --global url."http://x-access-token:${TOKEN}@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/" && \
     printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml && \
     printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$TOKEN" > $CARGO_HOME/credentials.toml
-RUN sed -i '/^\[patch\./,/^$/d' Cargo.toml
 
 ARG RELEASE_OPTIMIZED=false
 
@@ -72,7 +71,7 @@ RUN RUST_TARGET=$(cat /tmp/rust_target) && \
              CARGO_PROFILE_RELEASE_STRIP=symbols; \
     fi && \
     CARGO_INCREMENTAL=0 \
-    cargo zigbuild --release --features webdav,vendored-openssl --target "$RUST_TARGET" && \
+    cargo zigbuild --release -p rustnzb --features webdav,vendored-openssl --target "$RUST_TARGET" && \
     cp "target/$RUST_TARGET/release/rustnzb" /build/rustnzb-out && \
     rm -rf target
 
@@ -87,7 +86,7 @@ RUN apk add --no-cache \
 COPY --from=builder /build/rustnzb-out /usr/local/bin/rustnzb
 
 # s6 init: create directories and fix permissions
-COPY root/ /
+COPY apps/rustnzb/root/ /
 
 EXPOSE 9090
 

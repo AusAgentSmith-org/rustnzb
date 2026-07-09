@@ -1,5 +1,14 @@
 # rustnzb — v1 Work Plan
 
+Historical note:
+
+- this plan mixes the original single-crate app-root layout with the intended
+  workspace shape
+- after the 2026-07-09 monorepo migration, the runnable app crate lives in
+  `apps/rustnzb/` and the shared crates live in `crates/`
+- where this document references old root-level app paths, translate them to
+  `apps/rustnzb/...`
+
 ## Architecture Overview
 
 ```

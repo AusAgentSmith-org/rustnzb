@@ -1,12 +1,18 @@
 # Fork Merge Status
 
-This document records what was reviewed from `FutureMan0/rustnzb-restyle`, what was actually worth pulling back, what was reproduced in current code, and what still remains before release work can be finished.
+Path note after the 2026-07-09 monorepo migration:
 
-## Source reviewed
+- historical root-level app paths now live under `apps/rustnzb/`
+- historical `Active/apps/libs/...` shared-crate paths now live under
+  `crates/...` in this repo
+
+This document records what was reviewed from `FutureMan0/rustnzb-restyle`, what was worth pulling back into the `rustnzb` line, what was actually reproduced before being accepted, which shared crates moved, and what consumer verification still matters.
+
+## Reviewed source
 
 - Fork: `https://github.com/FutureMan0/rustnzb-restyle`
-- Local app repo: `rustnzbd`
-- Local shared crates:
+- App repo: `rustnzbd`
+- Shared crates:
   - `Active/apps/libs/nzb-web`
   - `Active/apps/libs/nzb-postproc`
   - `Active/apps/libs/nzb-core`
@@ -16,15 +22,15 @@ This document records what was reviewed from `FutureMan0/rustnzb-restyle`, what 
 
 Do not merge the fork wholesale.
 
-The useful uplift set was small and split across app code and shared crates:
+Accepted uplift was narrow:
 
-- Keep the `mark-read` batching fix
-- Keep minor queue UI behavior fixes
-- Keep shared-crate fixes only where current code was actually reproduced as broken
-- Ignore major GUI restyle work
-- Drop uplift lines that are already superseded upstream
+- keep the backend mark-read correctness fix
+- keep minor queue UI hardening
+- keep shared-crate fixes only where current code was reproduced as broken or the change was low-risk and directly covered by tests
+- ignore major GUI restyle work
+- ignore fork changes already superseded upstream
 
-## Item status
+## Accepted uplift set
 
 ### 1. Batched mark-read fix in `rustnzbd`
 
@@ -37,16 +43,16 @@ Files:
 
 What changed:
 
-- Added a batched `mark_headers_read` helper
+- added `mark_headers_read`
 - `h_header_mark_read` now performs one `with_db` call for the full batch
-- Failures are no longer silently swallowed as per-item best-effort behavior
-- The returned `"marked"` count reflects actual successful work
+- error handling now stops on the first real failure instead of silently swallowing per-item errors
+- returned `"marked"` count now reflects actual successful work
 
-Tests added:
+Tests:
 
 - `mark_headers_read_counts_every_success`
 - `mark_headers_read_stops_on_first_error`
-- integration test `group_mark_read_updates_counts_and_response`
+- `group_mark_read_updates_counts_and_response`
 
 Verification completed:
 
@@ -65,20 +71,18 @@ Files:
 
 What changed:
 
-- Added per-row pending-action tracking
-- Prevented duplicate pause/resume/delete clicks while a request is in flight
-- Ensured queue reload happens after both success and failure
-- Added explicit snackbar feedback for row actions
-- Hardened invalid queue metric handling:
-  - clamped `percent()` to sane bounds
-  - returned `--` for invalid ETA inputs
-  - normalized invalid remaining/duration inputs
+- added per-row pending action tracking
+- blocked duplicate pause/resume/delete clicks while a request is in flight
+- reloaded the queue after both success and failure
+- added snackbar feedback for row actions
+- hardened invalid metric handling for percent, ETA, remaining, and duration
 
-Important implementation note:
+Implementation note:
 
-- The first test pass exposed a real bug in the uplift draft. Passing an already-created observable still triggered duplicate HTTP calls. The fix was to pass an `actionFactory: () => Observable<unknown>` and only create the observable after the pending guard is checked.
+- the first uplift draft still allowed duplicate HTTP work because it passed an already-created observable
+- the final fix uses `actionFactory: () => Observable<unknown>` so the request is only created after the pending guard is checked
 
-Tests added:
+Tests:
 
 - invalid percent clamping
 - invalid ETA handling
@@ -91,13 +95,11 @@ Verification completed:
 - `./node_modules/.bin/ng test frontend --watch=false`
 - `npm run build -- --configuration=production`
 
-### 3. Shared-crate RAR/direct-unpack fixes
-
-Status: reproduced, fixed, and verified in shared crates
+### 3. Shared-crate fixes
 
 #### 3a. `nzb-web` queue preemption regression
 
-Status: reproduced on current code
+Status: reproduced first, then fixed
 
 Files:
 
@@ -106,16 +108,17 @@ Files:
 
 What was reproduced:
 
-- With `max_active_downloads(1)`, a low-priority downloading job can be preempted by a high-priority job and then remain paused forever after the high-priority job finishes.
+- with `max_active_downloads(1)`, a low-priority downloading job could be preempted by a high-priority job and remain paused forever after the high-priority job finished
 
 Fix applied:
 
-- Added `preempted: bool` tracking on `JobState`
-- Marked jobs paused by automatic preemption as `preempted`
-- Added `resume_preempted_jobs()` and invoked it from `start_next_queued()`
-- Cleared the `preempted` flag on manual pause/resume and other non-preemption pause paths
+- added `preempted: bool` tracking on `JobState`
+- marked auto-preempted jobs explicitly
+- added `resume_preempted_jobs()`
+- resumed preempted jobs from `start_next_queued()`
+- cleared the flag on manual pause/resume and non-preemption pause paths
 
-Tests added:
+Test:
 
 - `preempted_job_resumes_after_high_priority_job_finishes`
 
@@ -125,7 +128,7 @@ Verification completed:
 
 #### 3b. `nzb-web` direct-unpack newline-free prompt hang
 
-Status: reproduced on current code
+Status: reproduced first, then fixed
 
 File:
 
@@ -133,14 +136,14 @@ File:
 
 What was reproduced:
 
-- The current prompt handling used newline-based reads and could hang when `unrar` printed the volume prompt without a trailing newline.
+- prompt handling used newline-based reads and could hang when `unrar` emitted the next-volume prompt without a trailing newline
 
 Fix applied:
 
-- Switched prompt detection to byte-by-byte stdout processing
-- Checked prompt/success/error conditions continuously instead of waiting for newline termination
+- switched prompt detection to byte-by-byte stdout processing
+- checked prompt, success, and error conditions continuously instead of waiting for newline termination
 
-Test added:
+Test:
 
 - `test_unrar_prompt_without_newline_is_detected`
 
@@ -148,7 +151,7 @@ Verification completed:
 
 - `cargo test test_unrar_prompt_without_newline_is_detected --lib -- --nocapture`
 
-#### 3c. `nzb-postproc` 7z no-password flag handling
+#### 3c. `nzb-postproc` 7z no-password argument handling
 
 Status: fixed conservatively with unit coverage
 
@@ -158,11 +161,11 @@ File:
 
 What changed:
 
-- Split argument construction into helper functions
-- Kept `-p-` for `unrar` no-password mode
-- Omitted `-p-` for `7z` when there is no password
+- split extractor argument construction into helper functions
+- kept `-p-` for `unrar` no-password mode
+- omitted `-p-` for `7z` when no password is configured
 
-Tests added:
+Tests:
 
 - `sevenz_password_arg_is_omitted_without_password`
 - `rar_extract_args_keep_dash_password_only_for_unrar`
@@ -172,129 +175,176 @@ Verification completed:
 
 - `cargo test unpack -- --nocapture`
 
-### 4. Already-landed or superseded fork changes
+## Shared crate release status
 
-Status: intentionally not uplifted
+### `nzb-postproc`
 
-Do not pull these from the fork:
+- commit: `d00c73a`
+- version: `0.2.6`
+- published to Forgejo cargo registry
+- mirrored to GitHub `main`
 
-- SSRF protection changes
-- parallel server-health check changes
-- major visual restyle work
+Full crate verification completed:
 
-Reason:
+- `cargo fmt --check`
+- `cargo clippy --tests -- -D warnings`
+- `cargo test`
 
-- Current `rustnzbd` already has stronger SSRF validation and concurrent health checks
-- The fork's large UI restyle is out of scope for this uplift
+### `nzb-web`
 
-### 5. Queue preemption/prioritization work
+- commit: `552ec5c`
+- branch: `release/0.4.0`
+- version: `0.4.16`
+- dependency bump: `nzb-postproc 0.2.5 -> 0.2.6`
+- published to Forgejo cargo registry
+- mirrored to GitHub `release/0.4.0`
 
-Status: attempted reproduction first, then kept because current code was actually broken
+Full crate verification completed:
 
-This line should stay in scope. The reproduction pass proved the bug is real on current `nzb-web`, so the fix is not speculative.
+- `cargo fmt --check`
+- `cargo clippy --tests --config 'patch.crates-io.nzb-postproc.path=\"../nzb-postproc\"' -- -D warnings`
+- `cargo test --config 'patch.crates-io.nzb-postproc.path=\"../nzb-postproc\"'`
 
-## Consumer verification status
+## App integration status
 
-### Verified
+Local working-tree uplift commit:
 
-1. `rustnzbd`
+- `1576386` `Uplift forkmerge fixes and bump shared crate versions`
 
-Completed checks:
+Equivalent clean-history pushes already made outside this dirty worktree:
 
-- backend mark-read tests passed
-- frontend unit tests passed
-- frontend production build passed
+- Forgejo `main`: `5a5cf38`
+- GitHub `main`: `56f2477`
 
-### Consumer checks completed
+Dependency line used by the uplift:
 
-1. `Active/apps/nzbservice/gui`
+- `nzb-web = 0.4.16`
+- `nzb-postproc = 0.2.6`
 
-Result:
+Clean verification already completed in a patch-free worktree against published registry crates:
 
-- `cargo check` passed after restoring the expected local `libs/` symlink layout and running Cargo with Forgejo package auth
+- `cargo fmt --check`
+- `cargo clippy --tests -- -D warnings`
+- `cargo build`
 
-Important limitation:
+## Consumer matrix
 
-- this consumer still resolved `nzb-web v0.1.10` from the Forgejo registry
-- the local `nzb-web v0.4.x` patch was not used because the consumer is on an older dependency line
-- it therefore did not exercise the `nzb-web` forkmerge fixes
+This is the actionable consumer list for any future pull-in or regression work.
 
-### Consumer checks that failed for reasons outside the forkmerge delta
+### 1. `rustnzbd`
 
-1. `Active/apps/nzbservice/client`
+Status: primary consumer, fully exercised
+
+Tests to keep:
+
+- backend mark-read unit and integration tests
+- frontend queue action and metric hardening tests
+- production Angular build
+- clean registry-backed `cargo build`
+
+### 2. `Active/apps/nzbservice/gui`
+
+Status: buildable, but not on the affected `nzb-web` line
+
+Observed result:
+
+- `cargo check` passed after restoring expected local `libs/` symlink layout and configuring Forgejo Cargo auth
+- the app still resolved `nzb-web v0.1.10`
+
+Implication:
+
+- this consumer did not exercise the `nzb-web 0.4.x` queue or direct-unpack fixes
+- no forkmerge follow-up is needed here unless this consumer is explicitly upgraded to the newer shared-crate line
+
+Relevant future tests if it is upgraded:
+
+- queue row action dedupe and refresh behavior
+- any direct-unpack or queue-priority workflows exposed through its UI
+
+### 3. `Active/apps/nzbservice/client`
+
+Status: currently incompatible for reasons outside the forkmerge delta
 
 Observed failure:
 
-- after restoring the expected local `libs/` symlink layout and configuring Cargo auth, `cargo check` still failed
-- failure is in the consumer itself, not the forkmerge changes:
-  - `error[E0639]: cannot create non-exhaustive struct using struct expression`
-  - call sites build `nzb_core::ServerConfig` directly against a newer `nzb-core` line
+- `error[E0639]: cannot create non-exhaustive struct using struct expression`
 
-Interpretation:
+Implication:
 
-- this consumer is on an older API line and is not currently compatible with the newer shared-crate heads already present in local development
+- this consumer directly constructs newer `nzb_core::ServerConfig`
+- this is consumer drift against the current shared-crate heads, not a forkmerge regression
 
-### Consumer checks blocked by repo state
+Relevant future tests only if this consumer is upgraded:
 
-1. `myotherrepos/StackArr`
+- compile-only coverage for config construction paths
+- any API calls relying on queue or group-header behavior
 
-Blocker observed:
+### 4. `myotherrepos/StackArr`
+
+Status: not currently buildable
+
+Observed blocker:
 
 - workspace manifest references missing member `crates/stackarr-postgres`
-- no such directory exists in the current checkout, so Cargo fails before dependency resolution
 
-Interpretation:
+Implication:
 
-- current `StackArr` checkout is not in a buildable state for this verification pass
+- Cargo fails before dependency resolution
+- no useful forkmerge verification can be done until that checkout is repaired
 
-## Verification notes
+Relevant future tests only after the repo is restored:
 
-Rust formatting in `rustnzbd` is slightly awkward in this environment:
+- compile check against current `nzb-*` dependency line
+- any integration tests touching queue management or direct unpack flows
 
-- plain `cargo fmt` fails unless the optional Forgejo registry is configured
-- direct `rustfmt --edition 2024 ...` works for touched files
+## Reproduction-first rule
 
-Cargo verification for Forgejo-registry consumers also needs the same auth setup used in CI:
+For shared-crate changes, use this order:
 
-- a temporary `CARGO_HOME`
-- `[registries.forgejo] credential-provider = "cargo:token"`
-- credentials sourced from `GIT_AUTH_TOKEN`, not the Forgejo API token
+1. attempt to reproduce the behavior on current head
+2. keep the change only if the bug is real or the fix is narrowly scoped and fully covered by tests
+3. add regression tests before publishing the crate
 
-This does not invalidate the code changes, but it does matter for final release prep.
+This rule was applied to:
 
-## Remaining work before release
+- queue preemption in `nzb-web`
+- newline-free `unrar` prompt handling in `nzb-web`
 
-1. Commit the `rustnzbd` uplift changes cleanly on top of current `main`
-2. Commit the `nzb-web` shared-crate fixes cleanly without disturbing unrelated dirty files
-3. Commit the `nzb-postproc` shared-crate fix cleanly without disturbing unrelated dirty files
-4. Run full repo-level checks where environment allows:
-   - `cargo fmt`
-   - `cargo clippy -- -D warnings`
-   - `cargo test`
-5. Update `nzbservice/client` only if it is still considered a release-path consumer worth keeping on current shared-crate heads
-6. Restore a buildable `StackArr` checkout if it is still considered a release-path consumer
-7. Publish the moved shared-crate versions
-8. Refresh `rustnzbd` dependency resolution and lockfile against published versions
-9. Run one release-candidate build that does not rely on local path patches
-10. Cut the `rustnzbd` release and generate release notes from the verified uplift set only
+The `7z` password-flag adjustment in `nzb-postproc` was kept as a conservative low-surface fix with direct unit coverage.
 
-## Practical release order
+## Explicitly rejected fork items
 
-If shared-crate releases are required:
+Do not pull these in from the restyle fork as part of this uplift:
 
-1. release `nzb-postproc`
-2. release `nzb-web`
-3. update `rustnzbd` versions and lockfile
-4. rerun `rustnzbd` verification
-5. rerun consumer verification
-6. build a release candidate
-7. publish the app release
+- major GUI restyle work
+- SSRF protection changes already superseded upstream
+- parallel server-health changes already superseded upstream
+- any broad visual or product-direction changes not tied to a reproduced bug
 
-If shared-crate releases are deferred and local patches are acceptable temporarily:
+## Release status
 
-1. land the app changes
-2. document the local shared-crate dependency state explicitly
-3. do not cut a public release until the shared crates are versioned and consumed cleanly
+Release work is complete from the clean release worktree used for publishing:
+
+- `rustnzb` version bumped to `1.2.6`
+- Forgejo release commit on `main`: `2b433a1` `release: v1.2.6`
+- Forgejo tag `v1.2.6` verified on commit `2b433a13f83ce06b9a52b625e4f6da4ff4792c68`
+- GitHub mirror tag `v1.2.6` verified on commit `91c5ef4b0f6e2a880b06fa7ea6c712f23353c58c`
+- release notes from `RELEASE_NOTES_v1.2.6.md` were used for the published releases
+
+Published release objects verified:
+
+- Forgejo release `indexarr/rustnzb` id `479`, published, non-draft, non-prerelease
+- GitHub release `AusAgentSmith-org/rustnzb` id `350879579`, published, non-draft, non-prerelease
+- both releases carry the same five assets:
+  - `SHA256SUMS-v1.2.6.txt`
+  - `rustnzb-v1.2.6-amd64.deb`
+  - `rustnzb-v1.2.6-linux-aarch64.tar.gz`
+  - `rustnzb-v1.2.6-linux-x86_64.tar.gz`
+  - `rustnzb-v1.2.6-windows-x86_64.zip`
+
+Important note:
+
+- Forgejo and GitHub do not share the same release commit hash for `v1.2.6`; the source-of-truth Forgejo tag points at the private repo history, while the GitHub tag points at the public mirror history
 
 ## Net result
 
@@ -302,8 +352,8 @@ The worthwhile uplift from the fork was real, but narrow:
 
 - one backend handler correctness fix
 - one small queue UI hardening set
-- one real queue preemption fix in `nzb-web`
-- one real direct-unpack prompt handling fix in `nzb-web`
+- one reproduced queue preemption fix in `nzb-web`
+- one reproduced direct-unpack prompt handling fix in `nzb-web`
 - one conservative extractor-argument fix in `nzb-postproc`
 
-Everything else should be treated as either superseded, out of scope, or requiring a separate product/UI decision.
+Everything else should be treated as either superseded, out of scope, or a separate product decision.

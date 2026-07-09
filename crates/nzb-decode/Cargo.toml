@@ -1,0 +1,27 @@
+[package]
+name = "nzb-decode"
+version = "0.1.2"
+edition = "2024"
+description = "yEnc decoding, file assembly, and article cache for NZB download clients"
+license = "MIT"
+repository = "https://github.com/AusAgentSmith-org/nzb-decode"
+readme = "README.md"
+
+[dependencies]
+bytes = "1"
+crc32fast = "1"
+yenc-simd = "0.1"
+tracing = "0.1"
+anyhow = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt"] }
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[lints.rust]
+unused = "warn"

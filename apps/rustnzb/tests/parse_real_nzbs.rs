@@ -1,7 +1,13 @@
 mod support;
 
 use nzb_web::nzb_core::nzb_parser;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+fn workspace_path(path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(path)
+}
 
 #[test]
 fn parse_sample_fixture_nzb() {
@@ -23,14 +29,14 @@ fn parse_all_test_nzbs() {
         eprintln!("Skipping on CI");
         return;
     }
-    let dir = Path::new("TestData");
+    let dir = workspace_path("TestData");
     if !dir.exists() {
         eprintln!("TestData directory not found, skipping");
         return;
     }
 
     let mut count = 0;
-    for entry in std::fs::read_dir(dir).unwrap() {
+    for entry in std::fs::read_dir(&dir).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
         if path.extension().map(|e| e == "nzb").unwrap_or(false) {

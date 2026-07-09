@@ -1,11 +1,11 @@
 #
 # Local-only Docker build for rustnzb.
-# Uses the parent dir as build context so the libs/ path deps resolve,
-# picking up uncommitted/unpublished changes to nzb-* crates.
+# Uses this repo as the build context so the vendored workspace crates resolve
+# directly, including uncommitted changes.
 #
 # Build:
-#   cd ~/Working/Active/apps
-#   docker build -f rustnzbd/Dockerfile.local \
+#   cd ~/Working/Active/apps/rustnzbd
+#   docker build -f Dockerfile.local \
 #       --build-arg GIT_AUTH_TOKEN="$TOKEN" \
 #       -t rustnzb:local .
 #
@@ -15,21 +15,19 @@ RUN apk add --no-cache musl-dev build-base protoc openssl-dev openssl-libs-stati
 
 WORKDIR /build
 
-# Copy libs (path deps referenced by rustnzbd/Cargo.toml [patch] section)
-COPY libs /build/libs
-
 # Frontend deps (cached layer)
-COPY rustnzbd/frontend/package.json rustnzbd/frontend/package-lock.json /build/rustnzbd/frontend/
-RUN cd /build/rustnzbd/frontend && npm ci
+COPY apps/rustnzb/frontend/package.json apps/rustnzb/frontend/package-lock.json /build/apps/rustnzb/frontend/
+RUN cd /build/apps/rustnzb/frontend && npm ci
 
 # Frontend build
-COPY rustnzbd/frontend /build/rustnzbd/frontend
-RUN cd /build/rustnzbd/frontend && npx ng build --configuration=production
+COPY apps/rustnzb/frontend /build/apps/rustnzb/frontend
+RUN cd /build/apps/rustnzb/frontend && npx ng build --configuration=production
 
 # Rust source
-COPY rustnzbd/Cargo.toml rustnzbd/Cargo.lock rustnzbd/build.rs /build/rustnzbd/
-COPY rustnzbd/src /build/rustnzbd/src
-COPY rustnzbd/tests /build/rustnzbd/tests
+COPY Cargo.toml Cargo.lock /build/
+COPY apps/rustnzb/Cargo.toml apps/rustnzb/build.rs /build/apps/rustnzb/
+COPY apps/rustnzb/src /build/apps/rustnzb/src
+COPY crates /build/crates
 
 # Forgejo creds (still needed for private nzbdav-* crates — webdav feature)
 ARG GIT_AUTH_TOKEN
@@ -44,11 +42,7 @@ RUN TOKEN="${GIT_AUTH_TOKEN}" && \
     printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml && \
     printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$TOKEN" > $CARGO_HOME/credentials.toml
 
-# KEY DIFFERENCE vs Dockerfile: do NOT strip [patch] sections — we want the
-# libs/ path overrides to take effect so local uncommitted changes are built in.
-
-WORKDIR /build/rustnzbd
-RUN cargo build --release --features webdav
+RUN cargo build --release -p rustnzb --features webdav
 
 
 FROM lscr.io/linuxserver/baseimage-alpine:3.21
@@ -58,9 +52,9 @@ RUN apk add --no-cache \
         curl \
         7zip
 
-COPY --from=builder /build/rustnzbd/target/release/rustnzb /usr/local/bin/rustnzb
+COPY --from=builder /build/target/release/rustnzb /usr/local/bin/rustnzb
 
-COPY rustnzbd/root/ /
+COPY apps/rustnzb/root/ /
 
 EXPOSE 9090
 

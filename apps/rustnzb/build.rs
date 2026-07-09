@@ -9,8 +9,8 @@ fn write_placeholder(dist: &str) {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=RUSTNZB_BUILD_REF");
-    println!("cargo:rerun-if-changed=.git/HEAD");
-    println!("cargo:rerun-if-changed=.git/index");
+    println!("cargo:rerun-if-changed=../../.git/HEAD");
+    println!("cargo:rerun-if-changed=../../.git/index");
     println!("cargo:rerun-if-changed=frontend/src/");
     println!("cargo:rerun-if-changed=frontend/angular.json");
     println!("cargo:rerun-if-env-changed=RUSTNZB_SKIP_FRONTEND_BUILD");

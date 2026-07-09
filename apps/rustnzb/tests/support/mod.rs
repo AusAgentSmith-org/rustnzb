@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
@@ -15,8 +15,13 @@ use rustnzb::server::build_router;
 use tempfile::TempDir;
 use tokio::task::JoinHandle;
 
-const SAMPLE_NZB_PATH: &str = "e2e/fixtures/sample.nzb";
 const YENC_LINE_WIDTH: usize = 128;
+
+fn workspace_path(path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(path)
+}
 
 pub struct TestApp {
     pub base_url: String,
@@ -103,7 +108,8 @@ pub async fn start_test_server(server_configs: Vec<ServerConfig>) -> TestApp {
 }
 
 pub fn sample_nzb_bytes() -> Vec<u8> {
-    std::fs::read(SAMPLE_NZB_PATH).expect("Failed to read sample NZB fixture")
+    std::fs::read(workspace_path("e2e/fixtures/sample.nzb"))
+        .expect("Failed to read sample NZB fixture")
 }
 
 pub fn sample_nzb_variant_bytes() -> Vec<u8> {
