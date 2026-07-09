@@ -9,7 +9,10 @@ test.describe('Mock-backed downloads', () => {
 
     await page.getByRole('button', { name: /\+ upload nzb/i }).click();
     await page.locator('input[type="file"]').setInputFiles(path.join(FIXTURES, 'sample.nzb'));
-    await page.locator('.add-panel').getByRole('button', { name: /upload/i }).click();
+    await page
+      .locator('.add-panel')
+      .getByRole('button', { name: 'Upload', exact: true })
+      .click();
 
     await expect(page.getByText(/added to queue/i)).toBeVisible({ timeout: 10000 });
 
