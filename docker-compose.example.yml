@@ -10,6 +10,7 @@ services:
       PGID: "1000"
       TZ: "Australia/Sydney"
       RUST_LOG: "info"
+      # RUSTNZB_DAV_ENABLED: "1"
     volumes:
       - rustnzb-config:/config
       - rustnzb-data:/data

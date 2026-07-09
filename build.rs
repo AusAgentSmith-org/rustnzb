@@ -8,9 +8,22 @@ fn write_placeholder(dist: &str) {
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=RUSTNZB_BUILD_REF");
+    println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-changed=.git/index");
     println!("cargo:rerun-if-changed=frontend/src/");
     println!("cargo:rerun-if-changed=frontend/angular.json");
     println!("cargo:rerun-if-env-changed=RUSTNZB_SKIP_FRONTEND_BUILD");
+
+    let package_version = env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "0.0.0".to_string());
+    let build_ref = env::var("RUSTNZB_BUILD_REF")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(git_head_ref);
+    let build_version = build_ref
+        .map(|build_ref| format!("{package_version}+{build_ref}"))
+        .unwrap_or(package_version);
+    println!("cargo:rustc-env=RUSTNZB_BUILD_VERSION={build_version}");
 
     let dist = "frontend/dist/frontend/browser";
 
@@ -76,4 +89,21 @@ fn main() {
 
     // Create minimal placeholder so rust-embed has something to embed
     write_placeholder(dist);
+}
+
+fn git_head_ref() -> Option<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--short=12", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8(output.stdout).ok()?;
+    let value = value.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
 }

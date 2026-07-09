@@ -42,6 +42,7 @@ export interface StatusResponse {
   min_free_space_bytes: number;
   paused: boolean;
   pause_remaining_secs: number | null;
+  webdav_available: boolean;
   webdav_enabled: boolean;
 }
 

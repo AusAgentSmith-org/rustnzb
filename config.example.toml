@@ -73,6 +73,14 @@ enabled = false
 endpoint = "http://localhost:4317"  # OTLP gRPC endpoint
 service_name = "rustnzb"
 
+[dav]
+enabled = false
+auto_send_all = false
+# category_rules = ["movies", "tv"]
+# username = "plex"
+# password = "change-me"
+# api_key = "optional-api-key"
+
 # --- Loki logging (alternative to OTEL) ---
 # A Promtail sidecar is included in docker-compose.yml behind the "logging" profile.
 # To enable: set LOKI_URL and activate the profile:

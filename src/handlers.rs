@@ -292,6 +292,7 @@ pub struct StatusResponse {
     pub disk_space_free: u64,
     pub min_free_space_bytes: u64,
     pub pause_remaining_secs: Option<i64>,
+    pub webdav_available: bool,
     pub webdav_enabled: bool,
 }
 
@@ -779,7 +780,7 @@ pub async fn h_status(
     let qm = &state.queue_manager;
     let config = state.config();
     Ok(Json(StatusResponse {
-        version: env!("CARGO_PKG_VERSION"),
+        version: env!("RUSTNZB_BUILD_VERSION"),
         paused: qm.is_paused(),
         speed_bps: qm.get_speed(),
         speed_limit_bps: qm.get_speed_limit(),
@@ -787,6 +788,10 @@ pub async fn h_status(
         disk_space_free: get_disk_space_free(&config.general.complete_dir),
         min_free_space_bytes: qm.min_free_space(),
         pause_remaining_secs: qm.pause_remaining_secs(),
+        #[cfg(feature = "webdav")]
+        webdav_available: true,
+        #[cfg(not(feature = "webdav"))]
+        webdav_available: false,
         #[cfg(feature = "webdav")]
         webdav_enabled: dav.is_some(),
         #[cfg(not(feature = "webdav"))]
@@ -1789,7 +1794,7 @@ pub async fn h_setup_status(State(state): State<Arc<AppState>>) -> impl IntoResp
         "needs_setup": config.servers.is_empty(),
         "has_servers": !config.servers.is_empty(),
         "has_categories": !config.categories.is_empty(),
-        "version": env!("CARGO_PKG_VERSION"),
+        "version": env!("RUSTNZB_BUILD_VERSION"),
     }))
 }
 

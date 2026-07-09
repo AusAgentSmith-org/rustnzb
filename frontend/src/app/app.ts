@@ -21,16 +21,16 @@ import { WidthModeService } from './core/services/width-mode.service';
         <nav class="topbar">
           <div class="wrap">
             <span class="brand">rust<span>nzb</span></span>
-            <span class="ver">v{{ version }}</span>
+            <span class="ver">v{{ version() }}</span>
             <div class="sep"></div>
-            <a routerLink="/queue"    routerLinkActive="active">Queue</a>
-            <a routerLink="/history"  routerLinkActive="active">History</a>
-            <a routerLink="/groups"   routerLinkActive="active">Search</a>
-            <a routerLink="/rss"      routerLinkActive="active">RSS</a>
+            <a routerLink="/queue" routerLinkActive="active">Queue</a>
+            <a routerLink="/history" routerLinkActive="active">History</a>
+            <a routerLink="/groups" routerLinkActive="active">Search</a>
+            <a routerLink="/rss" routerLinkActive="active">RSS</a>
             @if (webdavEnabled()) {
               <a routerLink="/media" routerLinkActive="active">Media</a>
             }
-            <a routerLink="/logs"     routerLinkActive="active">Logs</a>
+            <a routerLink="/logs" routerLinkActive="active">Logs</a>
             <a routerLink="/settings" routerLinkActive="active">Settings</a>
             <div class="spacer"></div>
             <div class="status">
@@ -42,16 +42,36 @@ import { WidthModeService } from './core/services/width-mode.service';
               <span class="pill">{{ formatBytes(diskFree()) }} free</span>
             </div>
             <div class="mode-toggle" role="group" aria-label="Layout width">
-              <button type="button" [class.active]="widthMode.mode() === 'compact'"
-                      (click)="widthMode.set('compact')" title="Compact">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                  <rect x="3.5" y="2.5" width="9" height="11" rx="1"/>
+              <button
+                type="button"
+                [class.active]="widthMode.mode() === 'compact'"
+                (click)="widthMode.set('compact')"
+                title="Compact"
+              >
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  aria-hidden="true"
+                >
+                  <rect x="3.5" y="2.5" width="9" height="11" rx="1" />
                 </svg>
               </button>
-              <button type="button" [class.active]="widthMode.mode() === 'expanded'"
-                      (click)="widthMode.set('expanded')" title="Expanded">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                  <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
+              <button
+                type="button"
+                [class.active]="widthMode.mode() === 'expanded'"
+                (click)="widthMode.set('expanded')"
+                title="Expanded"
+              >
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  aria-hidden="true"
+                >
+                  <rect x="1.5" y="2.5" width="13" height="11" rx="1" />
                 </svg>
               </button>
             </div>
@@ -61,7 +81,13 @@ import { WidthModeService } from './core/services/width-mode.service';
                 {{ paused() ? '▶ Resume' : '❚❚ Pause' }}
               </button>
               @if (!paused()) {
-                <button class="action pause-caret" (click)="pauseMenuOpen = !pauseMenuOpen" title="Pause for…">▾</button>
+                <button
+                  class="action pause-caret"
+                  (click)="pauseMenuOpen = !pauseMenuOpen"
+                  title="Pause for…"
+                >
+                  ▾
+                </button>
                 @if (pauseMenuOpen) {
                   <div class="pause-menu" (click)="$event.stopPropagation()">
                     <div class="pm-title">Pause for…</div>
@@ -69,8 +95,13 @@ import { WidthModeService } from './core/services/width-mode.service';
                       <button class="pm-item" (click)="pauseFor(opt.secs)">{{ opt.label }}</button>
                     }
                     <div class="pm-custom">
-                      <input type="number" min="1" placeholder="min" [(ngModel)]="customPauseMin"
-                             (keydown.enter)="pauseForCustom()" />
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="min"
+                        [(ngModel)]="customPauseMin"
+                        (keydown.enter)="pauseForCustom()"
+                      />
                       <button class="pm-go" (click)="pauseForCustom()">Go</button>
                     </div>
                   </div>
@@ -89,147 +120,245 @@ import { WidthModeService } from './core/services/width-mode.service';
       </div>
     }
   `,
-  styles: [`
-    :host { display: block; height: 100vh; overflow: hidden; }
+  styles: [
+    `
+      :host {
+        display: block;
+        height: 100vh;
+        overflow: hidden;
+      }
 
-    .shell { display: flex; flex-direction: column; height: 100vh; }
+      .shell {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
 
-    /* ---- Width-mode wrap ----
+      /* ---- Width-mode wrap ----
        Header, nav, and main render full-bleed backgrounds but wrap their
        content in .wrap. Compact mode clamps .wrap to 1320px and centers it,
        so chrome and body align. Expanded mode uses the full viewport width
        with a small gutter. Mode is toggled via [data-width-mode] on <body>. */
-    .wrap {
-      width: 100%;
-      max-width: 1320px;
-      margin: 0 auto;
-      padding: 0 20px;
-      box-sizing: border-box;
-    }
-    :host-context(body[data-width-mode="expanded"]) .wrap {
-      max-width: none;
-      padding: 0 24px;
-    }
+      .wrap {
+        width: 100%;
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 0 20px;
+        box-sizing: border-box;
+      }
+      :host-context(body[data-width-mode='expanded']) .wrap {
+        max-width: none;
+        padding: 0 24px;
+      }
 
-    /* ---- Combined topbar ---- */
-    .brand { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
-    .brand span { color: var(--accent); }
-    .ver { color: var(--mute); font-size: 11px; margin-left: 6px; font-weight: 400; }
-    .sep { width: 1px; height: 18px; background: var(--line); margin: 0 8px; flex-shrink: 0; }
-    .status { display: flex; gap: 6px; align-items: center; }
+      /* ---- Combined topbar ---- */
+      .brand {
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: 0.2px;
+      }
+      .brand span {
+        color: var(--accent);
+      }
+      .ver {
+        color: var(--mute);
+        font-size: 11px;
+        margin-left: 6px;
+        font-weight: 400;
+      }
+      .sep {
+        width: 1px;
+        height: 18px;
+        background: var(--line);
+        margin: 0 8px;
+        flex-shrink: 0;
+      }
+      .status {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
 
-    nav.topbar {
-      background: var(--panel);
-      border-bottom: 1px solid var(--line);
-      flex-shrink: 0;
-    }
-    nav.topbar .wrap {
-      display: flex;
-      align-items: center;
-      overflow-x: auto;
-      padding-top: 0;
-      padding-bottom: 0;
-      gap: 0;
-    }
-    nav.topbar a {
-      color: var(--mute);
-      padding: 12px 14px;
-      border-bottom: 2px solid transparent;
-      text-decoration: none;
-      font-size: 13px;
-      white-space: nowrap;
-      transition: color .15s;
-    }
-    nav.topbar a:hover { color: var(--text); text-decoration: none; }
-    nav.topbar a.active { color: var(--text); border-bottom-color: var(--accent); }
+      nav.topbar {
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        flex-shrink: 0;
+      }
+      nav.topbar .wrap {
+        display: flex;
+        align-items: center;
+        overflow-x: auto;
+        padding-top: 0;
+        padding-bottom: 0;
+        gap: 0;
+      }
+      nav.topbar a {
+        color: var(--mute);
+        padding: 12px 14px;
+        border-bottom: 2px solid transparent;
+        text-decoration: none;
+        font-size: 13px;
+        white-space: nowrap;
+        transition: color 0.15s;
+      }
+      nav.topbar a:hover {
+        color: var(--text);
+        text-decoration: none;
+      }
+      nav.topbar a.active {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+      }
 
-    nav.topbar .spacer { flex: 1; }
-    nav.topbar .action {
-      background: none; border: none;
-      color: var(--text); padding: 12px 12px;
-      cursor: pointer; font: inherit; font-size: 13px;
-      opacity: .85;
-    }
-    nav.topbar .action:hover { opacity: 1; }
-    nav.topbar .action.primary { color: var(--accent2); font-weight: 600; }
-    nav.topbar .action.muted { color: var(--mute); font-size: 12px; }
+      nav.topbar .spacer {
+        flex: 1;
+      }
+      nav.topbar .action {
+        background: none;
+        border: none;
+        color: var(--text);
+        padding: 12px 12px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+        opacity: 0.85;
+      }
+      nav.topbar .action:hover {
+        opacity: 1;
+      }
+      nav.topbar .action.primary {
+        color: var(--accent2);
+        font-weight: 600;
+      }
+      nav.topbar .action.muted {
+        color: var(--mute);
+        font-size: 12px;
+      }
 
-    /* Pause split-button + dropdown */
-    .pause-group { position: relative; display: flex; align-items: center; }
-    .pause-caret {
-      padding: 10px 6px !important;
-      font-size: 11px !important;
-      margin-left: -6px;
-    }
-    .pause-menu {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      margin-top: 4px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.35);
-      padding: 6px;
-      min-width: 160px;
-      z-index: 40;
-    }
-    .pm-title { font-size: 11px; color: var(--mute); padding: 4px 8px 6px; text-transform: uppercase; letter-spacing: .4px; }
-    .pm-item {
-      display: block; width: 100%; text-align: left;
-      background: none; border: none; color: var(--text);
-      padding: 6px 10px; border-radius: 4px; cursor: pointer;
-      font: inherit; font-size: 13px;
-    }
-    .pm-item:hover { background: var(--panel2); }
-    .pm-custom {
-      display: flex; gap: 4px; padding: 6px 4px 2px;
-      border-top: 1px solid var(--line); margin-top: 4px;
-    }
-    .pm-custom input {
-      flex: 1; min-width: 0; background: var(--panel2);
-      border: 1px solid var(--line); color: var(--text);
-      padding: 5px 8px; border-radius: 4px; font: inherit; font-size: 12px;
-      outline: none;
-    }
-    .pm-go {
-      background: var(--accent); color: #fff; border: none;
-      padding: 5px 10px; border-radius: 4px; cursor: pointer;
-      font: inherit; font-size: 12px;
-    }
+      /* Pause split-button + dropdown */
+      .pause-group {
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .pause-caret {
+        padding: 10px 6px !important;
+        font-size: 11px !important;
+        margin-left: -6px;
+      }
+      .pause-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 4px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        padding: 6px;
+        min-width: 160px;
+        z-index: 40;
+      }
+      .pm-title {
+        font-size: 11px;
+        color: var(--mute);
+        padding: 4px 8px 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      .pm-item {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        color: var(--text);
+        padding: 6px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+      }
+      .pm-item:hover {
+        background: var(--panel2);
+      }
+      .pm-custom {
+        display: flex;
+        gap: 4px;
+        padding: 6px 4px 2px;
+        border-top: 1px solid var(--line);
+        margin-top: 4px;
+      }
+      .pm-custom input {
+        flex: 1;
+        min-width: 0;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 5px 8px;
+        border-radius: 4px;
+        font: inherit;
+        font-size: 12px;
+        outline: none;
+      }
+      .pm-go {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 12px;
+      }
 
-    /* ---- Main area ---- */
-    main {
-      flex: 1;
-      overflow-y: auto;
-    }
-    main .wrap {
-      padding-bottom: 28px;
-    }
+      /* ---- Main area ---- */
+      main {
+        flex: 1;
+        overflow-y: auto;
+      }
+      main .wrap {
+        padding-bottom: 28px;
+      }
 
-    /* ---- Width-mode toggle (icon-only segmented control) ---- */
-    .mode-toggle {
-      display: inline-flex; align-items: center;
-      background: var(--panel2); border: 1px solid var(--line);
-      border-radius: 6px; padding: 2px; margin: 0 6px; flex-shrink: 0;
-    }
-    .mode-toggle button {
-      background: none; border: none; color: var(--mute);
-      padding: 4px 6px;
-      border-radius: 4px; cursor: pointer;
-      display: inline-flex; align-items: center;
-    }
-    .mode-toggle button:hover { color: var(--text); }
-    .mode-toggle button.active {
-      background: var(--panel); color: var(--text);
-      box-shadow: inset 0 0 0 1px var(--line);
-    }
-    .mode-toggle svg { width: 14px; height: 14px; }
-  `],
+      /* ---- Width-mode toggle (icon-only segmented control) ---- */
+      .mode-toggle {
+        display: inline-flex;
+        align-items: center;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 2px;
+        margin: 0 6px;
+        flex-shrink: 0;
+      }
+      .mode-toggle button {
+        background: none;
+        border: none;
+        color: var(--mute);
+        padding: 4px 6px;
+        border-radius: 4px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+      }
+      .mode-toggle button:hover {
+        color: var(--text);
+      }
+      .mode-toggle button.active {
+        background: var(--panel);
+        color: var(--text);
+        box-shadow: inset 0 0 0 1px var(--line);
+      }
+      .mode-toggle svg {
+        width: 14px;
+        height: 14px;
+      }
+    `,
+  ],
 })
 export class App implements OnInit, OnDestroy {
-  // Version string shown in the header. Kept in sync with package.json manually.
-  readonly version = '1.0.3';
+  version = signal('');
 
   speed = signal(0);
   paused = signal(false);
@@ -283,6 +412,7 @@ export class App implements OnInit, OnDestroy {
         this.queueCount.set(s.queue_size);
         this.diskFree.set(s.disk_space_free);
         this.webdavEnabled.set(!!s.webdav_enabled);
+        if (s.version) this.version.set(s.version);
       },
       error: () => {},
     });

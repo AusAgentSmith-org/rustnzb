@@ -7,30 +7,63 @@ import { ApiService } from '../../core/services/api.service';
 import { StatusResponse } from '../../core/models/queue.model';
 
 interface ServerConfig {
-  id: string; name: string; host: string; port: number; ssl: boolean; ssl_verify: boolean;
-  username: string | null; password: string | null; connections: number; priority: number;
-  enabled: boolean; retention: number; pipelining: number; optional: boolean; compress: boolean;
-  ramp_up_delay_ms: number; proxy_url: string | null;
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  ssl: boolean;
+  ssl_verify: boolean;
+  username: string | null;
+  password: string | null;
+  connections: number;
+  priority: number;
+  enabled: boolean;
+  retention: number;
+  pipelining: number;
+  optional: boolean;
+  compress: boolean;
+  ramp_up_delay_ms: number;
+  proxy_url: string | null;
 }
 
 interface CategoryConfig {
-  name: string; output_dir: string | null; post_processing: number;
+  name: string;
+  output_dir: string | null;
+  post_processing: number;
 }
 
 interface ServerStats {
-  server_id: string; server_name: string;
-  total_bytes: number; today_bytes: number; week_bytes: number; month_bytes: number;
-  total_ok: number; today_ok: number; week_ok: number; month_ok: number;
-  total_fail: number; today_fail: number; week_fail: number; month_fail: number;
+  server_id: string;
+  server_name: string;
+  total_bytes: number;
+  today_bytes: number;
+  week_bytes: number;
+  month_bytes: number;
+  total_ok: number;
+  today_ok: number;
+  week_ok: number;
+  month_ok: number;
+  total_fail: number;
+  today_fail: number;
+  week_fail: number;
+  month_fail: number;
   last_active: string | null;
 }
 
 type Tab =
-  | 'servers' | 'rss-cfg'
-  | 'categories' | 'postproc' | 'paths' | 'dav'
-  | 'general' | 'api' | 'telemetry' | 'about';
+  | 'servers'
+  | 'rss-cfg'
+  | 'categories'
+  | 'postproc'
+  | 'paths'
+  | 'dav'
+  | 'general'
+  | 'api'
+  | 'telemetry'
+  | 'about';
 
 interface DavConfig {
+  enabled: boolean;
   auto_send_all: boolean;
   category_rules: string[];
   username: string | null;
@@ -47,10 +80,23 @@ interface GeneralDirs {
 
 function emptyServer(): ServerConfig {
   return {
-    id: '', name: '', host: '', port: 563, ssl: true, ssl_verify: true,
-    username: null, password: null, connections: 8, priority: 0,
-    enabled: true, retention: 0, pipelining: 16, optional: false, compress: false,
-    ramp_up_delay_ms: 250, proxy_url: null,
+    id: '',
+    name: '',
+    host: '',
+    port: 563,
+    ssl: true,
+    ssl_verify: true,
+    username: null,
+    password: null,
+    connections: 8,
+    priority: 0,
+    enabled: true,
+    retention: 0,
+    pipelining: 16,
+    optional: false,
+    compress: false,
+    ramp_up_delay_ms: 250,
+    proxy_url: null,
   };
 }
 
@@ -64,30 +110,36 @@ function emptyCategory(): CategoryConfig {
   imports: [CommonModule, FormsModule, RouterModule, MatSnackBarModule],
   template: `
     <div class="settings-shell">
-
       <!-- Sidebar -->
       <aside class="settings-side">
         <div class="sg">Connection</div>
-        <button [class.active]="tab === 'servers'"  (click)="tab = 'servers'">News servers</button>
-        <button [class.active]="tab === 'rss-cfg'"  (click)="tab = 'rss-cfg'">RSS feeds</button>
+        <button [class.active]="tab === 'servers'" (click)="tab = 'servers'">News servers</button>
+        <button [class.active]="tab === 'rss-cfg'" (click)="tab = 'rss-cfg'">RSS feeds</button>
 
         <div class="sg">Downloads</div>
-        <button [class.active]="tab === 'categories'" (click)="tab = 'categories'">Categories</button>
-        <button [class.active]="tab === 'postproc'"   (click)="tab = 'postproc'">Post-processing</button>
-        <button [class.active]="tab === 'paths'"      (click)="tab = 'paths'">Paths &amp; disk</button>
-        @if (webdavEnabled()) {
+        <button [class.active]="tab === 'categories'" (click)="tab = 'categories'">
+          Categories
+        </button>
+        <button [class.active]="tab === 'postproc'" (click)="tab = 'postproc'">
+          Post-processing
+        </button>
+        <button [class.active]="tab === 'paths'" (click)="tab = 'paths'">Paths &amp; disk</button>
+        @if (webdavAvailable()) {
           <button [class.active]="tab === 'dav'" (click)="tab = 'dav'">Media Library (DAV)</button>
         }
 
         <div class="sg">System</div>
-        <button [class.active]="tab === 'general'"    (click)="tab = 'general'">General</button>
-        <button [class.active]="tab === 'api'"        (click)="tab = 'api'">API &amp; SABnzbd compat</button>
-        <button [class.active]="tab === 'telemetry'"  (click)="tab = 'telemetry'">Logging &amp; telemetry</button>
-        <button [class.active]="tab === 'about'"      (click)="tab = 'about'">About</button>
+        <button [class.active]="tab === 'general'" (click)="tab = 'general'">General</button>
+        <button [class.active]="tab === 'api'" (click)="tab = 'api'">
+          API &amp; SABnzbd compat
+        </button>
+        <button [class.active]="tab === 'telemetry'" (click)="tab = 'telemetry'">
+          Logging &amp; telemetry
+        </button>
+        <button [class.active]="tab === 'about'" (click)="tab = 'about'">About</button>
       </aside>
 
       <div class="settings-main">
-
         <!-- =========== SERVERS =========== -->
         @if (tab === 'servers') {
           <div class="section-head">
@@ -108,25 +160,46 @@ function emptyCategory(): CategoryConfig {
                 <div>
                   <div class="title" [class.dim]="!s.enabled">
                     {{ s.name || s.host }}
-                    <span class="pill" [class.ok]="s.enabled" [class.warn]="!s.enabled" style="margin-left:6px">
+                    <span
+                      class="pill"
+                      [class.ok]="s.enabled"
+                      [class.warn]="!s.enabled"
+                      style="margin-left:6px"
+                    >
                       ● {{ s.enabled ? 'enabled' : 'disabled' }}
                     </span>
-                    @if (s.optional) { <span class="tag" style="margin-left:4px">backup</span> }
+                    @if (s.optional) {
+                      <span class="tag" style="margin-left:4px">backup</span>
+                    }
                   </div>
                   <div class="host">
                     {{ s.ssl ? 'NNTPS' : 'NNTP' }} · {{ s.host }}:{{ s.port }}
-                    @if (s.username) { · user <code>{{ s.username }}</code> }
+                    @if (s.username) {
+                      · user <code>{{ s.username }}</code>
+                    }
                     · {{ s.connections }} conns · pipeline {{ s.pipelining }}
-                    @if (s.ssl) { · TLS 1.3 }
+                    @if (s.ssl) {
+                      · TLS 1.3
+                    }
                   </div>
                   <div class="meters">
-                    <span>priority <b>{{ s.priority }}</b></span>
-                    <span>retention <b>{{ s.retention }} d</b></span>
-                    <span>ramp-up <b>{{ s.ramp_up_delay_ms }} ms</b></span>
-                    @if (s.compress) { <span><b>compression</b></span> }
+                    <span
+                      >priority <b>{{ s.priority }}</b></span
+                    >
+                    <span
+                      >retention <b>{{ s.retention }} d</b></span
+                    >
+                    <span
+                      >ramp-up <b>{{ s.ramp_up_delay_ms }} ms</b></span
+                    >
+                    @if (s.compress) {
+                      <span><b>compression</b></span>
+                    }
                     @let st = serverStats()[s.id];
                     @if (st && st.total_bytes > 0) {
-                      <span style="color:var(--accent)">↓ {{ fmtBytes(st.total_bytes) }} total</span>
+                      <span style="color:var(--accent)"
+                        >↓ {{ fmtBytes(st.total_bytes) }} total</span
+                      >
                     }
                   </div>
                 </div>
@@ -138,7 +211,13 @@ function emptyCategory(): CategoryConfig {
                   <button class="btn sm" (click)="editServer(s)">Edit</button>
                   <button class="btn sm" (click)="cloneServer(s)">Clone</button>
                   <button class="btn sm danger" (click)="deleteServer(s.id)">Remove</button>
-                  <button class="btn sm" [class.active]="expandedStatsId === s.id" (click)="toggleStats(s.id)">Stats</button>
+                  <button
+                    class="btn sm"
+                    [class.active]="expandedStatsId === s.id"
+                    (click)="toggleStats(s.id)"
+                  >
+                    Stats
+                  </button>
                 </div>
               </div>
               @if (expandedStatsId === s.id) {
@@ -148,30 +227,52 @@ function emptyCategory(): CategoryConfig {
                     <div class="srv-stats-grid">
                       <div class="srv-stats-col">
                         <div class="srv-stats-heading">Bandwidth</div>
-                        <div class="srv-stats-row"><span>Total</span><b>{{ fmtBytes(st.total_bytes) }}</b></div>
-                        <div class="srv-stats-row"><span>Today</span><b>{{ fmtBytes(st.today_bytes) }}</b></div>
-                        <div class="srv-stats-row"><span>This week</span><b>{{ fmtBytes(st.week_bytes) }}</b></div>
-                        <div class="srv-stats-row"><span>This month</span><b>{{ fmtBytes(st.month_bytes) }}</b></div>
+                        <div class="srv-stats-row">
+                          <span>Total</span><b>{{ fmtBytes(st.total_bytes) }}</b>
+                        </div>
+                        <div class="srv-stats-row">
+                          <span>Today</span><b>{{ fmtBytes(st.today_bytes) }}</b>
+                        </div>
+                        <div class="srv-stats-row">
+                          <span>This week</span><b>{{ fmtBytes(st.week_bytes) }}</b>
+                        </div>
+                        <div class="srv-stats-row">
+                          <span>This month</span><b>{{ fmtBytes(st.month_bytes) }}</b>
+                        </div>
                       </div>
                       <div class="srv-stats-col">
                         <div class="srv-stats-heading">Article availability</div>
-                        <div class="srv-stats-row"><span>Total</span><b>{{ fmtAvail(st.total_ok, st.total_fail) }}</b></div>
-                        <div class="srv-stats-row"><span>Today</span><b>{{ fmtAvail(st.today_ok, st.today_fail) }}</b></div>
-                        <div class="srv-stats-row"><span>This week</span><b>{{ fmtAvail(st.week_ok, st.week_fail) }}</b></div>
-                        <div class="srv-stats-row"><span>This month</span><b>{{ fmtAvail(st.month_ok, st.month_fail) }}</b></div>
+                        <div class="srv-stats-row">
+                          <span>Total</span><b>{{ fmtAvail(st.total_ok, st.total_fail) }}</b>
+                        </div>
+                        <div class="srv-stats-row">
+                          <span>Today</span><b>{{ fmtAvail(st.today_ok, st.today_fail) }}</b>
+                        </div>
+                        <div class="srv-stats-row">
+                          <span>This week</span><b>{{ fmtAvail(st.week_ok, st.week_fail) }}</b>
+                        </div>
+                        <div class="srv-stats-row">
+                          <span>This month</span><b>{{ fmtAvail(st.month_ok, st.month_fail) }}</b>
+                        </div>
                       </div>
                     </div>
                     @if (st.last_active) {
-                      <div style="font-size:11px;color:var(--mute);margin-top:6px">Last activity: {{ st.last_active }}</div>
+                      <div style="font-size:11px;color:var(--mute);margin-top:6px">
+                        Last activity: {{ st.last_active }}
+                      </div>
                     }
                   } @else {
-                    <div style="color:var(--mute);font-size:12px">No data yet — stats accumulate as downloads complete.</div>
+                    <div style="color:var(--mute);font-size:12px">
+                      No data yet — stats accumulate as downloads complete.
+                    </div>
                   }
                 </div>
               }
             }
             @if (servers().length === 0 && !editingServer) {
-              <div class="empty">No servers configured. Click <b>+ Add server</b> to get started.</div>
+              <div class="empty">
+                No servers configured. Click <b>+ Add server</b> to get started.
+              </div>
             }
           </div>
 
@@ -185,38 +286,64 @@ function emptyCategory(): CategoryConfig {
                   <input type="text" [(ngModel)]="editingServer.name" placeholder="news-primary" />
 
                   <label>Host</label>
-                  <input type="text" [(ngModel)]="editingServer.host" placeholder="news.example.com" />
+                  <input
+                    type="text"
+                    [(ngModel)]="editingServer.host"
+                    placeholder="news.example.com"
+                  />
 
                   <label>Port</label>
                   <div class="inline">
                     <input type="number" [(ngModel)]="editingServer.port" />
-                    <label class="check"><input type="checkbox" [(ngModel)]="editingServer.ssl" /> SSL (NNTPS)</label>
-                    <label class="check"><input type="checkbox" [(ngModel)]="editingServer.ssl_verify" /> Verify cert</label>
+                    <label class="check"
+                      ><input type="checkbox" [(ngModel)]="editingServer.ssl" /> SSL (NNTPS)</label
+                    >
+                    <label class="check"
+                      ><input type="checkbox" [(ngModel)]="editingServer.ssl_verify" /> Verify
+                      cert</label
+                    >
                   </div>
 
                   <label>Username</label>
-                  <input type="text" [(ngModel)]="editingServer.username" placeholder="(optional)" />
+                  <input
+                    type="text"
+                    [(ngModel)]="editingServer.username"
+                    placeholder="(optional)"
+                  />
 
                   <label>Password</label>
-                  <input type="password" [(ngModel)]="editingServer.password" placeholder="(optional)" />
+                  <input
+                    type="password"
+                    [(ngModel)]="editingServer.password"
+                    placeholder="(optional)"
+                  />
 
                   <label>Connections</label>
                   <div class="inline">
                     <input type="number" [(ngModel)]="editingServer.connections" min="1" />
-                    <label class="check"><input type="checkbox" [(ngModel)]="editingServer.enabled" /> Enabled</label>
-                    <label class="check"><input type="checkbox" [(ngModel)]="editingServer.optional" /> Optional (skip on failure)</label>
+                    <label class="check"
+                      ><input type="checkbox" [(ngModel)]="editingServer.enabled" /> Enabled</label
+                    >
+                    <label class="check"
+                      ><input type="checkbox" [(ngModel)]="editingServer.optional" /> Optional (skip
+                      on failure)</label
+                    >
                   </div>
 
                   <label>Priority</label>
                   <div class="inline">
                     <input type="number" [(ngModel)]="editingServer.priority" min="0" />
-                    <span style="color:var(--mute);font-size:11px">0 = primary, higher = fallback</span>
+                    <span style="color:var(--mute);font-size:11px"
+                      >0 = primary, higher = fallback</span
+                    >
                   </div>
 
                   <label>Pipelining</label>
                   <div class="inline">
                     <input type="number" [(ngModel)]="editingServer.pipelining" min="0" />
-                    <span style="color:var(--mute);font-size:11px">Max inflight ARTICLE commands per conn</span>
+                    <span style="color:var(--mute);font-size:11px"
+                      >Max inflight ARTICLE commands per conn</span
+                    >
                   </div>
 
                   <label>Ramp-up delay</label>
@@ -233,11 +360,16 @@ function emptyCategory(): CategoryConfig {
 
                   <label>Compression</label>
                   <div class="check">
-                    <input type="checkbox" [(ngModel)]="editingServer.compress" /> Enable header compression (XZVER)
+                    <input type="checkbox" [(ngModel)]="editingServer.compress" /> Enable header
+                    compression (XZVER)
                   </div>
 
                   <label>Proxy URL</label>
-                  <input type="text" [(ngModel)]="editingServer.proxy_url" placeholder="socks5://user:pass@host:1080 (optional)" />
+                  <input
+                    type="text"
+                    [(ngModel)]="editingServer.proxy_url"
+                    placeholder="socks5://user:pass@host:1080 (optional)"
+                  />
                 </div>
 
                 <div class="form-actions">
@@ -255,7 +387,9 @@ function emptyCategory(): CategoryConfig {
           <div class="section-head">
             <div>
               <h2>RSS feeds</h2>
-              <div class="sub">Manage feeds themselves on the <a routerLink="/rss">RSS page</a>.</div>
+              <div class="sub">
+                Manage feeds themselves on the <a routerLink="/rss">RSS page</a>.
+              </div>
             </div>
           </div>
 
@@ -263,10 +397,11 @@ function emptyCategory(): CategoryConfig {
             <h3>About RSS configuration</h3>
             <div class="body">
               <p style="margin:0;color:var(--mute);font-size:13px">
-                Feed URLs, regex filters, poll intervals, and auto-enqueue are configured per feed on the
+                Feed URLs, regex filters, poll intervals, and auto-enqueue are configured per feed
+                on the
                 <a routerLink="/rss">RSS page</a>. This section is reserved for global defaults
-                (backoff, duplicate guard, User-Agent) and will move here once the backend exposes the
-                corresponding endpoints.
+                (backoff, duplicate guard, User-Agent) and will move here once the backend exposes
+                the corresponding endpoints.
               </p>
             </div>
           </div>
@@ -277,7 +412,9 @@ function emptyCategory(): CategoryConfig {
           <div class="section-head">
             <div>
               <h2>Categories</h2>
-              <div class="sub">Bucket downloads into folders; each has its own post-processing level.</div>
+              <div class="sub">
+                Bucket downloads into folders; each has its own post-processing level.
+              </div>
             </div>
             @if (!editingCategory) {
               <button class="btn primary" (click)="addCategory()">+ Add category</button>
@@ -298,17 +435,25 @@ function emptyCategory(): CategoryConfig {
                 <tbody>
                   @for (c of categories(); track c.name) {
                     <tr>
-                      <td><span class="tag cat">{{ c.name }}</span></td>
-                      <td><code>{{ c.output_dir || '(default)' }}</code></td>
+                      <td>
+                        <span class="tag cat">{{ c.name }}</span>
+                      </td>
+                      <td>
+                        <code>{{ c.output_dir || '(default)' }}</code>
+                      </td>
                       <td>{{ ppLabel(c.post_processing) }}</td>
                       <td>
                         <button class="row-action" (click)="editCategory(c)">edit</button>
-                        <button class="row-action danger" (click)="deleteCategory(c.name)">del</button>
+                        <button class="row-action danger" (click)="deleteCategory(c.name)">
+                          del
+                        </button>
                       </td>
                     </tr>
                   }
                   @if (categories().length === 0 && !editingCategory) {
-                    <tr><td colspan="4" class="empty-cell">No categories configured.</td></tr>
+                    <tr>
+                      <td colspan="4" class="empty-cell">No categories configured.</td>
+                    </tr>
                   }
                 </tbody>
               </table>
@@ -324,7 +469,11 @@ function emptyCategory(): CategoryConfig {
                   <input type="text" [(ngModel)]="editingCategory.name" placeholder="movies" />
 
                   <label>Output dir</label>
-                  <input type="text" [(ngModel)]="editingCategory.output_dir" placeholder="(optional — uses default if blank)" />
+                  <input
+                    type="text"
+                    [(ngModel)]="editingCategory.output_dir"
+                    placeholder="(optional — uses default if blank)"
+                  />
 
                   <label>Post-processing</label>
                   <select [(ngModel)]="editingCategory.post_processing">
@@ -355,24 +504,25 @@ function emptyCategory(): CategoryConfig {
           <div class="panel">
             <h3>Par2 repair <span class="hint">rust-par2 · no external binary</span></h3>
             <div class="body" style="font-size:13px;color:var(--mute)">
-              Par2 behaviour is currently controlled per-category (see <a (click)="tab = 'categories'" style="cursor:pointer">Categories</a>).
-              Global toggles (mode, memory limit, threads) will live here once the backend exposes them.
+              Par2 behaviour is currently controlled per-category (see
+              <a (click)="tab = 'categories'" style="cursor:pointer">Categories</a>). Global toggles
+              (mode, memory limit, threads) will live here once the backend exposes them.
             </div>
           </div>
 
           <div class="panel">
             <h3>Extraction</h3>
             <div class="body" style="font-size:13px;color:var(--mute)">
-              System <code>unrar</code> and <code>7z</code> are detected at startup.
-              Run <code>--smoke-test</code> to verify the runtime tools.
+              System <code>unrar</code> and <code>7z</code> are detected at startup. Run
+              <code>--smoke-test</code> to verify the runtime tools.
             </div>
           </div>
 
           <div class="panel">
             <h3>Cleanup</h3>
             <div class="body" style="font-size:13px;color:var(--mute)">
-              On success, .rar / .par2 are removed from the output directory; sample files under 50 MB
-              are pruned. On failure, partial files are kept for retry.
+              On success, .rar / .par2 are removed from the output directory; sample files under 50
+              MB are pruned. On failure, partial files are kept for retry.
             </div>
           </div>
         }
@@ -392,7 +542,10 @@ function emptyCategory(): CategoryConfig {
               <div class="dir-row">
                 <span class="dir-label">Data dir</span>
                 <code class="dir-val">{{ dirs()?.data_dir ?? '…' }}</code>
-                <span class="dir-hint">SQLite, queue state, job blobs · set via <code>RUSTNZB_DATA_DIR</code> or <code>--data-dir</code></span>
+                <span class="dir-hint"
+                  >SQLite, queue state, job blobs · set via <code>RUSTNZB_DATA_DIR</code> or
+                  <code>--data-dir</code></span
+                >
               </div>
               <div class="dir-row">
                 <span class="dir-label">Downloads</span>
@@ -428,8 +581,12 @@ function emptyCategory(): CategoryConfig {
           </div>
 
           <div class="panel">
-            <h3>Disk guards
-              <span class="hint">history retention is editable under <a (click)="tab = 'general'" style="cursor:pointer">General</a></span>
+            <h3>
+              Disk guards
+              <span class="hint"
+                >history retention is editable under
+                <a (click)="tab = 'general'" style="cursor:pointer">General</a></span
+              >
             </h3>
             <div class="body">
               <div class="form">
@@ -442,7 +599,11 @@ function emptyCategory(): CategoryConfig {
                 <label>Abort hopeless</label>
                 <div class="inline">
                   <label class="toggle">
-                    <input type="checkbox" [(ngModel)]="abortHopeless" (change)="saveDiskGuards()" />
+                    <input
+                      type="checkbox"
+                      [(ngModel)]="abortHopeless"
+                      (change)="saveDiskGuards()"
+                    />
                     <span>Abort downloads that cannot possibly complete</span>
                   </label>
                 </div>
@@ -461,125 +622,208 @@ function emptyCategory(): CategoryConfig {
           </div>
 
           <div class="panel">
-            <h3>WebDAV access</h3>
+            <h3>Runtime</h3>
             <div class="body">
-              @if (!davAuthConfigured()) {
+              <div class="form">
+                <label>Enable Media Library</label>
+                <div class="inline">
+                  <label class="toggle">
+                    <input type="checkbox" [(ngModel)]="davConfig.enabled" />
+                    <span>Mount <code>/dav</code> and show the Media page</span>
+                  </label>
+                </div>
+                <div class="dim">
+                  Changing this flag requires a rustnzb restart. Docker deployments can also enable
+                  it with <code>RUSTNZB_DAV_ENABLED=1</code>.
+                </div>
+              </div>
+
+              @if (davRestartRequired()) {
                 <div class="dav-warn">
-                  ⚠ <b>WebDAV is currently unauthenticated.</b> Anyone who can reach
-                  <code>{{ davBaseUrl() }}</code> can stream your media. Set a username
-                  and password (or an API key) below.
+                  Restart required: the saved DAV setting does not match the running service yet.
                 </div>
               }
 
-              <div class="form">
-                <label>DAV username</label>
-                <div class="inline">
-                  <input type="text" [(ngModel)]="davConfig.username" placeholder="e.g. plex" autocomplete="off" />
-                </div>
-
-                <label>DAV password</label>
-                <div class="inline">
-                  <input [type]="showDavPassword ? 'text' : 'password'" [(ngModel)]="davConfig.password" autocomplete="new-password" />
-                  <button class="btn sm" (click)="showDavPassword = !showDavPassword" type="button">
-                    {{ showDavPassword ? 'Hide' : 'Show' }}
-                  </button>
-                </div>
-
-                <label>DAV API key</label>
-                <div class="inline">
-                  <input [type]="showDavApiKey ? 'text' : 'password'" [(ngModel)]="davConfig.api_key" autocomplete="off"
-                         placeholder="X-Api-Key header value (optional)" />
-                  <button class="btn sm" (click)="showDavApiKey = !showDavApiKey" type="button">
-                    {{ showDavApiKey ? 'Hide' : 'Show' }}
-                  </button>
-                  <button class="btn sm" (click)="generateDavApiKey()" type="button">Generate</button>
-                </div>
-              </div>
-
               <div class="form-actions">
                 <button class="btn primary" (click)="saveDavConfig()">Save</button>
               </div>
             </div>
           </div>
 
-          <div class="panel">
-            <h3>WebDAV URLs</h3>
-            <div class="body">
-              <div class="dim" style="margin-bottom: 8px;">
-                Point a WebDAV client (Plex, Infuse, davfs2, rclone) at the root URL.
-                Browseable subpaths are listed for reference — clients only need the root.
-              </div>
-              <div class="dir-table">
-                <div class="dir-row">
-                  <div><b>Root</b></div>
-                  <div class="url-cell">
-                    <code>{{ davBaseUrl() }}</code>
-                    <button class="btn sm" (click)="copy(davBaseUrl())" type="button">Copy</button>
-                  </div>
-                </div>
-                <div class="dir-row">
-                  <div>Content</div>
-                  <div class="url-cell">
-                    <code>{{ davBaseUrl() }}/content</code>
-                    <button class="btn sm" (click)="copy(davBaseUrl() + '/content')" type="button">Copy</button>
-                  </div>
-                </div>
-                <div class="dir-row">
-                  <div>NZBs</div>
-                  <div class="url-cell">
-                    <code>{{ davBaseUrl() }}/nzbs</code>
-                    <button class="btn sm" (click)="copy(davBaseUrl() + '/nzbs')" type="button">Copy</button>
-                  </div>
-                </div>
-                <div class="dir-row">
-                  <div>Completed symlinks</div>
-                  <div class="url-cell">
-                    <code>{{ davBaseUrl() }}/completed-symlinks</code>
-                    <button class="btn sm" (click)="copy(davBaseUrl() + '/completed-symlinks')" type="button">Copy</button>
-                  </div>
-                </div>
-              </div>
-              <div class="dim" style="margin-top: 10px; font-size: 11px;">
-                Note: WebDAV clients must use the root URL <b>without a trailing slash</b>
-                (Axum nest quirk). Append-paths shown above already follow this rule.
-              </div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <h3>Auto-send to Media Library</h3>
-            <div class="body">
-              <div class="form">
-                <label>Send all downloads</label>
-                <div class="inline">
-                  <label class="toggle">
-                    <input type="checkbox" [(ngModel)]="davConfig.auto_send_all" (change)="onAutoSendAllChange()" />
-                    <span>Automatically queue every completed download into the Media Library</span>
-                  </label>
-                </div>
-
-                @if (!davConfig.auto_send_all) {
-                  <label>Auto-send categories</label>
-                  <div class="dav-cats">
-                    @if (categories().length === 0) {
-                      <span class="dim">No categories configured — add categories first.</span>
-                    }
-                    @for (cat of categories(); track cat.name) {
-                      <label class="check">
-                        <input type="checkbox"
-                               [checked]="davConfig.category_rules.includes(cat.name)"
-                               (change)="toggleDavCategory(cat.name, $event)" />
-                        {{ cat.name }}
-                      </label>
-                    }
+          @if (davConfig.enabled) {
+            <div class="panel">
+              <h3>WebDAV access</h3>
+              <div class="body">
+                @if (!davAuthConfigured()) {
+                  <div class="dav-warn">
+                    ⚠ <b>WebDAV is currently unauthenticated.</b> Anyone who can reach
+                    <code>{{ davBaseUrl() }}</code> can stream your media. Set a username and
+                    password (or an API key) below.
                   </div>
                 }
-              </div>
-              <div class="form-actions">
-                <button class="btn primary" (click)="saveDavConfig()">Save</button>
+
+                <div class="form">
+                  <label>DAV username</label>
+                  <div class="inline">
+                    <input
+                      type="text"
+                      [(ngModel)]="davConfig.username"
+                      placeholder="e.g. plex"
+                      autocomplete="off"
+                    />
+                  </div>
+
+                  <label>DAV password</label>
+                  <div class="inline">
+                    <input
+                      [type]="showDavPassword ? 'text' : 'password'"
+                      [(ngModel)]="davConfig.password"
+                      autocomplete="new-password"
+                    />
+                    <button
+                      class="btn sm"
+                      (click)="showDavPassword = !showDavPassword"
+                      type="button"
+                    >
+                      {{ showDavPassword ? 'Hide' : 'Show' }}
+                    </button>
+                  </div>
+
+                  <label>DAV API key</label>
+                  <div class="inline">
+                    <input
+                      [type]="showDavApiKey ? 'text' : 'password'"
+                      [(ngModel)]="davConfig.api_key"
+                      autocomplete="off"
+                      placeholder="X-Api-Key header value (optional)"
+                    />
+                    <button class="btn sm" (click)="showDavApiKey = !showDavApiKey" type="button">
+                      {{ showDavApiKey ? 'Hide' : 'Show' }}
+                    </button>
+                    <button class="btn sm" (click)="generateDavApiKey()" type="button">
+                      Generate
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button class="btn primary" (click)="saveDavConfig()">Save</button>
+                </div>
               </div>
             </div>
-          </div>
+
+            <div class="panel">
+              <h3>WebDAV URLs</h3>
+              <div class="body">
+                <div class="dim" style="margin-bottom: 8px;">
+                  Point a WebDAV client (Plex, Infuse, davfs2, rclone) at the root URL. Browseable
+                  subpaths are listed for reference — clients only need the root.
+                </div>
+                <div class="dir-table">
+                  <div class="dir-row">
+                    <div><b>Root</b></div>
+                    <div class="url-cell">
+                      <code>{{ davBaseUrl() }}</code>
+                      <button class="btn sm" (click)="copy(davBaseUrl())" type="button">
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div class="dir-row">
+                    <div>Content</div>
+                    <div class="url-cell">
+                      <code>{{ davBaseUrl() }}/content</code>
+                      <button
+                        class="btn sm"
+                        (click)="copy(davBaseUrl() + '/content')"
+                        type="button"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div class="dir-row">
+                    <div>NZBs</div>
+                    <div class="url-cell">
+                      <code>{{ davBaseUrl() }}/nzbs</code>
+                      <button class="btn sm" (click)="copy(davBaseUrl() + '/nzbs')" type="button">
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div class="dir-row">
+                    <div>Completed symlinks</div>
+                    <div class="url-cell">
+                      <code>{{ davBaseUrl() }}/completed-symlinks</code>
+                      <button
+                        class="btn sm"
+                        (click)="copy(davBaseUrl() + '/completed-symlinks')"
+                        type="button"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="dim" style="margin-top: 10px; font-size: 11px;">
+                  Note: WebDAV clients must use the root URL <b>without a trailing slash</b>
+                  (Axum nest quirk). Append-paths shown above already follow this rule.
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Auto-send to Media Library</h3>
+              <div class="body">
+                <div class="form">
+                  <label>Send all downloads</label>
+                  <div class="inline">
+                    <label class="toggle">
+                      <input
+                        type="checkbox"
+                        [(ngModel)]="davConfig.auto_send_all"
+                        (change)="onAutoSendAllChange()"
+                      />
+                      <span
+                        >Automatically queue every completed download into the Media Library</span
+                      >
+                    </label>
+                  </div>
+
+                  @if (!davConfig.auto_send_all) {
+                    <label>Auto-send categories</label>
+                    <div class="dav-cats">
+                      @if (categories().length === 0) {
+                        <span class="dim">No categories configured — add categories first.</span>
+                      }
+                      @for (cat of categories(); track cat.name) {
+                        <label class="check">
+                          <input
+                            type="checkbox"
+                            [checked]="davConfig.category_rules.includes(cat.name)"
+                            (change)="toggleDavCategory(cat.name, $event)"
+                          />
+                          {{ cat.name }}
+                        </label>
+                      }
+                    </div>
+                  }
+                </div>
+                <div class="form-actions">
+                  <button class="btn primary" (click)="saveDavConfig()">Save</button>
+                </div>
+              </div>
+            </div>
+          } @else {
+            <div class="panel">
+              <div class="body">
+                <div class="dim">
+                  DAV access, Media navigation, and automatic media-library ingest stay disabled
+                  until the runtime flag above is enabled and the service is restarted.
+                </div>
+              </div>
+            </div>
+          }
         }
 
         <!-- =========== GENERAL =========== -->
@@ -605,7 +849,9 @@ function emptyCategory(): CategoryConfig {
                 <label>Concurrent jobs</label>
                 <div class="inline">
                   <input type="number" [(ngModel)]="maxActiveDownloads" min="1" />
-                  <span style="color:var(--mute);font-size:11px">Max jobs in Downloading state</span>
+                  <span style="color:var(--mute);font-size:11px"
+                    >Max jobs in Downloading state</span
+                  >
                   <button class="btn sm" (click)="saveMaxActive()">Save</button>
                 </div>
 
@@ -632,7 +878,9 @@ function emptyCategory(): CategoryConfig {
           <div class="panel">
             <h3>SABnzbd endpoint</h3>
             <div class="body" style="font-size:13px">
-              <p style="margin:0 0 10px">Point Sonarr/Radarr at this host — category matching is done by category name.</p>
+              <p style="margin:0 0 10px">
+                Point Sonarr/Radarr at this host — category matching is done by category name.
+              </p>
               <code>{{ sabnzbdExample }}</code>
               <div class="form" style="margin-top:16px">
                 <label>Supported modes</label>
@@ -666,8 +914,8 @@ function emptyCategory(): CategoryConfig {
           <div class="panel">
             <h3>tracing</h3>
             <div class="body" style="font-size:13px;line-height:1.8">
-              Configured via env at startup: <code>RUSTNZB_LOG_LEVEL</code> (default <code>info</code>)
-              or <code>RUST_LOG</code> for fine-grained per-target filters (e.g.
+              Configured via env at startup: <code>RUSTNZB_LOG_LEVEL</code> (default
+              <code>info</code>) or <code>RUST_LOG</code> for fine-grained per-target filters (e.g.
               <code>nzb_nntp=debug,nzb_web=info</code>). Live logs are on the
               <a routerLink="/logs">Logs page</a>.
             </div>
@@ -695,140 +943,283 @@ function emptyCategory(): CategoryConfig {
           <div class="panel">
             <div class="body">
               <div class="form">
-                <label>Version</label><div>1.2.3</div>
-                <label>Rust edition</label><div>2024</div>
-                <label>Web framework</label><div>Axum 0.8 + Tower</div>
-                <label>TLS</label><div>rustls 0.23 (ring)</div>
-                <label>Database</label><div>SQLite · WAL mode · bundled</div>
-                <label>License</label><div>MIT</div>
-                <label>Source</label><div><a href="https://repo.indexarr.net/indexarr/rustnzb" target="_blank">repo.indexarr.net/indexarr/rustnzb</a></div>
+                <label>Version</label>
+                <div>{{ status()?.version || '—' }}</div>
+                <label>Rust edition</label>
+                <div>2024</div>
+                <label>Web framework</label>
+                <div>Axum 0.8 + Tower</div>
+                <label>TLS</label>
+                <div>rustls 0.23 (ring)</div>
+                <label>Database</label>
+                <div>SQLite · WAL mode · bundled</div>
+                <label>License</label>
+                <div>MIT</div>
+                <label>Source</label>
+                <div>
+                  <a href="https://repo.indexarr.net/indexarr/rustnzb" target="_blank"
+                    >repo.indexarr.net/indexarr/rustnzb</a
+                  >
+                </div>
               </div>
             </div>
           </div>
         }
-
       </div>
     </div>
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .settings-shell { display: grid; grid-template-columns: 220px 1fr; gap: 16px; }
+      .settings-shell {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 16px;
+        align-items: start;
+      }
 
-    .settings-side {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 8px;
-      height: fit-content;
-      position: sticky;
-      top: 16px;
-    }
-    .settings-side .sg {
-      color: var(--mute);
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .7px;
-      padding: 14px 12px 4px;
-      margin-top: 2px;
-      border-top: 1px solid var(--line);
-    }
-    .settings-side .sg:first-child {
-      border-top: none;
-      padding-top: 6px;
-      margin-top: 0;
-    }
-    .settings-side button {
-      display: block;
-      width: 100%;
-      text-align: left;
-      background: none;
-      border: none;
-      color: var(--text);
-      padding: 7px 12px;
-      border-radius: 5px;
-      cursor: pointer;
-      font: inherit;
-      font-size: 13px;
-      opacity: .7;
-    }
-    .settings-side button:hover { opacity: 1; background: var(--panel2); }
-    .settings-side button.active {
-      opacity: 1;
-      background: var(--panel2);
-      box-shadow: inset 2px 0 0 var(--accent);
-    }
+      .settings-side {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px;
+        width: 100%;
+        box-sizing: border-box;
+        align-self: start;
+        position: sticky;
+        top: 16px;
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+      }
+      .settings-side .sg {
+        color: var(--mute);
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        padding: 14px 12px 4px;
+        margin-top: 2px;
+        border-top: 1px solid var(--line);
+      }
+      .settings-side .sg:first-child {
+        border-top: none;
+        padding-top: 6px;
+        margin-top: 0;
+      }
+      .settings-side button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        color: var(--text);
+        padding: 7px 12px;
+        border-radius: 5px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+        opacity: 0.7;
+      }
+      .settings-side button:hover {
+        opacity: 1;
+        background: var(--panel2);
+      }
+      .settings-side button.active {
+        opacity: 1;
+        background: var(--panel2);
+        box-shadow: inset 2px 0 0 var(--accent);
+      }
 
-    .settings-main { min-width: 0; padding-top: 10px; }
+      .settings-main {
+        min-width: 0;
+        padding-top: 10px;
+      }
 
-    /* Server rows */
-    .srv-row {
-      display: grid;
-      grid-template-columns: 28px 1fr auto;
-      gap: 12px;
-      align-items: center;
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--line);
-    }
-    .srv-row:last-child { border: none; }
-    .drag { color: var(--mute); cursor: grab; text-align: center; }
-    .title { font-weight: 600; }
-    .title.dim { color: var(--mute); }
-    .host { color: var(--mute); font-size: 12px; margin-top: 2px; }
-    .meters { display: flex; gap: 18px; align-items: center; font-size: 12px; color: var(--mute); margin-top: 6px; flex-wrap: wrap; }
-    .meters b { color: var(--text); font-weight: 600; }
-    .actions { display: flex; gap: 4px; flex-wrap: wrap; }
-    .btn.sm.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+      /* Server rows */
+      .srv-row {
+        display: grid;
+        grid-template-columns: 28px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .srv-row:last-child {
+        border: none;
+      }
+      .drag {
+        color: var(--mute);
+        cursor: grab;
+        text-align: center;
+      }
+      .title {
+        font-weight: 600;
+      }
+      .title.dim {
+        color: var(--mute);
+      }
+      .host {
+        color: var(--mute);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+      .meters {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--mute);
+        margin-top: 6px;
+        flex-wrap: wrap;
+      }
+      .meters b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .actions {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .btn.sm.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
 
-    /* Server stats panel */
-    .srv-stats-panel {
-      grid-column: 1 / -1;
-      padding: 12px 14px 14px 42px;
-      background: var(--surface2, rgba(255,255,255,0.03));
-      border-bottom: 1px solid var(--line);
-    }
-    .srv-stats-grid { display: flex; gap: 32px; flex-wrap: wrap; }
-    .srv-stats-col { min-width: 200px; }
-    .srv-stats-heading { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); margin-bottom: 6px; }
-    .srv-stats-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--mute); padding: 2px 0; gap: 16px; }
-    .srv-stats-row b { color: var(--text); font-weight: 600; white-space: nowrap; }
+      /* Server stats panel */
+      .srv-stats-panel {
+        grid-column: 1 / -1;
+        padding: 12px 14px 14px 42px;
+        background: var(--surface2, rgba(255, 255, 255, 0.03));
+        border-bottom: 1px solid var(--line);
+      }
+      .srv-stats-grid {
+        display: flex;
+        gap: 32px;
+        flex-wrap: wrap;
+      }
+      .srv-stats-col {
+        min-width: 200px;
+      }
+      .srv-stats-heading {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--mute);
+        margin-bottom: 6px;
+      }
+      .srv-stats-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 12px;
+        color: var(--mute);
+        padding: 2px 0;
+        gap: 16px;
+      }
+      .srv-stats-row b {
+        color: var(--text);
+        font-weight: 600;
+        white-space: nowrap;
+      }
 
-    .empty { padding: 24px; color: var(--mute); text-align: center; font-size: 13px; }
-    .empty-cell { text-align: center; padding: 28px !important; color: var(--mute); font-size: 13px; }
+      .empty {
+        padding: 24px;
+        color: var(--mute);
+        text-align: center;
+        font-size: 13px;
+      }
+      .empty-cell {
+        text-align: center;
+        padding: 28px !important;
+        color: var(--mute);
+        font-size: 13px;
+      }
 
-    .form-actions { margin-top: 14px; display: flex; gap: 8px; }
+      .form-actions {
+        margin-top: 14px;
+        display: flex;
+        gap: 8px;
+      }
 
-    .dav-cats { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-    .dim { color: var(--mute); font-size: 12px; }
+      .dav-cats {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 4px;
+      }
+      .dim {
+        color: var(--mute);
+        font-size: 12px;
+      }
 
-    .dav-warn {
-      background: rgba(255, 180, 0, 0.08);
-      border: 1px solid rgba(255, 180, 0, 0.35);
-      color: var(--text);
-      border-radius: 6px;
-      padding: 10px 12px;
-      margin-bottom: 14px;
-      font-size: 13px;
-      line-height: 1.5;
-    }
-    .dav-warn code { background: rgba(0,0,0,0.25); padding: 1px 4px; border-radius: 3px; }
-    .url-cell { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .url-cell code {
-      background: var(--panel2, rgba(255,255,255,0.04));
-      padding: 3px 7px;
-      border-radius: 4px;
-      font-size: 12px;
-      word-break: break-all;
-    }
+      .dav-warn {
+        background: rgba(255, 180, 0, 0.08);
+        border: 1px solid rgba(255, 180, 0, 0.35);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 14px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .dav-warn code {
+        background: rgba(0, 0, 0, 0.25);
+        padding: 1px 4px;
+        border-radius: 3px;
+      }
+      .url-cell {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .url-cell code {
+        background: var(--panel2, rgba(255, 255, 255, 0.04));
+        padding: 3px 7px;
+        border-radius: 4px;
+        font-size: 12px;
+        word-break: break-all;
+      }
 
-    .dir-table { display: flex; flex-direction: column; gap: 0; font-size: 13px; }
-    .dir-row { display: grid; grid-template-columns: 100px 1fr; gap: 8px 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); }
-    .dir-row:last-child { border: none; }
-    .dir-label { font-weight: 600; white-space: nowrap; }
-    .dir-val { grid-column: 2; font-size: 12px; }
-    .dir-hint { grid-column: 2; color: var(--mute); font-size: 11px; margin-top: -2px; }
-  `],
+      .dir-table {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        font-size: 13px;
+      }
+      .dir-row {
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        gap: 8px 12px;
+        align-items: baseline;
+        padding: 7px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .dir-row:last-child {
+        border: none;
+      }
+      .dir-label {
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .dir-val {
+        grid-column: 2;
+        font-size: 12px;
+      }
+      .dir-hint {
+        grid-column: 2;
+        color: var(--mute);
+        font-size: 11px;
+        margin-top: -2px;
+      }
+    `,
+  ],
 })
 export class SettingsViewComponent implements OnInit {
   tab: Tab = 'servers';
@@ -858,17 +1249,28 @@ export class SettingsViewComponent implements OnInit {
 
   // Status / feature flags
   status = signal<StatusResponse | null>(null);
-  webdavEnabled = computed(() => this.status()?.webdav_enabled ?? false);
+  webdavAvailable = computed(() => this.status()?.webdav_available ?? false);
+  davRuntimeEnabled = computed(() => this.status()?.webdav_enabled ?? false);
 
   // DAV config
-  davConfig: DavConfig = { auto_send_all: false, category_rules: [], username: null, password: null, api_key: null };
+  davConfig: DavConfig = {
+    enabled: false,
+    auto_send_all: false,
+    category_rules: [],
+    username: null,
+    password: null,
+    api_key: null,
+  };
   showDavPassword = false;
   showDavApiKey = false;
 
   // Directory paths (from /api/config)
   dirs = signal<GeneralDirs | null>(null);
 
-  constructor(private api: ApiService, private snack: MatSnackBar) {}
+  constructor(
+    private api: ApiService,
+    private snack: MatSnackBar,
+  ) {}
 
   ngOnInit(): void {
     this.loadServers();
@@ -880,9 +1282,9 @@ export class SettingsViewComponent implements OnInit {
 
   loadStatus(): void {
     this.api.get<StatusResponse>('/status').subscribe({
-      next: s => {
+      next: (s) => {
         this.status.set(s);
-        if (s.webdav_enabled) this.loadDavConfig();
+        if (s.webdav_available) this.loadDavConfig();
       },
       error: () => {},
     });
@@ -890,7 +1292,7 @@ export class SettingsViewComponent implements OnInit {
 
   loadDirs(): void {
     this.api.get<{ general: GeneralDirs }>('/config').subscribe({
-      next: cfg => this.dirs.set(cfg.general),
+      next: (cfg) => this.dirs.set(cfg.general),
       error: () => {},
     });
   }
@@ -899,7 +1301,7 @@ export class SettingsViewComponent implements OnInit {
 
   loadServers(): void {
     this.api.get<ServerConfig[]>('/config/servers').subscribe({
-      next: r => this.servers.set(r),
+      next: (r) => this.servers.set(r),
       error: () => {},
     });
     this.loadServerStats();
@@ -907,7 +1309,7 @@ export class SettingsViewComponent implements OnInit {
 
   loadServerStats(): void {
     this.api.get<ServerStats[]>('/config/servers/stats').subscribe({
-      next: r => {
+      next: (r) => {
         const map: Record<string, ServerStats> = {};
         for (const s of r) map[s.server_id] = s;
         this.serverStats.set(map);
@@ -933,7 +1335,7 @@ export class SettingsViewComponent implements OnInit {
   fmtAvail(ok: number, fail: number): string {
     const total = ok + fail;
     if (total === 0) return '— (no data)';
-    const pct = Math.round(ok / total * 100);
+    const pct = Math.round((ok / total) * 100);
     return `${pct}% of ${this.fmtCount(total)} articles`;
   }
 
@@ -997,7 +1399,7 @@ export class SettingsViewComponent implements OnInit {
 
   testServer(id: string): void {
     this.api.post<{ success: boolean; message: string }>(`/config/servers/${id}/test`).subscribe({
-      next: r => this.snack.open(r.message, 'Close', { duration: 3000 }),
+      next: (r) => this.snack.open(r.message, 'Close', { duration: 3000 }),
       error: () => this.snack.open('Test failed', 'Close', { duration: 3000 }),
     });
   }
@@ -1010,10 +1412,12 @@ export class SettingsViewComponent implements OnInit {
     if (!body.username) body.username = null;
     if (!body.password) body.password = null;
     this.snack.open('Testing…', '', { duration: 1500 });
-    this.api.post<{ success: boolean; message: string }>(`/config/servers/test-config`, body).subscribe({
-      next: r => this.snack.open(r.message, 'Close', { duration: 4000 }),
-      error: () => this.snack.open('Test failed', 'Close', { duration: 3000 }),
-    });
+    this.api
+      .post<{ success: boolean; message: string }>(`/config/servers/test-config`, body)
+      .subscribe({
+        next: (r) => this.snack.open(r.message, 'Close', { duration: 4000 }),
+        error: () => this.snack.open('Test failed', 'Close', { duration: 3000 }),
+      });
   }
 
   toggleServerEnabled(s: ServerConfig): void {
@@ -1023,11 +1427,9 @@ export class SettingsViewComponent implements OnInit {
     this.api.put(`/config/servers/${s.id}`, updated).subscribe({
       next: () => {
         this.loadServers();
-        this.snack.open(
-          updated.enabled ? 'Server enabled' : 'Server disabled',
-          'Close',
-          { duration: 2000 },
-        );
+        this.snack.open(updated.enabled ? 'Server enabled' : 'Server disabled', 'Close', {
+          duration: 2000,
+        });
       },
       error: () => this.snack.open('Failed to update server', 'Close', { duration: 3000 }),
     });
@@ -1048,7 +1450,7 @@ export class SettingsViewComponent implements OnInit {
 
   loadCategories(): void {
     this.api.get<CategoryConfig[]>('/config/categories').subscribe({
-      next: r => this.categories.set(r),
+      next: (r) => this.categories.set(r),
       error: () => {},
     });
   }
@@ -1109,11 +1511,16 @@ export class SettingsViewComponent implements OnInit {
 
   ppLabel(level: number): string {
     switch (level) {
-      case 0: return 'None';
-      case 1: return 'Repair';
-      case 2: return 'Unpack';
-      case 3: return 'Repair + Unpack';
-      default: return 'Unknown';
+      case 0:
+        return 'None';
+      case 1:
+        return 'Repair';
+      case 2:
+        return 'Unpack';
+      case 3:
+        return 'Repair + Unpack';
+      default:
+        return 'Unknown';
     }
   }
 
@@ -1121,34 +1528,38 @@ export class SettingsViewComponent implements OnInit {
 
   loadGeneralSettings(): void {
     this.api.get<{ speed_limit_bps: number }>('/config/speed-limit').subscribe({
-      next: r => this.speedLimit = r.speed_limit_bps,
+      next: (r) => (this.speedLimit = r.speed_limit_bps),
       error: () => {},
     });
     this.api.get<{ max_active_downloads: number }>('/config/max-active-downloads').subscribe({
-      next: r => this.maxActiveDownloads = r.max_active_downloads,
+      next: (r) => (this.maxActiveDownloads = r.max_active_downloads),
       error: () => {},
     });
     this.api.get<{ retention: number | null }>('/config/history-retention').subscribe({
-      next: r => this.historyRetention = r.retention,
+      next: (r) => (this.historyRetention = r.retention),
       error: () => {},
     });
-    this.api.get<{ min_free_space_bytes: number; abort_hopeless: boolean }>('/config/disk-guards').subscribe({
-      next: r => {
-        this.minFreeSpaceGB = r.min_free_space_bytes / (1024 ** 3);
-        this.abortHopeless = r.abort_hopeless;
-      },
-      error: () => {},
-    });
+    this.api
+      .get<{ min_free_space_bytes: number; abort_hopeless: boolean }>('/config/disk-guards')
+      .subscribe({
+        next: (r) => {
+          this.minFreeSpaceGB = r.min_free_space_bytes / 1024 ** 3;
+          this.abortHopeless = r.abort_hopeless;
+        },
+        error: () => {},
+      });
   }
 
   saveDiskGuards(): void {
-    this.api.put('/config/disk-guards', {
-      min_free_space_bytes: Math.round(this.minFreeSpaceGB * (1024 ** 3)),
-      abort_hopeless: this.abortHopeless,
-    }).subscribe({
-      next: () => this.snack.open('Disk guards saved', 'Close', { duration: 2000 }),
-      error: () => this.snack.open('Failed to save disk guards', 'Close', { duration: 3000 }),
-    });
+    this.api
+      .put('/config/disk-guards', {
+        min_free_space_bytes: Math.round(this.minFreeSpaceGB * 1024 ** 3),
+        abort_hopeless: this.abortHopeless,
+      })
+      .subscribe({
+        next: () => this.snack.open('Disk guards saved', 'Close', { duration: 2000 }),
+        error: () => this.snack.open('Failed to save disk guards', 'Close', { duration: 3000 }),
+      });
   }
 
   saveSpeedLimit(): void {
@@ -1159,10 +1570,12 @@ export class SettingsViewComponent implements OnInit {
   }
 
   saveMaxActive(): void {
-    this.api.put('/config/max-active-downloads', { max_active_downloads: this.maxActiveDownloads }).subscribe({
-      next: () => this.snack.open('Max downloads saved', 'Close', { duration: 2000 }),
-      error: () => this.snack.open('Failed to save max downloads', 'Close', { duration: 3000 }),
-    });
+    this.api
+      .put('/config/max-active-downloads', { max_active_downloads: this.maxActiveDownloads })
+      .subscribe({
+        next: () => this.snack.open('Max downloads saved', 'Close', { duration: 2000 }),
+        error: () => this.snack.open('Failed to save max downloads', 'Close', { duration: 3000 }),
+      });
   }
 
   saveRetention(): void {
@@ -1176,7 +1589,7 @@ export class SettingsViewComponent implements OnInit {
 
   loadDavConfig(): void {
     this.api.get<DavConfig>('/config/dav').subscribe({
-      next: cfg => this.davConfig = { ...cfg },
+      next: (cfg) => (this.davConfig = { ...cfg }),
       error: () => {},
     });
   }
@@ -1194,7 +1607,7 @@ export class SettingsViewComponent implements OnInit {
         this.davConfig.category_rules = [...this.davConfig.category_rules, name];
       }
     } else {
-      this.davConfig.category_rules = this.davConfig.category_rules.filter(r => r !== name);
+      this.davConfig.category_rules = this.davConfig.category_rules.filter((r) => r !== name);
     }
   }
 
@@ -1206,15 +1619,28 @@ export class SettingsViewComponent implements OnInit {
       password: this.davConfig.password?.trim() || null,
       api_key: this.davConfig.api_key?.trim() || null,
     };
+    const restartRequired = payload.enabled !== this.davRuntimeEnabled();
     this.api.put('/config/dav', payload).subscribe({
-      next: () => this.snack.open('Media Library settings saved', 'Close', { duration: 2000 }),
-      error: () => this.snack.open('Failed to save Media Library settings', 'Close', { duration: 3000 }),
+      next: () =>
+        this.snack.open(
+          restartRequired
+            ? 'Media Library settings saved. Restart required.'
+            : 'Media Library settings saved',
+          'Close',
+          { duration: 2500 },
+        ),
+      error: () =>
+        this.snack.open('Failed to save Media Library settings', 'Close', { duration: 3000 }),
     });
   }
 
   davBaseUrl(): string {
     // Use the browser origin so the URL also works behind a reverse proxy.
     return `${window.location.origin}/dav`;
+  }
+
+  davRestartRequired(): boolean {
+    return this.webdavAvailable() && this.davConfig.enabled !== this.davRuntimeEnabled();
   }
 
   davAuthConfigured(): boolean {
@@ -1225,7 +1651,7 @@ export class SettingsViewComponent implements OnInit {
   generateDavApiKey(): void {
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
-    this.davConfig.api_key = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    this.davConfig.api_key = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     this.showDavApiKey = true;
   }
 

@@ -174,6 +174,8 @@ Most settings can be configured through the web UI. See [`config.example.toml`](
 | `RUSTNZB_CONFIG` | Config file path |
 | `RUSTNZB_PORT` | Listen port |
 | `RUSTNZB_LOG_LEVEL` | Log level (trace/debug/info/warn/error) |
+| `RUSTNZB_DAV_ENABLED` | Enable the Media Library (DAV) at startup |
+| `RUSTNZB_BUILD_REF` | Optional build ref appended to the reported version |
 | `OTEL_ENABLED` | Enable OpenTelemetry |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint |
 

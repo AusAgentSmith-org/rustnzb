@@ -24,7 +24,7 @@ use nzb_web::sabnzbd_compat;
 use nzb_web::state::AppState;
 
 #[derive(OpenApi)]
-#[openapi(info(title = "rustnzb API", version = env!("CARGO_PKG_VERSION")))]
+#[openapi(info(title = "rustnzb API", version = env!("RUSTNZB_BUILD_VERSION")))]
 struct ApiDoc;
 
 /// Embed the Angular SPA build at compile time.

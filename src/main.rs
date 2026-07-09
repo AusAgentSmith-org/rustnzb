@@ -166,6 +166,27 @@ fn run_smoke_tests() -> i32 {
     if failed > 0 { 1 } else { 0 }
 }
 
+fn env_flag_enabled(name: &str) -> bool {
+    std::env::var(name)
+        .ok()
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn apply_runtime_config_overrides(config: &mut AppConfig) -> bool {
+    let dav_enabled = env_flag_enabled("RUSTNZB_DAV_ENABLED") || env_flag_enabled("ENABLE_DAV");
+    if dav_enabled && !config.dav.enabled {
+        config.dav.enabled = true;
+        return true;
+    }
+    false
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Install the rustls crypto provider before any TLS operations.
@@ -186,6 +207,9 @@ async fn main() -> anyhow::Result<()> {
     // surfaces as a misleading "Name does not resolve" from getaddrinfo.
     for srv in config.servers.iter_mut() {
         handlers::sanitize_server_config(srv);
+    }
+    if apply_runtime_config_overrides(&mut config) {
+        config.save(&args.config)?;
     }
 
     // Initialize logging (must happen before startup::initialize)
@@ -238,7 +262,7 @@ async fn main() -> anyhow::Result<()> {
             .init();
     }
 
-    info!("rustnzb v{}", env!("CARGO_PKG_VERSION"));
+    info!("rustnzb v{}", env!("RUSTNZB_BUILD_VERSION"));
 
     // Initialize the engine (config, DB, queue manager, background services)
     let result = nzb_web::startup::initialize(
@@ -280,12 +304,17 @@ async fn main() -> anyhow::Result<()> {
 
         let servers = result.queue_manager.get_servers();
         let data_dir = result.state.config().general.data_dir.clone();
-        let dav_handle: Option<Arc<rustnzb::dav::DavHandle>> =
+        let dav_enabled = result.state.config().dav.enabled;
+        let dav_handle: Option<Arc<rustnzb::dav::DavHandle>> = if dav_enabled {
             rustnzb::dav::DavHandle::init(&data_dir, servers)
                 .await
                 .inspect_err(|e| tracing::warn!("WebDAV init failed, running without it: {e}"))
                 .ok()
-                .map(Arc::new);
+                .map(Arc::new)
+        } else {
+            info!("WebDAV media library disabled");
+            None
+        };
 
         // Spawn background task: auto-send jobs to DAV streaming pipeline immediately
         // on add (before download begins) when DavConfig.auto_send_all or
