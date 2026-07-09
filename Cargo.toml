@@ -76,7 +76,7 @@ unicode-normalization = "0.1"
 # Shared NZB crates ([patch] sections redirect to local for dev)
 nzb-web = { version = "0.4.16", features = ["groups-db"] }
 nzb-nntp = { version = "0.2.21" }
-nzb-core = { version = "0.2.14", features = ["groups-db"] }
+nzb-core = { version = "0.2.15", features = ["groups-db"] }
 nzb-decode = { version = "0.1.2" }
 nzb-postproc = { version = "0.2.6" }
 rust-par2 = { version = "0.1.3" }
