@@ -53,6 +53,54 @@ Woodpecker verifies registry state after publishing:
 
 If an unrelated earlier step has already failed the workflow, downstream Docker mirror steps can be skipped even when the Forgejo image build itself succeeded. When that happens, do not assume GHCR is current just because Forgejo is.
 
+### GHCR auth preflight
+
+Before relying on a `main` or tag pipeline to publish to GHCR, validate the
+GitHub token and GHCR bearer-token path directly:
+
+```bash
+export GITHUB_PAT=...               # keep in env only
+GH_TOKEN="$GITHUB_PAT" gh api user --jq .login
+
+GH_LOGIN=$(GH_TOKEN="$GITHUB_PAT" gh api user --jq .login)
+curl -fsS -u "$GH_LOGIN:$GITHUB_PAT" \
+  "https://ghcr.io/token?scope=repository:ausagentsmith-org/rustnzb:pull,push&service=ghcr.io" \
+  | jq -e '.token' >/dev/null
+```
+
+If GitHub API auth returns `401`, or GHCR bearer-token issuance fails, fix the
+repo-level Woodpecker secret before retrying CI. For `indexarr/rustnzb`, the
+pipeline reads `gh_release_token` from repo ID `38` with `manual`, `push`, and
+`tag` events:
+
+```bash
+export REPO_ID=38
+export GH_REPLACEMENT_TOKEN=...     # keep in env only
+
+curl -fsS -X DELETE \
+  -H "Authorization: Bearer $WOODPECKER_TOKEN" \
+  "https://ci.indexarr.net/api/repos/$REPO_ID/secrets/gh_release_token" >/dev/null
+
+curl -fsS -X POST \
+  -H "Authorization: Bearer $WOODPECKER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"gh_release_token\",\"value\":\"$GH_REPLACEMENT_TOKEN\",\"events\":[\"manual\",\"push\",\"tag\"]}" \
+  "https://ci.indexarr.net/api/repos/$REPO_ID/secrets" >/dev/null
+
+curl -fsS -X POST \
+  -H "Authorization: Bearer $WOODPECKER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"branch":"main"}' \
+  "https://ci.indexarr.net/api/repos/$REPO_ID/pipelines"
+```
+
+Notes:
+
+- `POST /api/repos/{owner}/{name}/pipelines` returns the frontend HTML in
+  Woodpecker v3; use the numeric repo ID endpoint.
+- If the replacement token was pasted in chat during the repair, rotate it
+  again after the incident and refresh both Infisical and Woodpecker.
+
 ## Phase 1 — Publish NZB crates to crates.io + Forgejo
 
 ### Crates in scope
