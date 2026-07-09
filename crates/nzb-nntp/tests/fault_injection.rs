@@ -142,8 +142,7 @@ async fn hang_after_command_stops_responding() {
     let result = timeout(Duration::from_millis(500), read_line(&mut reader)).await;
     assert!(
         result.is_err() || result.as_ref().unwrap().is_empty(),
-        "expected hang (timeout or empty), got: {:?}",
-        result
+        "expected hang (timeout or empty), got: {result:?}"
     );
 }
 
