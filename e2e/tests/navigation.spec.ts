@@ -30,7 +30,7 @@ test.describe('11. Navigation & Shell', () => {
     await expect(downloadsLink).toBeVisible();
     await expect(downloadsLink).toHaveClass(/active/);
 
-    await expect(page.getByRole('button', { name: 'History' })).toHaveClass(/active/);
+    await expect(page.getByRole('tab', { name: 'History', exact: true })).toHaveClass(/active/);
 
     // Settings link should NOT be active
     const settingsLink = page.getByRole('link', { name: 'Settings' });
@@ -60,7 +60,7 @@ test.describe('11. Navigation & Shell', () => {
     await page.goto('/downloads');
 
     // Downloads → history tab
-    await page.getByRole('button', { name: 'History' }).click();
+    await page.getByRole('tab', { name: 'History', exact: true }).click();
     await expect(page).toHaveURL(/\/downloads\?tab=history/);
 
     // History → Settings
