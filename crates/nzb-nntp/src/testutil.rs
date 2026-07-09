@@ -428,7 +428,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, config: Arc<MockConfig
                 if sub == "READER" {
                     mwrite!(conn, b"200 Reader mode, posting allowed\r\n");
                 } else {
-                    let resp = format!("501 Unknown MODE subcommand: {}\r\n", sub);
+                    let resp = format!("501 Unknown MODE subcommand: {sub}\r\n");
                     mwrite!(conn, resp.as_bytes());
                 }
             }
@@ -482,7 +482,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, config: Arc<MockConfig
                     let name = parts.get(1).unwrap_or(&"");
                     if let Some(&(count, first, last)) = config.groups.get(*name) {
                         selected_group = Some(name.to_string());
-                        let resp = format!("211 {} {} {} {}\r\n", count, first, last, name);
+                        let resp = format!("211 {count} {first} {last} {name}\r\n");
                         mwrite!(conn, resp.as_bytes());
                     } else {
                         mwrite!(conn, b"411 No such group\r\n");
@@ -562,16 +562,16 @@ async fn handle_connection(stream: tokio::net::TcpStream, config: Arc<MockConfig
                         .unwrap_or(&"")
                         .trim_matches(|c| c == '<' || c == '>');
                     if let Some(&code) = config.article_response_overrides.get(mid) {
-                        let resp = format!("{} <{}>\r\n", code, mid);
+                        let resp = format!("{code} <{mid}>\r\n");
                         mwrite!(conn, resp.as_bytes());
                     } else if let Some(data) = config.articles.get(mid) {
-                        let header = format!("220 0 <{}>\r\n", mid);
+                        let header = format!("220 0 <{mid}>\r\n");
                         mwrite!(conn, header.as_bytes());
                         if !write_multiline_body(&mut conn, data).await {
                             return;
                         }
                     } else {
-                        let resp = format!("430 No article: <{}>\r\n", mid);
+                        let resp = format!("430 No article: <{mid}>\r\n");
                         mwrite!(conn, resp.as_bytes());
                     }
                 }
@@ -586,16 +586,16 @@ async fn handle_connection(stream: tokio::net::TcpStream, config: Arc<MockConfig
                         .unwrap_or(&"")
                         .trim_matches(|c| c == '<' || c == '>');
                     if let Some(&code) = config.article_response_overrides.get(mid) {
-                        let resp = format!("{} <{}>\r\n", code, mid);
+                        let resp = format!("{code} <{mid}>\r\n");
                         mwrite!(conn, resp.as_bytes());
                     } else if let Some(data) = config.articles.get(mid) {
-                        let header = format!("222 0 <{}>\r\n", mid);
+                        let header = format!("222 0 <{mid}>\r\n");
                         mwrite!(conn, header.as_bytes());
                         if !write_multiline_body(&mut conn, data).await {
                             return;
                         }
                     } else {
-                        let resp = format!("430 No article: <{}>\r\n", mid);
+                        let resp = format!("430 No article: <{mid}>\r\n");
                         mwrite!(conn, resp.as_bytes());
                     }
                 }
@@ -610,13 +610,13 @@ async fn handle_connection(stream: tokio::net::TcpStream, config: Arc<MockConfig
                         .unwrap_or(&"")
                         .trim_matches(|c| c == '<' || c == '>');
                     if let Some(&code) = config.article_response_overrides.get(mid) {
-                        let resp = format!("{} <{}>\r\n", code, mid);
+                        let resp = format!("{code} <{mid}>\r\n");
                         mwrite!(conn, resp.as_bytes());
                     } else if config.articles.contains_key(mid) {
-                        let resp = format!("223 0 <{}>\r\n", mid);
+                        let resp = format!("223 0 <{mid}>\r\n");
                         mwrite!(conn, resp.as_bytes());
                     } else {
-                        let resp = format!("430 No article: <{}>\r\n", mid);
+                        let resp = format!("430 No article: <{mid}>\r\n");
                         mwrite!(conn, resp.as_bytes());
                     }
                 }
@@ -642,7 +642,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, config: Arc<MockConfig
             }
 
             _ => {
-                let resp = format!("500 Unknown command: {}\r\n", cmd);
+                let resp = format!("500 Unknown command: {cmd}\r\n");
                 mwrite!(conn, resp.as_bytes());
             }
         }
