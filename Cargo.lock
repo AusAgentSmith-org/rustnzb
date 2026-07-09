@@ -102,7 +102,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -113,7 +113,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -756,7 +756,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1741,7 +1741,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1761,9 +1761,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-core"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36b9d71d5d8009041926abaa3429582d454326a335d6a74a46e78073b2230bf8"
+checksum = "aeb1c95d300cb97389207e26a9d49c4e81bd51f4a2119bff327ff4e5e201d6a5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1798,9 +1798,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-dispatch"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1f161d967f0aad97a2acc0f7a9f424a2993c17dac86544d45e4b9eb27dd0623"
+checksum = "baf128c0a81e5748c670bbc62cb67e7fe64469539091f0f295d320901f13bf49"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1820,9 +1820,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-news"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4cb7e71e552fc46c5e2304131767bf1e1858c052a030325b34a64bc859efa7f"
+checksum = "9edf66efd56281eadf4215e354b67a0b0eceea409e318698fb7912fce5220e70"
 dependencies = [
  "nzb-nntp",
  "tokio",
@@ -1873,9 +1873,9 @@ dependencies = [
 
 [[package]]
 name = "nzb-web"
-version = "0.4.16"
+version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95409089186573ccf6b5876ea6671c1b1cfb5f8340b43cdf81221d7e82ad5312"
+checksum = "0c0b14778d8bf1688e57419d8d1b5229a15f8766df73f22492a2f8a1a234946f"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2395,7 +2395,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.4",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2709,7 +2709,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3036,7 +3036,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3140,7 +3140,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3860,7 +3860,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

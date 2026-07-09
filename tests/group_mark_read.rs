@@ -37,7 +37,6 @@ fn build_test_state() -> (Arc<AppState>, TempDir) {
         config.general.early_failure_check,
         config.general.required_completion_pct,
         config.general.article_timeout_secs,
-        None,
     );
     let state = Arc::new(AppState::new(
         Arc::new(ArcSwap::from_pointee(config)),
