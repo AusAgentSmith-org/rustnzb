@@ -304,9 +304,6 @@ interface PipelineStep {
     <div class="panel queue-table-panel">
       <h3>
         Active downloads
-        <span class="hint"
-          >{{ filteredJobs().length }} shown · {{ formatBytes(remainingBytes()) }} remaining</span
-        >
       </h3>
       <div class="body flush">
         <table class="data">
@@ -320,25 +317,51 @@ interface PipelineStep {
                   [disabled]="filteredJobs().length === 0"
                 />
               </th>
-              <th style="width:34%">Name</th>
+              <th style="width:34px"></th>
+              <th style="width:32%">Name</th>
               <th>Size</th>
               <th>Progress</th>
               <th>Speed</th>
               <th>ETA</th>
               <th>Status</th>
               <th>Priority</th>
-              <th style="width:130px"></th>
+              <th style="width:56px">Pause</th>
+              <th style="width:56px">Delete</th>
             </tr>
           </thead>
           <tbody>
             @for (job of filteredJobs(); track job.id) {
-              <tr>
+              <tr
+                [class.reorderable]="canReorderRows()"
+                [class.dragging]="draggingJobId() === job.id"
+                [class.drop-before]="dragOverJobId() === job.id && !dropAfterTarget()"
+                [class.drop-after]="dragOverJobId() === job.id && dropAfterTarget()"
+                (dragover)="onRowDragOver($event, job.id)"
+                (dragleave)="onRowDragLeave(job.id)"
+                (drop)="onRowDrop($event, job.id)"
+              >
                 <td>
                   <input
                     type="checkbox"
                     [checked]="selectedIds().has(job.id)"
                     (change)="toggleSelected(job.id)"
                   />
+                </td>
+                <td class="drag-cell">
+                  <button
+                    class="drag-handle"
+                    [class.disabled]="!canReorderRows()"
+                    [disabled]="!canReorderRows() || reorderPending()"
+                    draggable="true"
+                    (dragstart)="onReorderStart($event, job.id)"
+                    (dragend)="onReorderEnd()"
+                    title="{{
+                      canReorderRows() ? 'Drag to reorder queue' : 'Switch to All to reorder'
+                    }}"
+                    aria-label="Drag to reorder queue"
+                  >
+                    ⋮⋮
+                  </button>
                 </td>
                 <td>
                   <div class="job-name">{{ job.name }}</div>
@@ -363,7 +386,7 @@ interface PipelineStep {
                     } @else if (job.status === 'queued') {
                       queued
                     } @else {
-                      {{ percent(job) }}% · {{ formatBytes(job.downloaded_bytes) }}
+                      {{ formatBytes(job.downloaded_bytes) }} / {{ formatBytes(job.total_bytes) }}
                     }
                   </div>
                 </td>
@@ -390,7 +413,7 @@ interface PipelineStep {
                     <option value="3">Force</option>
                   </select>
                 </td>
-                <td class="actions">
+                <td class="action-cell">
                   @if (job.status === 'paused') {
                     <button
                       class="row-action"
@@ -410,6 +433,8 @@ interface PipelineStep {
                       ❚❚
                     </button>
                   }
+                </td>
+                <td class="action-cell">
                   <button
                     class="row-action danger"
                     [disabled]="isActionPending(job.id)"
@@ -424,7 +449,7 @@ interface PipelineStep {
 
             @if (filteredJobs().length === 0) {
               <tr>
-                <td colspan="9" class="empty-cell">
+                <td colspan="11" class="empty-cell">
                   @if (jobs().length === 0) {
                     No downloads in queue. Click <b>+ Upload NZB</b> in the top bar to add one.
                   } @else {
@@ -832,32 +857,73 @@ interface PipelineStep {
       }
 
       /* Table overrides */
+      .queue-table-panel table.data {
+        table-layout: fixed;
+      }
       .queue-table-panel table.data th,
       .queue-table-panel table.data td {
         text-align: center;
         vertical-align: middle;
       }
-      .queue-table-panel table.data {
-        width: 100%;
-        table-layout: fixed;
+      .queue-table-panel table.data td {
+        background-clip: padding-box;
       }
-      .queue-table-panel table.data td > *,
-      .queue-table-panel table.data th > * {
-        margin-left: auto;
-        margin-right: auto;
+      .queue-table-panel table.data tbody tr.reorderable {
+        transition:
+          box-shadow 0.14s ease,
+          background-color 0.14s ease;
       }
-      .queue-table-panel input[type='checkbox'] {
-        display: block;
+      .queue-table-panel table.data tbody tr.reorderable.dragging td {
+        opacity: 0.45;
+      }
+      .queue-table-panel table.data tbody tr.drop-before td {
+        box-shadow: inset 0 2px 0 0 var(--accent);
+      }
+      .queue-table-panel table.data tbody tr.drop-after td {
+        box-shadow: inset 0 -2px 0 0 var(--accent);
+      }
+      .drag-cell,
+      .action-cell {
+        padding-inline: 4px !important;
+      }
+      .drag-handle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--mute);
+        cursor: grab;
+        font: inherit;
+        font-size: 13px;
+        line-height: 1;
+      }
+      .drag-handle:hover:not(.disabled) {
+        color: var(--text);
+        border-color: var(--line);
+        background: var(--panel2);
+      }
+      .drag-handle:active:not(.disabled) {
+        cursor: grabbing;
+      }
+      .drag-handle.disabled,
+      .drag-handle:disabled {
+        opacity: 0.38;
+        cursor: not-allowed;
       }
       .job-name {
         font-size: 13px;
         color: var(--text);
-        text-align: center;
+        text-align: left;
       }
       .job-tags {
         margin-top: 3px;
         display: flex;
-        justify-content: center;
+        justify-content: flex-start;
       }
       .queue-table-panel .progress {
         margin: 0 auto;
@@ -874,8 +940,6 @@ interface PipelineStep {
         line-height: 18px;
         transition: border-color 0.15s;
         -webkit-appearance: auto;
-        text-align: center;
-        text-align-last: center;
       }
       .pri-select:focus {
         outline: none;
@@ -901,13 +965,6 @@ interface PipelineStep {
         margin-top: 2px;
         text-align: center;
       }
-      .actions {
-        white-space: nowrap;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 6px;
-      }
       .row-action:disabled {
         opacity: 0.45;
         cursor: wait;
@@ -931,6 +988,10 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   selectedIds = signal<Set<string>>(new Set());
   paused = signal(false);
   actionPendingIds = signal<Set<string>>(new Set());
+  draggingJobId = signal<string | null>(null);
+  dragOverJobId = signal<string | null>(null);
+  dropAfterTarget = signal(false);
+  reorderPending = signal(false);
 
   readonly POOL_KEY = 'rustnzb.poolPanelCollapsed';
   poolCollapsed = signal(localStorage.getItem('rustnzb.poolPanelCollapsed') === 'true');
@@ -1030,14 +1091,9 @@ export class QueueViewComponent implements OnInit, OnDestroy {
 
   serversEnabled = computed(() => this.servers().filter((s) => s.enabled).length);
   connsTotal = computed(() =>
-    this.enabledServers()
-      .filter((s) => s.enabled)
-      .reduce((n, s) => n + s.connections, 0),
-  );
-  enabledServers = computed(() =>
     this.servers()
       .filter((s) => s.enabled)
-      .sort((a, b) => a.priority - b.priority),
+      .reduce((n, s) => n + s.connections, 0),
   );
   /**
    * Active connection count across the pool. We don't have a live "in-use"
@@ -1049,7 +1105,7 @@ export class QueueViewComponent implements OnInit, OnDestroy {
     const total = this.connsTotal();
     if (active === 0 || total === 0) return 0;
     // Simple: assume each active job saturates ~half the primary server's conns.
-    const primary = this.enabledServers().find((s) => s.priority === 0);
+    const primary = this.servers().find((s) => s.enabled && s.priority === 0);
     const primaryConns = primary?.connections ?? total;
     return Math.min(total, Math.round(primaryConns * active));
   });
@@ -1064,7 +1120,9 @@ export class QueueViewComponent implements OnInit, OnDestroy {
    * `connsActive()` across enabled servers in priority order.
    */
   visibleServersWithConns = computed(() => {
-    const enabled = this.enabledServers();
+    const enabled = this.servers()
+      .filter((s) => s.enabled)
+      .sort((a, b) => a.priority - b.priority);
     let remainingActive = this.connsActive();
     return enabled.map((s) => {
       const active = Math.min(s.connections, remainingActive);
@@ -1128,6 +1186,10 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   }
 
   // ---- Filtering ----
+
+  canReorderRows(): boolean {
+    return this.filterStatus === 'all' && this.filteredJobs().length > 1;
+  }
 
   filteredJobs(): NzbJob[] {
     const all = this.jobs();
@@ -1275,6 +1337,101 @@ export class QueueViewComponent implements OnInit, OnDestroy {
 
   deleteJob(id: string): void {
     this.withPendingJobAction(id, () => this.api.delete(`/queue/${id}`));
+  }
+
+  onReorderStart(event: DragEvent, jobId: string): void {
+    if (!this.canReorderRows() || this.reorderPending()) {
+      event.preventDefault();
+      return;
+    }
+
+    this.draggingJobId.set(jobId);
+    event.dataTransfer?.setData('text/plain', jobId);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+  }
+
+  onRowDragOver(event: DragEvent, jobId: string): void {
+    const draggedId = this.draggingJobId();
+    if (!draggedId || draggedId === jobId || !this.canReorderRows() || this.reorderPending()) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer!.dropEffect = 'move';
+    const targetRow = event.currentTarget as HTMLElement;
+    const rect = targetRow.getBoundingClientRect();
+    const offsetY = event.clientY - rect.top;
+    this.dragOverJobId.set(jobId);
+    this.dropAfterTarget.set(offsetY > rect.height / 2);
+  }
+
+  onRowDragLeave(jobId: string): void {
+    if (this.dragOverJobId() === jobId) {
+      this.dragOverJobId.set(null);
+    }
+  }
+
+  onRowDrop(event: DragEvent, targetJobId: string): void {
+    event.preventDefault();
+
+    const draggedId = this.draggingJobId();
+    const dropAfter = this.dropAfterTarget();
+    this.dragOverJobId.set(null);
+    this.dropAfterTarget.set(false);
+
+    if (!draggedId || draggedId === targetJobId || !this.canReorderRows() || this.reorderPending()) {
+      return;
+    }
+
+    const previousJobs = this.jobs();
+    const nextJobs = this.buildReorderedJobs(previousJobs, draggedId, targetJobId, dropAfter);
+    if (!nextJobs) return;
+
+    const targetIndex = nextJobs.findIndex((job) => job.id === draggedId);
+    if (targetIndex < 0) return;
+
+    this.reorderPending.set(true);
+    this.jobs.set(nextJobs);
+    this.api.post(`/queue/${draggedId}/move`, { position: targetIndex }).subscribe({
+      next: () => {
+        this.reorderPending.set(false);
+        this.loadQueue();
+      },
+      error: (err: any) => {
+        this.reorderPending.set(false);
+        this.jobs.set(previousJobs);
+        const msg =
+          err?.error?.message || err?.message || 'Unable to reorder queue. Please try again.';
+        this.snackBar.open(msg, 'Close', { duration: 4000 });
+      },
+    });
+  }
+
+  onReorderEnd(): void {
+    this.draggingJobId.set(null);
+    this.dragOverJobId.set(null);
+    this.dropAfterTarget.set(false);
+  }
+
+  buildReorderedJobs(
+    jobs: NzbJob[],
+    draggedId: string,
+    targetJobId: string,
+    placeAfter: boolean,
+  ): NzbJob[] | null {
+    const draggedJob = jobs.find((job) => job.id === draggedId);
+    if (!draggedJob) return null;
+
+    const remainingJobs = jobs.filter((job) => job.id !== draggedId);
+    const targetIndex = remainingJobs.findIndex((job) => job.id === targetJobId);
+    if (targetIndex < 0) return null;
+
+    const insertionIndex = targetIndex + (placeAfter ? 1 : 0);
+    const nextJobs = [...remainingJobs];
+    nextJobs.splice(insertionIndex, 0, draggedJob);
+    return nextJobs;
   }
 
   // ---- Bulk ----

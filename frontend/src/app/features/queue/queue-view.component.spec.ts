@@ -1,3 +1,5 @@
+import '@angular/compiler';
+
 import { of, Subject, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -138,5 +140,55 @@ describe('QueueViewComponent', () => {
 
     expect(loadQueue).toHaveBeenCalledTimes(1);
     expect(snackBar.open).toHaveBeenCalledWith('Delete failed', 'Close', { duration: 4000 });
+  });
+
+  it('reorders jobs before the target row', () => {
+    const { component } = makeComponent();
+    const jobs = [
+      makeJob({ id: 'job-1', name: 'One' }),
+      makeJob({ id: 'job-2', name: 'Two' }),
+      makeJob({ id: 'job-3', name: 'Three' }),
+    ];
+
+    expect(component.buildReorderedJobs(jobs, 'job-3', 'job-1', false)?.map((job) => job.id)).toEqual([
+      'job-3',
+      'job-1',
+      'job-2',
+    ]);
+  });
+
+  it('reorders jobs after the target row', () => {
+    const { component } = makeComponent();
+    const jobs = [
+      makeJob({ id: 'job-1', name: 'One' }),
+      makeJob({ id: 'job-2', name: 'Two' }),
+      makeJob({ id: 'job-3', name: 'Three' }),
+    ];
+
+    expect(component.buildReorderedJobs(jobs, 'job-1', 'job-3', true)?.map((job) => job.id)).toEqual([
+      'job-2',
+      'job-3',
+      'job-1',
+    ]);
+  });
+
+  it('optimistically reorders rows and persists the new position', () => {
+    const { component, api } = makeComponent({
+      post: vi.fn(() => of({ ok: true })),
+    });
+    component.jobs.set([
+      makeJob({ id: 'job-1', name: 'One' }),
+      makeJob({ id: 'job-2', name: 'Two' }),
+      makeJob({ id: 'job-3', name: 'Three' }),
+    ]);
+    component.draggingJobId.set('job-1');
+    component.dropAfterTarget.set(true);
+    const loadQueue = vi.spyOn(component, 'loadQueue').mockImplementation(() => {});
+
+    component.onRowDrop({ preventDefault: vi.fn() } as unknown as DragEvent, 'job-2');
+
+    expect(component.jobs().map((job) => job.id)).toEqual(['job-2', 'job-1', 'job-3']);
+    expect(api.post).toHaveBeenCalledWith('/queue/job-1/move', { position: 1 });
+    expect(loadQueue).toHaveBeenCalledTimes(1);
   });
 });

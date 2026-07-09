@@ -176,8 +176,15 @@ Most settings can be configured through the web UI. See [`config.example.toml`](
 | `RUSTNZB_LOG_LEVEL` | Log level (trace/debug/info/warn/error) |
 | `RUSTNZB_DAV_ENABLED` | Enable the Media Library (DAV) at startup |
 | `RUSTNZB_BUILD_REF` | Optional build ref appended to the reported version |
-| `OTEL_ENABLED` | Enable OpenTelemetry |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint |
+| `OTEL_ENABLED` | Shared fallback toggle for OTEL logs+metrics |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Shared fallback OTLP gRPC endpoint |
+| `OTEL_LOGS_ENABLED` | Enable OTEL log export |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | OTLP gRPC endpoint for logs |
+| `OTEL_METRICS_ENABLED` | Enable OTEL metrics export |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | OTLP gRPC endpoint for metrics |
+| `OTEL_SERVICE_NAME` | Service name for telemetry |
+
+If your platform already ships container stdout/stderr to Loki, leave OTEL log export disabled to avoid duplicate log streams.
 
 ### Docker Volumes
 

@@ -222,14 +222,29 @@ async fn main() -> anyhow::Result<()> {
     let _otel_log_provider;
     let _otel_meter_provider;
 
-    if config.otel.enabled {
+    let otel_logs_enabled = config.otel.logs_enabled();
+    let otel_metrics_enabled = config.otel.metrics_enabled();
+
+    if otel_logs_enabled || otel_metrics_enabled {
         eprintln!(
-            "OpenTelemetry enabled: endpoint={}, service={}",
-            config.otel.endpoint, config.otel.service_name
+            "OpenTelemetry config: logs_enabled={}, logs_endpoint={}, metrics_enabled={}, metrics_endpoint={}, service={}",
+            otel_logs_enabled,
+            config.otel.logs_endpoint(),
+            otel_metrics_enabled,
+            config.otel.metrics_endpoint(),
+            config.otel.service_name
         );
 
-        _otel_log_provider = init_otel_logging(&config.otel.endpoint, &config.otel.service_name);
-        _otel_meter_provider = init_otel_metrics(&config.otel.endpoint, &config.otel.service_name);
+        _otel_log_provider = if otel_logs_enabled {
+            init_otel_logging(config.otel.logs_endpoint(), &config.otel.service_name)
+        } else {
+            None
+        };
+        _otel_meter_provider = if otel_metrics_enabled {
+            init_otel_metrics(config.otel.metrics_endpoint(), &config.otel.service_name)
+        } else {
+            None
+        };
 
         if let Some(ref mp) = _otel_meter_provider {
             opentelemetry::global::set_meter_provider(mp.clone());
@@ -278,7 +293,7 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     // Spawn OTEL metrics reporter if enabled
-    if config.otel.enabled && _otel_meter_provider.is_some() {
+    if otel_metrics_enabled && _otel_meter_provider.is_some() {
         let qm = Arc::clone(&result.queue_manager);
         tokio::spawn(async move {
             let meter = opentelemetry::global::meter("rustnzb");

@@ -190,3 +190,23 @@ test('4.8 deleting a queue job removes it from the list', async ({ page }) => {
     timeout: 5000,
   });
 });
+
+// ── 4.10 Drag reorder updates queue order ───────────────────────────────────
+
+test('4.10 dragging a job reorders the queue', async ({ page }) => {
+  await page.goto('/queue');
+
+  const sourceHandle = page
+    .locator('tr', { hasText: 'Another.Show.S01E01' })
+    .locator('.drag-handle');
+  const targetRow = page.locator('tr', { hasText: 'Test.Movie.2025.mkv' });
+
+  await sourceHandle.dragTo(targetRow);
+
+  await expect
+    .poll(async () => {
+      const names = await page.locator('.data tbody .job-name').allTextContents();
+      return names.map((name) => name.trim());
+    })
+    .toEqual(['Another.Show.S01E01', 'Test.Movie.2025.mkv']);
+});
