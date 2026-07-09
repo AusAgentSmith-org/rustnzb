@@ -79,12 +79,13 @@ steps:
       - apt-get install -y --no-install-recommends nodejs && apt-get clean && rm -rf /var/lib/apt/lists/*
       # Frontend deps + production build (build.rs expects dist to exist)
       - cd frontend && npm ci && npx ng build --configuration=production && cd ..
-      # Debug binary is enough for E2E (release takes too long for every PR)
-      - cargo build --locked --bin rustnzb
+      # Debug binaries are enough for E2E (release takes too long for every PR)
+      - cargo build --workspace --bins
       # Install Playwright (browsers + system deps)
       - cd e2e && npm ci && npx playwright install --with-deps chromium
       # Fresh + fresh-auth projects are currently green end-to-end
       - npx playwright test --project=fresh --project=fresh-auth --reporter=list
+      - npx playwright test --project=mock-downloads tests/downloads-mock.spec.ts --reporter=list
       # Main-project tests currently known to pass (server mgmt + navigation)
       - npx playwright test --project=main tests/servers.spec.ts tests/navigation.spec.ts --reporter=list
 

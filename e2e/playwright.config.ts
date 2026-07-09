@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+
 export default defineConfig({
   testDir: './tests',
   timeout: 30000,
@@ -22,6 +24,7 @@ export default defineConfig({
         storageState: 'auth-state.json',
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
+        launchOptions: chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : undefined,
       },
     },
     // ── Fresh/first-boot: runs first; expects no credentials on startup ──────
@@ -38,6 +41,7 @@ export default defineConfig({
         // No storageState — tests manage their own tokens
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
+        launchOptions: chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : undefined,
       },
     },
     {
@@ -49,6 +53,19 @@ export default defineConfig({
         baseURL: 'http://localhost:9191',
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
+        launchOptions: chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : undefined,
+      },
+    },
+    {
+      name: 'mock-downloads',
+      testMatch: ['**/downloads-mock.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:9192',
+        storageState: 'mock-auth-state.json',
+        trace: 'on-first-retry',
+        screenshot: 'only-on-failure',
+        launchOptions: chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : undefined,
       },
     },
   ],

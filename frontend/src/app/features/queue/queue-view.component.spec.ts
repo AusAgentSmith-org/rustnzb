@@ -2,6 +2,7 @@ import '@angular/compiler';
 
 import { of, Subject, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { convertToParamMap } from '@angular/router';
 
 import { AddNzbService } from '../../core/services/add-nzb.service';
 import { ApiService } from '../../core/services/api.service';
@@ -16,6 +17,33 @@ type ApiStub = {
 };
 type HttpStub = { post: ReturnType<typeof vi.fn> };
 type SnackBarStub = { open: ReturnType<typeof vi.fn> };
+type RouteStub = { data: ReturnType<typeof of>; queryParamMap: ReturnType<typeof of> };
+type RouterStub = { navigate: ReturnType<typeof vi.fn> };
+
+function installLocalStorageMock(): Storage {
+  const store = new Map<string, string>();
+  const localStorageMock: Storage = {
+    get length() {
+      return store.size;
+    },
+    clear: () => store.clear(),
+    getItem: (key: string) => store.get(key) ?? null,
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value));
+    },
+  };
+
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: localStorageMock,
+  });
+
+  return localStorageMock;
+}
 
 function makeComponent(
   overrides: Partial<ApiStub> = {},
@@ -25,6 +53,8 @@ function makeComponent(
   api: ApiStub;
   http: HttpStub;
   snackBar: SnackBarStub;
+  route: RouteStub;
+  router: RouterStub;
 } {
   const api: ApiStub = {
     get: vi.fn(() => of({})),
@@ -37,14 +67,23 @@ function makeComponent(
     post: vi.fn(() => of({})),
   };
   const snackbarStub = snackBar ?? { open: vi.fn() };
+  const route: RouteStub = {
+    data: of({}),
+    queryParamMap: of(convertToParamMap({})),
+  };
+  const router: RouterStub = {
+    navigate: vi.fn(() => Promise.resolve(true)),
+  };
   const component = new QueueViewComponent(
     api as unknown as ApiService,
     http as unknown as import('@angular/common/http').HttpClient,
     snackbarStub as never,
     new AddNzbService(),
+    route as never,
+    router as never,
   );
 
-  return { component, api, http, snackBar: snackbarStub };
+  return { component, api, http, snackBar: snackbarStub, route, router };
 }
 
 function makeJob(overrides: Partial<NzbJob> = {}): NzbJob {
@@ -72,6 +111,7 @@ function makeJob(overrides: Partial<NzbJob> = {}): NzbJob {
 
 describe('QueueViewComponent', () => {
   beforeEach(() => {
+    installLocalStorageMock();
     localStorage.clear();
   });
 
@@ -190,5 +230,33 @@ describe('QueueViewComponent', () => {
     expect(component.jobs().map((job) => job.id)).toEqual(['job-2', 'job-1', 'job-3']);
     expect(api.post).toHaveBeenCalledWith('/queue/job-1/move', { position: 1 });
     expect(loadQueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('canonicalizes the legacy history route to downloads history tab', () => {
+    const { component, route, router } = makeComponent();
+    route.data = of({ legacyTab: 'history' });
+    vi.spyOn(component as never, 'loadAll').mockImplementation(() => {});
+
+    component.ngOnInit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/downloads'], {
+      replaceUrl: true,
+      queryParams: { tab: 'history' },
+    });
+    component.ngOnDestroy();
+  });
+
+  it('switches tabs through the canonical downloads route', () => {
+    const { component, router } = makeComponent();
+
+    component.openTab('history');
+    component.openTab('queue');
+
+    expect(router.navigate).toHaveBeenNthCalledWith(1, ['/downloads'], {
+      queryParams: { tab: 'history' },
+    });
+    expect(router.navigate).toHaveBeenNthCalledWith(2, ['/downloads'], {
+      queryParams: {},
+    });
   });
 });

@@ -14,21 +14,21 @@ const FIXTURES = path.resolve(__dirname, '../fixtures');
 // ── 4.12 Seeded queue has 2 jobs ─────────────────────────────────────────────
 
 test('4.12 seeded queue shows both jobs and correct count', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   // Both seeded job names must be present
   await expect(page.locator('.job-name', { hasText: 'Test.Movie.2025.mkv' })).toBeVisible();
   await expect(page.locator('.job-name', { hasText: 'Another.Show.S01E01' })).toBeVisible();
 
   // Queue stat card shows 2
-  const queueCard = page.locator('.stat-card', { hasText: 'Queue' });
+  const queueCard = page.locator('.stat-card', { hasText: 'Downloads' });
   await expect(queueCard).toContainText('2');
 });
 
 // ── 4.3 Paused status on "Test.Movie.2025.mkv" ───────────────────────────────
 
 test('4.3 paused job shows paused status pill', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   // Find the row that contains the paused movie
   const jobRow = page.locator('.data').locator('tr, .row', { hasText: 'Test.Movie.2025.mkv' }).first();
@@ -41,7 +41,7 @@ test('4.3 paused job shows paused status pill', async ({ page }) => {
 // ── 4.4 Pause / resume "Another.Show.S01E01" ─────────────────────────────────
 
 test('4.4 queued job can be paused then resumed', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   const jobRow = page.locator('.data').locator('tr, .row', { hasText: 'Another.Show.S01E01' }).first();
   await expect(jobRow).toBeVisible();
@@ -65,7 +65,7 @@ test('4.4 queued job can be paused then resumed', async ({ page }) => {
 // ── 4.5 Status filter buttons ─────────────────────────────────────────────────
 
 test('4.5 status filters show correct subsets', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   // Ensure both jobs visible under "All"
   await page.getByRole('button', { name: 'All' }).click();
@@ -96,7 +96,7 @@ test('4.5 status filters show correct subsets', async ({ page }) => {
 // ── 4.6 NZB file upload ───────────────────────────────────────────────────────
 
 test('4.6 NZB file upload is accepted by the UI', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   const nzbPath = path.join(FIXTURES, 'sample.nzb');
 
@@ -122,9 +122,9 @@ test('4.6 NZB file upload is accepted by the UI', async ({ page }) => {
 
   // The upload interaction must not crash the page — it either adds a new row
   // (no NNTP, so it may immediately fail/queue) or shows a snackbar/error.
-  // Wait briefly and assert we are still on /queue without a fatal error.
+  // Wait briefly and assert we are still on /downloads without a fatal error.
   await page.waitForTimeout(2000);
-  await expect(page).toHaveURL(/\/queue/);
+  await expect(page).toHaveURL(/\/downloads/);
 
   // Either a new job appeared or a snackbar is present (success or error is fine —
   // the important thing is the upload path exercised without a JS exception).
@@ -137,7 +137,7 @@ test('4.6 NZB file upload is accepted by the UI', async ({ page }) => {
 // ── 4.7 Bulk select shows count ───────────────────────────────────────────────
 
 test('4.7 selecting jobs shows bulk selection count', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   // Make sure both jobs are visible
   await expect(page.locator('.job-name', { hasText: 'Test.Movie.2025.mkv' })).toBeVisible();
@@ -161,12 +161,12 @@ test('4.7 selecting jobs shows bulk selection count', async ({ page }) => {
 // ── 4.1 Queue page loads with stat cards ─────────────────────────────────────
 
 test('4.1 queue page renders stat cards', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   // The three stat cards described in the component
   await expect(page.locator('.stat-card, [class*="stat"]', { hasText: 'Download speed' }).first()).toBeVisible();
   await expect(page.locator('.stat-card, [class*="stat"]', { hasText: /NNTP connections/i }).first()).toBeVisible();
-  await expect(page.locator('.stat-card, [class*="stat"]', { hasText: /Queue/i }).first()).toBeVisible();
+  await expect(page.locator('.stat-card, [class*="stat"]', { hasText: /Downloads/i }).first()).toBeVisible();
 });
 
 // ── 4.8 Delete a job from the queue ──────────────────────────────────────────
@@ -175,7 +175,7 @@ test('4.8 deleting a queue job removes it from the list', async ({ page }) => {
   // Auto-accept confirm dialogs
   page.on('dialog', (dialog) => dialog.accept());
 
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   // The test adds a job via API first so we have a safe-to-delete item.
   // We'll delete "Another.Show.S01E01" (queued, seeded).
@@ -194,7 +194,7 @@ test('4.8 deleting a queue job removes it from the list', async ({ page }) => {
 // ── 4.10 Drag reorder updates queue order ───────────────────────────────────
 
 test('4.10 dragging a job reorders the queue', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/downloads');
 
   const sourceHandle = page
     .locator('tr', { hasText: 'Another.Show.S01E01' })

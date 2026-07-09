@@ -420,7 +420,7 @@ export class WelcomeComponent implements OnInit {
     this.api.get<{ has_servers: boolean }>('/setup/status').subscribe({
       next: (status) => {
         if (status.has_servers) {
-          this.router.navigate(['/queue']);
+          this.router.navigate(['/downloads']);
         }
       },
       error: () => {},
@@ -428,7 +428,7 @@ export class WelcomeComponent implements OnInit {
   }
 
   skipToQueue(): void {
-    this.router.navigate(['/queue']);
+    this.router.navigate(['/downloads']);
   }
 
   skipToSettings(): void {
@@ -529,7 +529,7 @@ export class WelcomeComponent implements OnInit {
 
     this.api.post<{ status: boolean }>('/setup/apply', payload).subscribe({
       next: () => {
-        this.router.navigate(['/queue']);
+        this.router.navigate(['/downloads']);
       },
       error: (err) => {
         this.applyError.set(

@@ -1,0 +1,11 @@
+[package]
+name = "mock-nntp-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+nzb-nntp = { workspace = true, features = ["test-support"] }
+tokio = { workspace = true }
+yenc-simd = { workspace = true }
+clap = { version = "4", features = ["derive"] }

@@ -149,17 +149,17 @@ export class LoginComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // If already logged in, go to queue
+    // If already logged in, go to downloads
     if (this.authService.isLoggedIn()) {
-      this.router.navigate(['/queue']);
+      this.router.navigate(['/downloads']);
       return;
     }
 
     this.authService.checkAuth().subscribe({
       next: (status) => {
         if (!status.auth_enabled && !status.setup_required) {
-          // Auth is disabled, go straight to queue
-          this.router.navigate(['/queue']);
+          // Auth is disabled, go straight to downloads
+          this.router.navigate(['/downloads']);
           return;
         }
         this.isSetup.set(status.setup_required);
@@ -194,7 +194,7 @@ export class LoginComponent implements OnInit {
     const isSetup = this.isSetup();
     request$.subscribe({
       next: () => {
-        this.router.navigate(isSetup ? ['/welcome'] : ['/queue']);
+        this.router.navigate(isSetup ? ['/welcome'] : ['/downloads']);
       },
       error: (err) => {
         this.submitting.set(false);

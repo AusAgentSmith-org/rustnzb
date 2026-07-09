@@ -16,18 +16,17 @@ test.describe('Smoke Tests', () => {
 
   test('app loads with tabs', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveURL(/\/queue/);
+    await expect(page).toHaveURL(/\/downloads/);
     await expect(page.locator('.brand')).toBeVisible();
     // All tabs visible
-    await expect(page.getByRole('link', { name: 'Queue' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Downloads' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Search' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'History' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Logs' })).toBeVisible();
   });
 
   test('queue tab shows seeded jobs', async ({ page }) => {
-    await page.goto('/queue');
+    await page.goto('/downloads');
     await expect(page.getByText('Test.Movie.2025.mkv')).toBeVisible();
     await expect(page.getByText('Another.Show.S01E01')).toBeVisible();
   });
@@ -82,8 +81,8 @@ test.describe('Smoke Tests', () => {
   });
 
   test('history tab loads', async ({ page }) => {
-    await page.goto('/history');
-    await expect(page.locator('h3', { hasText: 'Download History' })).toBeVisible();
+    await page.goto('/downloads?tab=history');
+    await expect(page.locator('h3', { hasText: 'History' }).first()).toBeVisible();
   });
 
   test('logs tab loads', async ({ page }) => {
@@ -95,13 +94,13 @@ test.describe('Smoke Tests', () => {
   });
 
   test('tabs navigate correctly', async ({ page }) => {
-    await page.goto('/queue');
+    await page.goto('/downloads');
     await page.getByRole('link', { name: 'Search' }).click();
     await expect(page).toHaveURL(/\/search/);
     await page.getByRole('link', { name: 'Settings' }).click();
     await expect(page).toHaveURL(/\/settings/);
-    await page.getByRole('link', { name: 'Queue' }).click();
-    await expect(page).toHaveURL(/\/queue/);
+    await page.getByRole('link', { name: 'Downloads' }).click();
+    await expect(page).toHaveURL(/\/downloads/);
   });
 
   test('status bar shows info', async ({ page }) => {

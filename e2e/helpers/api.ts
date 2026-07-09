@@ -5,6 +5,7 @@
 
 export const MAIN_URL = 'http://localhost:9190';
 export const FRESH_URL = 'http://localhost:9191';
+export const MOCK_URL = 'http://localhost:9192';
 
 export const TEST_USER = 'testadmin';
 export const TEST_PASS = 'testpassword123';

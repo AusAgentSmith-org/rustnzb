@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = []
+members = ["crates/mock-nntp-server"]
 exclude = ["benchnzb", "desktop"]
 
 [workspace.package]
@@ -74,8 +74,8 @@ feed-rs = "2"
 unicode-normalization = "0.1"
 
 # Shared NZB crates ([patch] sections redirect to local for dev)
-nzb-web = { version = "0.4.19", features = ["groups-db"] }
-nzb-nntp = { version = "0.2.21" }
+nzb-web = { version = "0.4.20", features = ["groups-db"] }
+nzb-nntp = { version = "0.2.22" }
 nzb-core = { version = "0.2.16", features = ["groups-db"] }
 nzb-decode = { version = "0.1.2" }
 nzb-postproc = { version = "0.2.6" }
@@ -167,5 +167,6 @@ tempfile = "3"
 arc-swap.workspace = true
 nzb-nntp = { workspace = true, features = ["test-support"] }
 crc32fast = { workspace = true }
+mock-nntp-server = { path = "crates/mock-nntp-server" }
 
 [profile.release]

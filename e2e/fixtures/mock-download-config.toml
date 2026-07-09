@@ -1,0 +1,43 @@
+[general]
+listen_addr = "127.0.0.1"
+port = 9192
+incomplete_dir = "e2e/test-data-mock/incomplete"
+complete_dir = "e2e/test-data-mock/complete"
+data_dir = "e2e/test-data-mock"
+speed_limit_bps = 0
+cache_size = 524288000
+log_level = "warn"
+max_active_downloads = 1
+min_free_space_bytes = 1048576
+rss_history_limit = 500
+direct_unpack = false
+abort_hopeless = true
+early_failure_check = true
+required_completion_pct = 100.0
+article_timeout_secs = 30
+
+[[servers]]
+id = "mock-server-1"
+name = "Mock NNTP"
+host = "127.0.0.1"
+port = 19119
+ssl = false
+ssl_verify = false
+connections = 4
+priority = 0
+enabled = true
+retention = 0
+pipelining = 1
+optional = false
+compress = false
+ramp_up_delay_ms = 0
+recv_buffer_size = 0
+
+[[categories]]
+name = "test"
+post_processing = 3
+
+[otel]
+enabled = false
+endpoint = "http://localhost:4317"
+service_name = "rustnzb-mock-e2e"

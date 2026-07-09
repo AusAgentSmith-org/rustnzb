@@ -1,255 +1,153 @@
-//! End-to-end test: parse NZB → connect to NNTP → fetch articles → yEnc decode → assemble file
-//!
-//! Uses the smallest NZB (We.Bury.The.Dead) and fetches a small par2 file (single article)
-//! plus the first few articles of a RAR file to verify the full pipeline.
+//! End-to-end download pipeline tests against the reusable mock NNTP server.
 
-use nzb_web::nzb_core::config::ServerConfig;
-use nzb_web::nzb_core::nzb_nntp::NntpConnection;
+use std::fmt::Write;
+
+use mock_nntp_server::{
+    FixtureFile, SAMPLE_GROUP, SAMPLE_MULTI_FILENAME, SAMPLE_MULTI_MESSAGE_IDS,
+    SAMPLE_SINGLE_FILENAME, SAMPLE_SINGLE_MESSAGE_ID, fixture_files, server_config,
+    start_sample_server,
+};
+use nzb_web::nzb_core::nzb_nntp::{NntpConnection, NntpError};
 use nzb_web::nzb_core::nzb_parser;
 use nzb_web::nzb_decode::yenc;
 
-fn real_nntp_config() -> Option<ServerConfig> {
-    let host = std::env::var("NNTP_PRIMARY_HOST").ok()?;
-    let user = std::env::var("NNTP_PRIMARY_USER").ok()?;
-    let pass = std::env::var("NNTP_PRIMARY_PASS").ok()?;
+fn build_nzb(files: &[FixtureFile]) -> Vec<u8> {
+    let mut xml = String::new();
+    writeln!(xml, r#"<?xml version="1.0" encoding="UTF-8"?>"#).unwrap();
+    writeln!(xml, r#"<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">"#).unwrap();
+    for file in files {
+        let total_segments = file.segments.len();
+        writeln!(
+            xml,
+            r#"  <file poster="mock@rustnzb.test" date="1743465600" subject='"{name}" yEnc (1/{parts})'>"#,
+            name = file.filename,
+            parts = total_segments
+        )
+        .unwrap();
+        writeln!(xml, "    <groups>").unwrap();
+        writeln!(xml, "      <group>{SAMPLE_GROUP}</group>").unwrap();
+        writeln!(xml, "    </groups>").unwrap();
+        writeln!(xml, "    <segments>").unwrap();
+        for segment in &file.segments {
+            writeln!(
+                xml,
+                r#"      <segment bytes="{bytes}" number="{number}">{message_id}</segment>"#,
+                bytes = segment.body.len(),
+                number = segment.segment_number,
+                message_id = segment.message_id
+            )
+            .unwrap();
+        }
+        writeln!(xml, "    </segments>").unwrap();
+        writeln!(xml, "  </file>").unwrap();
+    }
+    writeln!(xml, "</nzb>").unwrap();
+    xml.into_bytes()
+}
 
-    let mut c = ServerConfig::new("real-nntp-test", &host);
-    c.name = format!("{host} test");
-    c.connections = 1;
-    c.ramp_up_delay_ms = 0;
-    c.recv_buffer_size = 0;
-    c.username = Some(user);
-    c.password = Some(pass);
-    Some(c)
+fn fixture_file(name: &str) -> FixtureFile {
+    fixture_files()
+        .into_iter()
+        .find(|file| file.filename == name)
+        .expect("fixture file should exist")
 }
 
 #[tokio::test]
 async fn test_fetch_single_article_and_decode() {
-    // 1. Parse NZB
-    let nzb_path = std::path::Path::new("TestData/We.Bury.The.Dead.2024.BDRip.x264-COCAIN.nzb");
-    if !nzb_path.exists() || std::env::var("CI").is_ok() {
-        eprintln!("TestData not found or CI environment, skipping");
-        return;
-    }
-    let Some(config) = real_nntp_config() else {
-        eprintln!("Skipping: NNTP_PRIMARY_* env vars not set");
-        return;
-    };
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    let server = start_sample_server().await;
+    let mut conn = NntpConnection::new("mock-single".to_string());
+    conn.connect(&server_config(server.port()))
+        .await
+        .expect("connect to mock server");
 
-    let job = nzb_parser::parse_nzb_file(nzb_path).unwrap();
-    eprintln!(
-        "Parsed NZB: {} files, {} articles, {:.1} MB",
-        job.file_count,
-        job.article_count,
-        job.total_bytes as f64 / 1_048_576.0
-    );
-
-    // Find the single-article par2 file (smallest file, easiest to test)
-    let small_file = job
-        .files
-        .iter()
-        .filter(|f| f.articles.len() == 1)
-        .min_by_key(|f| f.bytes)
-        .expect("No single-article file found");
-
-    eprintln!(
-        "Target file: {} ({} bytes, {} article)",
-        small_file.filename,
-        small_file.bytes,
-        small_file.articles.len()
-    );
-
-    let article = &small_file.articles[0];
-    eprintln!("Message-ID: {}", article.message_id);
-
-    // 2. Connect to NNTP server
-    let mut conn = NntpConnection::new("uf-test".to_string());
-
-    let connect_result =
-        tokio::time::timeout(std::time::Duration::from_secs(15), conn.connect(&config)).await;
-
-    assert!(connect_result.is_ok(), "Connection timed out");
-    assert!(connect_result.unwrap().is_ok(), "Connection failed");
-    eprintln!("Connected to {}", config.host);
-
-    // 3. Fetch article
-    let fetch_result = tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        conn.fetch_article(&article.message_id),
+    let sample_file = fixture_file(SAMPLE_SINGLE_FILENAME);
+    let job = nzb_parser::parse_nzb(
+        "sample-single",
+        &build_nzb(std::slice::from_ref(&sample_file)),
     )
-    .await;
+    .expect("parse generated nzb");
+    let article = &job.files[0].articles[0];
 
-    assert!(fetch_result.is_ok(), "Fetch timed out");
-    let response = fetch_result.unwrap();
-    assert!(response.is_ok(), "Fetch failed: {:?}", response.err());
+    assert_eq!(article.message_id, SAMPLE_SINGLE_MESSAGE_ID);
 
-    let response = response.unwrap();
-    assert_eq!(response.code, 220, "Expected 220 article follows");
+    let response = conn
+        .fetch_article(&article.message_id)
+        .await
+        .expect("fetch sample article");
+    assert_eq!(response.code, 220, "mock article should fetch successfully");
 
-    let raw_data = response.data.expect("No article data received");
-    eprintln!("Fetched {} bytes of raw article data", raw_data.len());
-    assert!(raw_data.len() > 100, "Article data too small");
+    let raw_data = response.data.expect("mock article should include a body");
+    let decoded = yenc::decode_yenc(&raw_data).expect("sample article should decode cleanly");
 
-    // 4. yEnc decode
-    let decode_result = yenc::decode_yenc(&raw_data);
-    match &decode_result {
-        Ok(result) => {
-            eprintln!("yEnc decode successful:");
-            eprintln!("  Filename: {:?}", result.filename);
-            eprintln!("  Decoded size: {} bytes", result.data.len());
-            eprintln!("  File size: {:?}", result.file_size);
-            eprintln!("  Part begin: {:?}", result.part_begin);
-            eprintln!("  CRC32: {:08X}", result.crc32);
-            assert!(!result.data.is_empty(), "Decoded data is empty");
-        }
-        Err(e) => {
-            // Some par2 files might have unusual encoding — log but check raw data
-            eprintln!("yEnc decode error (may be expected for some files): {e}");
-            eprintln!(
-                "First 200 bytes of raw data: {:?}",
-                String::from_utf8_lossy(&raw_data[..std::cmp::min(200, raw_data.len())])
-            );
-        }
-    }
+    assert_eq!(decoded.filename.as_deref(), Some(SAMPLE_SINGLE_FILENAME));
+    assert_eq!(decoded.data, sample_file.segments[0].body);
+    assert_eq!(decoded.data.len(), 102_400);
 
-    // 5. Disconnect
-    let _ = conn.quit().await;
-    eprintln!("Disconnected. Test complete!");
+    conn.quit().await.expect("quit mock connection");
 }
 
 #[tokio::test]
 async fn test_fetch_multiple_articles_from_rar() {
-    // Parse NZB and find a multi-segment RAR file
-    let nzb_path = std::path::Path::new("TestData/We.Bury.The.Dead.2024.BDRip.x264-COCAIN.nzb");
-    if !nzb_path.exists() || std::env::var("CI").is_ok() {
-        eprintln!("TestData not found or CI environment, skipping");
-        return;
-    }
-    let Some(config) = real_nntp_config() else {
-        eprintln!("Skipping: NNTP_PRIMARY_* env vars not set");
-        return;
-    };
-    let _ = rustls::crypto::ring::default_provider().install_default();
-
-    let job = nzb_parser::parse_nzb_file(nzb_path).unwrap();
-
-    // Find a RAR file with multiple segments
-    let rar_file = job
-        .files
-        .iter()
-        .find(|f| f.filename.to_lowercase().contains(".r") && f.articles.len() > 5)
-        .expect("No multi-segment RAR file found");
-
-    eprintln!(
-        "Target RAR: {} ({} articles, {:.1} MB)",
-        rar_file.filename,
-        rar_file.articles.len(),
-        rar_file.bytes as f64 / 1_048_576.0
-    );
-
-    // Connect
-    let mut conn = NntpConnection::new("uf-test".to_string());
-    conn.connect(&config).await.expect("Connection failed");
-    eprintln!("Connected to {}", config.host);
-
-    // Fetch first 3 articles
-    let mut decoded_sizes = Vec::new();
-    let articles_to_fetch = &rar_file.articles[..std::cmp::min(3, rar_file.articles.len())];
-
-    for (i, article) in articles_to_fetch.iter().enumerate() {
-        eprintln!(
-            "Fetching article {}/{}: segment {} (msg-id: {}...)",
-            i + 1,
-            articles_to_fetch.len(),
-            article.segment_number,
-            &article.message_id[..std::cmp::min(30, article.message_id.len())]
-        );
-
-        let response = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
-            conn.fetch_article(&article.message_id),
-        )
+    let server = start_sample_server().await;
+    let mut conn = NntpConnection::new("mock-multi".to_string());
+    conn.connect(&server_config(server.port()))
         .await
-        .expect("Fetch timed out")
-        .expect("Fetch failed");
+        .expect("connect to mock server");
 
+    let multi_file = fixture_file(SAMPLE_MULTI_FILENAME);
+    let job = nzb_parser::parse_nzb(
+        "sample-multi",
+        &build_nzb(std::slice::from_ref(&multi_file)),
+    )
+    .expect("parse generated nzb");
+    let target = &job.files[0];
+
+    assert_eq!(target.articles.len(), SAMPLE_MULTI_MESSAGE_IDS.len());
+
+    let mut assembled = Vec::new();
+    for article in &target.articles {
+        let response = conn
+            .fetch_article(&article.message_id)
+            .await
+            .expect("fetch multi-segment article");
         assert_eq!(response.code, 220);
-        let raw_data = response.data.expect("No data");
-        eprintln!("  Raw: {} bytes", raw_data.len());
-
-        match yenc::decode_yenc(&raw_data) {
-            Ok(result) => {
-                eprintln!(
-                    "  Decoded: {} bytes, offset: {:?}, CRC: {:08X}",
-                    result.data.len(),
-                    result.part_begin,
-                    result.crc32
-                );
-                decoded_sizes.push(result.data.len());
-            }
-            Err(e) => {
-                eprintln!("  Decode error: {e}");
-                // Still count it
-                decoded_sizes.push(0);
-            }
-        }
+        let raw_data = response
+            .data
+            .expect("multi-segment mock should return article data");
+        let decoded = yenc::decode_yenc(&raw_data).expect("multi-segment sample should decode");
+        assembled.extend_from_slice(&decoded.data);
     }
 
-    let _ = conn.quit().await;
+    let expected = multi_file
+        .segments
+        .iter()
+        .flat_map(|segment| segment.body.iter().copied())
+        .collect::<Vec<_>>();
+    assert_eq!(assembled, expected);
 
-    let total_decoded: usize = decoded_sizes.iter().sum();
-    eprintln!(
-        "\nSummary: fetched {} articles, decoded {} bytes total",
-        articles_to_fetch.len(),
-        total_decoded
-    );
-
-    // At least some articles should decode successfully
-    assert!(total_decoded > 0, "No articles decoded successfully");
-    eprintln!("Pipeline test complete!");
+    conn.quit().await.expect("quit mock connection");
 }
 
 #[tokio::test]
 async fn test_article_not_found_handling() {
-    // Skip on CI — requires real Usenet server access
-    if std::env::var("CI").is_ok() {
-        eprintln!("Skipping on CI — requires real NNTP server");
-        return;
-    }
-    let Some(config) = real_nntp_config() else {
-        eprintln!("Skipping: NNTP_PRIMARY_* env vars not set");
-        return;
-    };
-
-    // Install rustls crypto provider for TLS connections
-    let _ = rustls::crypto::ring::default_provider().install_default();
-
-    // Test that we handle 430 (article not found) gracefully
-    let mut conn = NntpConnection::new("uf-test".to_string());
-    conn.connect(&config).await.expect("Connection failed");
+    let server = start_sample_server().await;
+    let mut conn = NntpConnection::new("mock-not-found".to_string());
+    conn.connect(&server_config(server.port()))
+        .await
+        .expect("connect to mock server");
 
     let result = conn
         .fetch_article("nonexistent-fake-id-12345@nowhere.invalid")
         .await;
 
-    match &result {
-        Err(nzb_web::nzb_core::nzb_nntp::NntpError::ArticleNotFound(_)) => {
-            eprintln!("Correctly got ArticleNotFound for fake message-id");
+    match result {
+        Err(NntpError::ArticleNotFound(message_id)) => {
+            assert_eq!(message_id, "<nonexistent-fake-id-12345@nowhere.invalid>");
         }
-        Err(e) => {
-            eprintln!("Got error (acceptable): {e}");
-        }
-        Ok(_) => {
-            panic!("Should not have found a fake article!");
-        }
+        Err(other) => panic!("expected ArticleNotFound, got {other}"),
+        Ok(_) => panic!("missing article should not fetch successfully"),
     }
 
-    // Connection should still be usable after a 430
-    assert!(
-        conn.is_connected(),
-        "Connection should still be alive after 430"
-    );
-    let _ = conn.quit().await;
-    eprintln!("Error handling test complete!");
+    assert!(conn.is_connected(), "430 should not kill the NNTP session");
+    conn.quit().await.expect("quit mock connection");
 }

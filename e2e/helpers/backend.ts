@@ -112,8 +112,10 @@ export function cleanAllBackendData(): void {
   // Also clean any leftover data dirs
   const mainDir = path.join(PROJECT_ROOT, 'e2e/test-data');
   const freshDir = path.join(PROJECT_ROOT, 'e2e/test-data-fresh');
+  const mockDir = path.join(PROJECT_ROOT, 'e2e/test-data-mock');
   if (fs.existsSync(mainDir)) fs.rmSync(mainDir, { recursive: true });
   if (fs.existsSync(freshDir)) fs.rmSync(freshDir, { recursive: true });
+  if (fs.existsSync(mockDir)) fs.rmSync(mockDir, { recursive: true });
 }
 
 async function waitForHealthy(url: string, timeoutMs: number): Promise<void> {

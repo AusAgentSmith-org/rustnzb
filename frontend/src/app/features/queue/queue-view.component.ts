@@ -1,13 +1,14 @@
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { Observable, Subscription, finalize } from 'rxjs';
+import { Observable, Subscription, combineLatest, finalize } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AddNzbService } from '../../core/services/add-nzb.service';
 import { NzbJob, QueueResponse, StatusResponse } from '../../core/models/queue.model';
+import { HistoryViewComponent } from '../history/history-view.component';
 
 interface CategoryConfig {
   name: string;
@@ -35,8 +36,33 @@ interface PipelineStep {
 @Component({
   selector: 'app-queue-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatSnackBarModule, HistoryViewComponent],
   template: `
+    <div class="downloads-head">
+      <h2>Downloads</h2>
+      <div class="view-tabs" role="tablist" aria-label="Downloads sections">
+        <button
+          type="button"
+          role="tab"
+          [class.active]="activeTab() === 'queue'"
+          [attr.aria-selected]="activeTab() === 'queue'"
+          (click)="openTab('queue')"
+        >
+          Queue
+        </button>
+        <button
+          type="button"
+          role="tab"
+          [class.active]="activeTab() === 'history'"
+          [attr.aria-selected]="activeTab() === 'history'"
+          (click)="openTab('history')"
+        >
+          History
+        </button>
+      </div>
+    </div>
+
+    @if (activeTab() === 'queue') {
     <!-- ============ Stat cards ============ -->
     <div class="cards4">
       <div class="card">
@@ -58,7 +84,7 @@ interface PipelineStep {
         </div>
       </div>
       <div class="card">
-        <div class="label">Queue</div>
+        <div class="label">Downloads</div>
         <div class="val">{{ jobs().length }} jobs · {{ formatBytes(remainingBytes()) }}</div>
         <div class="sub">{{ etaTotal() }}</div>
       </div>
@@ -462,6 +488,9 @@ interface PipelineStep {
         </table>
       </div>
     </div>
+    } @else {
+      <app-history-view />
+    }
   `,
   styles: [
     `
@@ -469,6 +498,40 @@ interface PipelineStep {
       :host {
         display: block;
         font-size: 11.2px;
+      }
+      .downloads-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
+      }
+      .downloads-head h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .view-tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .view-tabs button {
+        border: none;
+        background: transparent;
+        color: var(--mute);
+        font: inherit;
+        padding: 7px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .view-tabs button.active {
+        background: color-mix(in srgb, var(--accent) 18%, transparent);
+        color: var(--text);
       }
       :host ::ng-deep .cards4 {
         gap: 12px;
@@ -980,6 +1043,7 @@ interface PipelineStep {
   ],
 })
 export class QueueViewComponent implements OnInit, OnDestroy {
+  activeTab = signal<'queue' | 'history'>('queue');
   jobs = signal<NzbJob[]>([]);
   remainingBytes = signal(0);
   categories = signal<CategoryConfig[]>([]);
@@ -1003,6 +1067,7 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   }
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private routeSub: Subscription | null = null;
 
   // Filter
   filterStatus: 'all' | 'active' | 'queued' | 'paused' = 'all';
@@ -1023,9 +1088,25 @@ export class QueueViewComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private snackBar: MatSnackBar,
     private addNzbService: AddNzbService,
+    private route: ActivatedRoute,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
+    this.routeSub = combineLatest([this.route.data, this.route.queryParamMap]).subscribe(
+      ([data, queryParamMap]) => {
+        const legacyTab = data['legacyTab'] as 'queue' | 'history' | undefined;
+        if (legacyTab) {
+          void this.router.navigate(['/downloads'], {
+            replaceUrl: true,
+            queryParams: legacyTab === 'history' ? { tab: 'history' } : {},
+          });
+          return;
+        }
+
+        this.activeTab.set(queryParamMap.get('tab') === 'history' ? 'history' : 'queue');
+      },
+    );
     this.loadAll();
     this.pollTimer = setInterval(() => this.loadQueue(), 2000);
     this.toggleSub = this.addNzbService.panelToggle$.subscribe(() => {
@@ -1035,7 +1116,14 @@ export class QueueViewComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.pollTimer) clearInterval(this.pollTimer);
+    this.routeSub?.unsubscribe();
     this.toggleSub?.unsubscribe();
+  }
+
+  openTab(tab: 'queue' | 'history'): void {
+    void this.router.navigate(['/downloads'], {
+      queryParams: tab === 'history' ? { tab: 'history' } : {},
+    });
   }
 
   private loadAll(): void {

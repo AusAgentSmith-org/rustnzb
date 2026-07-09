@@ -23,8 +23,7 @@ import { WidthModeService } from './core/services/width-mode.service';
             <span class="brand">rust<span>nzb</span></span>
             <span class="ver">v{{ version() }}</span>
             <div class="sep"></div>
-            <a routerLink="/queue" routerLinkActive="active">Queue</a>
-            <a routerLink="/history" routerLinkActive="active">History</a>
+            <a routerLink="/downloads" routerLinkActive="active">Downloads</a>
             <a routerLink="/groups" routerLinkActive="active">Search</a>
             <a routerLink="/rss" routerLinkActive="active">RSS</a>
             @if (webdavEnabled()) {
@@ -427,8 +426,8 @@ export class App implements OnInit, OnDestroy {
   }
 
   onAddNzb(): void {
-    if (this.router.url !== '/queue') {
-      this.router.navigate(['/queue']).then(() => this.addNzbService.togglePanel());
+    if (!this.router.url.startsWith('/downloads')) {
+      this.router.navigate(['/downloads']).then(() => this.addNzbService.togglePanel());
     } else {
       this.addNzbService.togglePanel();
     }

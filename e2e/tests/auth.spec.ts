@@ -36,10 +36,10 @@ async function apiLogin(username = TEST_USER, password = TEST_PASS): Promise<str
 }
 
 test.describe.serial('Authentication', () => {
-  // ── 10.1 Protected route /queue redirects to /login without a token ─────────
+  // ── 10.1 Protected route /downloads redirects to /login without a token ─────
   test('10.1 protected route redirects to /login when unauthenticated', async ({ page }) => {
     // Navigate directly — no token in localStorage
-    await page.goto('/queue');
+    await page.goto('/downloads');
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -58,8 +58,8 @@ test.describe.serial('Authentication', () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  // ── 10.3 Valid login → /queue with nav tabs visible ─────────────────────────
-  test('10.3 valid login lands on /queue with nav tabs', async ({ page }) => {
+  // ── 10.3 Valid login → /downloads with nav tabs visible ─────────────────────
+  test('10.3 valid login lands on /downloads with nav tabs', async ({ page }) => {
     await page.goto('/login');
     await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
 
@@ -67,34 +67,33 @@ test.describe.serial('Authentication', () => {
     await page.getByLabel(/^password$/i).fill(TEST_PASS);
     await page.getByRole('button', { name: 'Sign In' }).click();
 
-    // After login the app redirects — either to /welcome (no servers) or /queue.
-    // The fresh backend has no servers so /welcome is shown; skip to /queue.
+    // After login the app redirects — either to /welcome (no servers) or /downloads.
+    // The fresh backend has no servers so /welcome is shown; skip to /downloads.
     const url = page.url();
     if (/\/welcome/.test(url)) {
       await page.getByText(/skip for now/i).click();
     }
 
-    await expect(page).toHaveURL(/\/queue/);
+    await expect(page).toHaveURL(/\/downloads/);
 
     // Nav tabs should all be present for an authenticated user
-    await expect(page.getByRole('link', { name: 'Queue' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'History' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Downloads' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
   });
 
   // ── 10.4 Logout clears session → redirected to /login ───────────────────────
-  test('10.4 logout clears session and subsequent /queue access redirects to /login', async ({ page }) => {
+  test('10.4 logout clears session and subsequent /downloads access redirects to /login', async ({ page }) => {
     // Start authenticated
     const token = await apiLogin();
     await injectToken(page, token);
-    await page.goto('/queue');
+    await page.goto('/downloads');
 
-    // May land on /welcome if no servers — navigate to /queue via skip
+    // May land on /welcome if no servers — navigate to /downloads via skip
     const currentUrl = page.url();
     if (/\/welcome/.test(currentUrl)) {
       await page.getByText(/skip for now/i).click();
     }
-    await expect(page).toHaveURL(/\/queue/);
+    await expect(page).toHaveURL(/\/downloads/);
 
     // Find and click the logout button (could be an icon, link, or menu item)
     const logoutButton = page
@@ -107,14 +106,14 @@ test.describe.serial('Authentication', () => {
     // Should be back at /login
     await expect(page).toHaveURL(/\/login/);
 
-    // Verify session is actually gone: navigating to /queue should redirect again.
+    // Verify session is actually gone: navigating to /downloads should redirect again.
     // NB: injectToken() used addInitScript which re-runs on every navigation, so
     // queue the opposite (clear storage) to simulate a real logged-out user.
     await page.addInitScript(() => {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
     });
-    await page.goto('/queue');
+    await page.goto('/downloads');
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -122,13 +121,13 @@ test.describe.serial('Authentication', () => {
   test('10.5 session persists on page reload', async ({ page }) => {
     const token = await apiLogin();
     await injectToken(page, token);
-    await page.goto('/queue');
+    await page.goto('/downloads');
 
     // Handle possible /welcome redirect for no-server state
     const initialUrl = page.url();
     if (/\/welcome/.test(initialUrl)) {
       await page.getByText(/skip for now/i).click();
-      await expect(page).toHaveURL(/\/queue/);
+      await expect(page).toHaveURL(/\/downloads/);
     }
 
     // Reload and confirm we stay authenticated (no redirect to /login)
@@ -136,6 +135,6 @@ test.describe.serial('Authentication', () => {
     await expect(page).not.toHaveURL(/\/login/);
 
     // The authenticated shell should still be visible
-    await expect(page.getByRole('link', { name: 'Queue' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Downloads' })).toBeVisible();
   });
 });
