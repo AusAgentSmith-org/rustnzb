@@ -66,6 +66,6 @@ fn parse_all_test_nzbs() {
             count += 1;
         }
     }
-    eprintln!("Successfully parsed {} NZB files", count);
+    eprintln!("Successfully parsed {count} NZB files");
     assert!(count > 0, "No NZB files found in TestData/");
 }
