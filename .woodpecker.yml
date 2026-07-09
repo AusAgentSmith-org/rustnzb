@@ -90,19 +90,6 @@ steps:
 
   # ─── Build (push to main + tags only) ────────────────────────────────────
 
-  - name: build-frontend
-    image: rust:1.88-bookworm
-    commands:
-      - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/*
-      - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-      - apt-get install -y --no-install-recommends nodejs && apt-get clean && rm -rf /var/lib/apt/lists/*
-      - cd frontend && npm ci && npx ng build --configuration=production
-    when:
-      - event: push
-        branch: main
-      - event: tag
-      - event: manual
-
   - name: build-linux
     image: rust:1.88-bookworm
     environment:

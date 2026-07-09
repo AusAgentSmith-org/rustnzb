@@ -4,6 +4,8 @@
 //! via the native API, and verifies they appear in the queue.
 //! It also exercises the SABnzbd compatibility API endpoints.
 
+#![allow(clippy::uninlined_format_args)]
+
 mod support;
 
 use support::{sample_nzb_bytes, sample_nzb_variant_bytes, start_test_server};
