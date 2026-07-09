@@ -16,7 +16,7 @@ test.describe('Mock-backed downloads', () => {
 
     await expect(page.getByText(/added to queue/i)).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole('button', { name: 'History' }).click();
+    await page.getByRole('tab', { name: 'History', exact: true }).click();
     await expect(page).toHaveURL(/\/downloads\?tab=history/);
 
     const completedRow = page.locator('tr', { hasText: /sample/i }).first();
