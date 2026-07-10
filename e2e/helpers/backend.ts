@@ -30,12 +30,16 @@ export async function startBackend(opts: {
   if (fs.existsSync(absoluteDataDir)) fs.rmSync(absoluteDataDir, { recursive: true });
   fs.mkdirSync(path.join(absoluteDataDir, 'incomplete'), { recursive: true });
   fs.mkdirSync(path.join(absoluteDataDir, 'complete'), { recursive: true });
+  // The backend persists API/auth changes to its config file. Always run from
+  // a disposable copy so an E2E run cannot modify tracked fixtures.
+  const runtimeConfig = path.join(absoluteDataDir, 'config.toml');
+  fs.copyFileSync(path.join(PROJECT_ROOT, config), runtimeConfig);
 
   if (seedFile) {
     // Phase 1: start backend briefly so it runs migrations, then stop it.
     // The queue manager loads its in-memory state from DB at startup, so we
     // must seed the DB BEFORE the final start so seeded queue jobs are visible.
-    const proc1 = spawnBackend(name, port, config);
+    const proc1 = spawnBackend(name, port, runtimeConfig);
     await waitForHealthy(`http://localhost:${port}/api/health`, 15000);
     // Wait for WAL checkpoint before killing
     await new Promise(r => setTimeout(r, 600));
@@ -65,13 +69,13 @@ export async function startBackend(opts: {
     if (lastErr) throw lastErr;
 
     // Phase 2: restart with seeded data — queue manager will load seeded jobs
-    const proc2 = spawnBackend(name, port, config);
+    const proc2 = spawnBackend(name, port, runtimeConfig);
     await waitForHealthy(`http://localhost:${port}/api/health`, 15000);
-    instances.set(name, { process: proc2, port, config, dataDir: absoluteDataDir, dbPath });
+    instances.set(name, { process: proc2, port, config: runtimeConfig, dataDir: absoluteDataDir, dbPath });
   } else {
-    const proc = spawnBackend(name, port, config);
+    const proc = spawnBackend(name, port, runtimeConfig);
     await waitForHealthy(`http://localhost:${port}/api/health`, 15000);
-    instances.set(name, { process: proc, port, config, dataDir: absoluteDataDir, dbPath });
+    instances.set(name, { process: proc, port, config: runtimeConfig, dataDir: absoluteDataDir, dbPath });
   }
 }
 

@@ -19,7 +19,7 @@ async function getToken(page: import('@playwright/test').Page): Promise<string> 
 
 // Helper — delete a rule via API (cleanup)
 async function apiDeleteRule(token: string, ruleId: string): Promise<void> {
-  await fetch(`${MAIN_URL}/api/config/rss-rules/${encodeURIComponent(ruleId)}`, {
+  await fetch(`${MAIN_URL}/api/rss/rules/${encodeURIComponent(ruleId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -27,7 +27,7 @@ async function apiDeleteRule(token: string, ruleId: string): Promise<void> {
 
 // Helper — list rules via API
 async function apiListRules(token: string): Promise<Array<{ id: string; name: string }>> {
-  const r = await fetch(`${MAIN_URL}/api/config/rss-rules`, {
+  const r = await fetch(`${MAIN_URL}/api/rss/rules`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return r.json();
@@ -70,7 +70,7 @@ test.describe('6. RSS Feeds & Rules', () => {
     );
 
     // Submit
-    await page.getByRole('button', { name: 'Add feed' }).click();
+    await page.getByRole('button', { name: 'Add feed', exact: true }).click();
 
     // New row appears
     await expect(page.locator('.feed-row', { hasText: 'E2E Feed' })).toBeVisible();
@@ -94,13 +94,15 @@ test.describe('6. RSS Feeds & Rules', () => {
       await page.getByPlaceholder(/https:\/\/indexer\.example\/rss/).fill(
         'https://e2e-test.example.com/rss',
       );
-      await page.getByRole('button', { name: 'Add feed' }).click();
+      await page.getByRole('button', { name: 'Add feed', exact: true }).click();
       await expect(page.locator('.feed-row', { hasText: 'E2E Feed' })).toBeVisible();
     }
 
     // Click "Delete" on the E2E Feed row
     const feedRow = page.locator('.feed-row', { hasText: 'E2E Feed' }).first();
     await feedRow.getByRole('button', { name: 'Delete' }).click();
+    const feedDialog = page.getByRole('dialog', { name: 'Delete feed "E2E Feed"?' });
+    await feedDialog.getByRole('button', { name: 'Delete', exact: true }).click();
 
     // Row must disappear
     await expect(page.locator('.feed-row', { hasText: 'E2E Feed' })).not.toBeVisible({
@@ -148,7 +150,7 @@ test.describe('6. RSS Feeds & Rules', () => {
     await page.getByPlaceholder(/\.\*S\\d\+E\\d\+\.\*/).fill('TestRegex\\d+');
 
     // Submit
-    await page.getByRole('button', { name: 'Add rule' }).click();
+    await page.getByRole('button', { name: 'Add rule', exact: true }).click();
 
     // Rule row appears
     await expect(page.locator('tr, .row', { hasText: 'E2E Rule' }).first()).toBeVisible();
@@ -204,12 +206,14 @@ test.describe('6. RSS Feeds & Rules', () => {
     await page.getByRole('button', { name: '+ Add rule' }).click();
     await page.getByPlaceholder('Rule name').fill('DeleteMe Rule');
     await page.getByPlaceholder(/\.\*S\\d\+E\\d\+\.\*/).fill('DeleteMe.*');
-    await page.getByRole('button', { name: 'Add rule' }).click();
+    await page.getByRole('button', { name: 'Add rule', exact: true }).click();
     await expect(page.locator('tr, .row', { hasText: 'DeleteMe Rule' }).first()).toBeVisible();
 
     // Click "del" on that rule
     const ruleRow = page.locator('tr, .row', { hasText: 'DeleteMe Rule' }).first();
     await ruleRow.getByRole('button', { name: 'del' }).or(ruleRow.locator('button', { hasText: 'del' })).click();
+    const ruleDialog = page.getByRole('dialog', { name: 'Delete this rule?' });
+    await ruleDialog.getByRole('button', { name: 'Delete', exact: true }).click();
 
     // Rule row must disappear
     await expect(

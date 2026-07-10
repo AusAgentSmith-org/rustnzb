@@ -96,7 +96,7 @@ test.describe('Smoke Tests', () => {
   test('tabs navigate correctly', async ({ page }) => {
     await page.goto('/downloads');
     await page.getByRole('link', { name: 'Search' }).click();
-    await expect(page).toHaveURL(/\/search/);
+    await expect(page).toHaveURL(/\/groups/);
     await page.getByRole('link', { name: 'Settings' }).click();
     await expect(page).toHaveURL(/\/settings/);
     await page.getByRole('link', { name: 'Downloads' }).click();

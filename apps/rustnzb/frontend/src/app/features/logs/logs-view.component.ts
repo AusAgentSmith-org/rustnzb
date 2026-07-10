@@ -22,8 +22,12 @@ interface LogEntry {
       </h3>
       <div class="body">
         <div class="search-bar">
-          <input placeholder="Filter… (regex ok)" [(ngModel)]="filter" />
-          <select [(ngModel)]="levelFilter">
+          <input
+            placeholder="Filter… (regex ok)"
+            [ngModel]="filter()"
+            (ngModelChange)="filter.set($event)"
+          />
+          <select [ngModel]="levelFilter()" (ngModelChange)="levelFilter.set($event)">
             <option value="">All levels</option>
             <option value="ERROR">ERROR</option>
             <option value="WARN">WARN</option>
@@ -87,8 +91,8 @@ interface LogEntry {
 })
 export class LogsViewComponent implements OnInit, OnDestroy {
   entries = signal<LogEntry[]>([]);
-  filter = '';
-  levelFilter = '';
+  filter = signal('');
+  levelFilter = signal('');
   follow = signal(true);
 
   private lastSeq = 0;
@@ -136,7 +140,7 @@ export class LogsViewComponent implements OnInit, OnDestroy {
    */
   visibleEntries = computed(() => {
     const rx = this.compiledFilter();
-    const lvl = this.levelFilter;
+    const lvl = this.levelFilter();
     return this.entries().filter(e => {
       if (lvl && e.level.toUpperCase() !== lvl) return false;
       if (rx && !rx.test(e.message) && !rx.test(e.target || '')) return false;
@@ -145,7 +149,7 @@ export class LogsViewComponent implements OnInit, OnDestroy {
   });
 
   private compiledFilter(): RegExp | null {
-    const f = this.filter.trim();
+    const f = this.filter().trim();
     if (!f) return null;
     try { return new RegExp(f, 'i'); }
     catch { return new RegExp(f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }

@@ -15,6 +15,9 @@ VALUES
   (5, 1, 5, 'Binary File [3/3]',  'poster@news',    '2026-03-02 09:02:00', 'bin3@test', '',       2048000, 5000);
 
 -- ── Queue (paused jobs for queue UI tests) ────────────────────────────────────
+-- Keep the deterministic queue from being consumed before Playwright reaches it.
+INSERT INTO settings (key, value) VALUES ('globally_paused', 'true');
+
 INSERT INTO queue (id, name, category, status, priority, total_bytes, downloaded_bytes,
                    file_count, article_count, added_at, work_dir, output_dir)
 VALUES

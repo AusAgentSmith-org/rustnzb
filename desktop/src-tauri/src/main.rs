@@ -9,9 +9,9 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tracing::{error, info, warn};
+use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
 
 use nzb_web::{LogBuffer, LogBufferLayer, QueueManager, StartupConfig};
 
@@ -58,14 +58,11 @@ fn setup_tray(app: &AppHandle) -> anyhow::Result<()> {
         .enabled(false)
         .build(app)?;
 
-    let pause_item = MenuItemBuilder::with_id("pause", "Pause Downloads")
-        .build(app)?;
+    let pause_item = MenuItemBuilder::with_id("pause", "Pause Downloads").build(app)?;
 
-    let browser_item = MenuItemBuilder::with_id("browser", "Open in Browser")
-        .build(app)?;
+    let browser_item = MenuItemBuilder::with_id("browser", "Open in Browser").build(app)?;
 
-    let quit_item = MenuItemBuilder::with_id("quit", "Quit")
-        .build(app)?;
+    let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
     let menu = MenuBuilder::new(app)
         .item(&speed_item)
@@ -136,7 +133,11 @@ fn setup_tray(app: &AppHandle) -> anyhow::Result<()> {
                 };
 
                 let tooltip = if queue_size > 0 {
-                    format!("rustnzb - {} items - {}", queue_size, speed_text.trim_start_matches("Speed: "))
+                    format!(
+                        "rustnzb - {} items - {}",
+                        queue_size,
+                        speed_text.trim_start_matches("Speed: ")
+                    )
                 } else {
                     "rustnzb".to_string()
                 };
@@ -160,8 +161,7 @@ async fn start_engine() -> anyhow::Result<(Arc<QueueManager>, u16)> {
 
     // Initialize logging
     let log_buffer = LogBuffer::new();
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let fmt_layer = tracing_subscriber::fmt::layer().with_target(true);
     let log_layer = LogBufferLayer::new(log_buffer.clone());
 
@@ -254,9 +254,7 @@ async fn start() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            cmd_open_in_browser,
-        ])
+        .invoke_handler(tauri::generate_handler![cmd_open_in_browser,])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -273,4 +271,25 @@ fn main() {
         .build()
         .expect("couldn't set up tokio runtime")
         .block_on(start())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_speed;
+
+    #[test]
+    fn formats_speed_unit_boundaries() {
+        assert_eq!(format_speed(0.0), "0 B/s");
+        assert_eq!(format_speed(1023.0), "1023 B/s");
+        assert_eq!(format_speed(1024.0), "1.0 KB/s");
+        assert_eq!(format_speed(1024.0 * 1024.0), "1.0 MB/s");
+        assert_eq!(format_speed(1024.0 * 1024.0 * 1024.0), "1.00 GB/s");
+    }
+
+    #[test]
+    fn formats_fractional_speeds_with_unit_specific_precision() {
+        assert_eq!(format_speed(1536.0), "1.5 KB/s");
+        assert_eq!(format_speed(2.25 * 1024.0 * 1024.0), "2.2 MB/s");
+        assert_eq!(format_speed(1.125 * 1024.0 * 1024.0 * 1024.0), "1.12 GB/s");
+    }
 }

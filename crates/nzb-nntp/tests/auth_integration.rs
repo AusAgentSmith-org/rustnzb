@@ -3,7 +3,9 @@
 //! Credentials are loaded from `.env.test` (gitignored). If the file is missing
 //! or a required variable is unset, the tests are skipped — not failed.
 //!
-//! Run: `cargo test --test auth_integration -- --nocapture`
+//! These tests are ignored by default because they use paid external services
+//! and depend on account/network state. Run them explicitly with:
+//! `cargo test -p nzb-nntp --test auth_integration -- --ignored --nocapture`.
 
 use std::path::PathBuf;
 use std::sync::Once;
@@ -77,6 +79,7 @@ const FRUGAL_HOSTS: &[(&str, &str)] = &[
 ];
 
 #[tokio::test]
+#[ignore = "requires live Frugal Usenet credentials and network access"]
 async fn frugal_auth_all_endpoints() {
     load_env();
 
@@ -121,6 +124,7 @@ async fn frugal_auth_all_endpoints() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
+#[ignore = "requires live NewsgroupDirect credentials and network access"]
 async fn ngd_auth() {
     load_env();
 
@@ -170,6 +174,7 @@ async fn ngd_auth() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
+#[ignore = "requires live Supernews credentials and network access"]
 async fn supernews_auth() {
     load_env();
 
@@ -200,6 +205,7 @@ async fn supernews_auth() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
+#[ignore = "requires live ViperNews credentials and network access"]
 async fn vipernews_auth() {
     load_env();
 
@@ -230,6 +236,7 @@ async fn vipernews_auth() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
+#[ignore = "requires a live external NNTP provider"]
 async fn bad_credentials_rejected() {
     init_crypto();
     // This test doesn't need real creds — it verifies that wrong creds fail.
@@ -255,6 +262,7 @@ async fn bad_credentials_rejected() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
+#[ignore = "requires a live external NNTP provider"]
 async fn masked_password_sentinel_rejected() {
     load_env();
 

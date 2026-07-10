@@ -17,7 +17,7 @@ export default defineConfig({
     // ── Main: authenticated, seeded data ──────────────────────────────────────
     {
       name: 'main',
-      testIgnore: ['**/first-boot.spec.ts', '**/auth.spec.ts'],
+      testIgnore: ['**/first-boot.spec.ts', '**/auth.spec.ts', '**/downloads-mock.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         baseURL: 'http://localhost:9190',

@@ -113,6 +113,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "yenc-simd",
 ]
 
 [[package]]
@@ -2164,6 +2165,16 @@ name = "writeable"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
+
+[[package]]
+name = "yenc-simd"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a33092857e41bb8d4868df26b7706277a3b1ea9ef44e100b95a85401371a94d7"
+dependencies = [
+ "crc32fast",
+ "thiserror 2.0.18",
+]
 
 [[package]]
 name = "yoke"

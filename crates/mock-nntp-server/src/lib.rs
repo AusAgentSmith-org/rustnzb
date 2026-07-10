@@ -133,3 +133,94 @@ fn deterministic_body(len: usize, seed: u8) -> Vec<u8> {
         .map(|idx| seed.wrapping_add((idx % 251) as u8))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nzb_nntp::NntpConnection;
+
+    #[test]
+    fn fixture_catalog_has_stable_single_and_multi_part_files() {
+        let files = fixture_files();
+
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].filename, SAMPLE_SINGLE_FILENAME);
+        assert_eq!(files[0].segments.len(), 1);
+        assert_eq!(files[1].filename, SAMPLE_MULTI_FILENAME);
+        assert_eq!(files[1].segments.len(), SAMPLE_MULTI_MESSAGE_IDS.len());
+    }
+
+    #[test]
+    fn multipart_offsets_are_contiguous_and_cover_the_file() {
+        let file = fixture_files().remove(1);
+        let mut expected_offset = 0;
+
+        for (index, segment) in file.segments.iter().enumerate() {
+            assert_eq!(segment.segment_number, (index + 1) as u32);
+            assert_eq!(segment.total_segments, file.segments.len() as u32);
+            assert_eq!(segment.offset, expected_offset);
+            assert_eq!(segment.filename, file.filename);
+            expected_offset += segment.body.len() as u64;
+        }
+
+        assert_eq!(expected_offset, file.segments[0].total_file_size);
+    }
+
+    #[test]
+    fn fixtures_are_reproducible_and_have_unique_message_ids() {
+        let first = fixture_segments();
+        let second = fixture_segments();
+        let ids = first
+            .iter()
+            .map(|segment| segment.message_id.as_str())
+            .collect::<std::collections::HashSet<_>>();
+
+        assert_eq!(first.len(), second.len());
+        assert_eq!(ids.len(), first.len());
+        for (left, right) in first.iter().zip(second.iter()) {
+            assert_eq!(left.message_id, right.message_id);
+            assert_eq!(left.body, right.body);
+        }
+    }
+
+    #[test]
+    fn sample_config_contains_decodable_yenc_for_every_segment() {
+        let segments = fixture_segments();
+        let config = sample_mock_config();
+
+        assert_eq!(config.articles.len(), segments.len());
+        assert_eq!(
+            config.groups.get(SAMPLE_GROUP),
+            Some(&(segments.len() as u64, 1, segments.len() as u64))
+        );
+
+        for segment in segments {
+            let encoded = config
+                .articles
+                .get(&segment.message_id)
+                .expect("fixture article should be present");
+            let decoded = yenc_simd::decode_yenc(encoded).expect("fixture yEnc should decode");
+            assert_eq!(decoded.data, segment.body);
+            assert_eq!(decoded.filename.as_deref(), Some(segment.filename.as_str()));
+        }
+    }
+
+    #[tokio::test]
+    async fn sample_server_round_trips_every_fixture_article() {
+        let server = start_sample_server().await;
+        let config = server_config(server.port());
+        let mut connection = NntpConnection::new(config.id.clone());
+        connection.connect(&config).await.unwrap();
+
+        for segment in fixture_segments() {
+            let response = connection.fetch_article(&segment.message_id).await.unwrap();
+            let data = response
+                .data
+                .expect("article response should include a body");
+            let decoded = yenc_simd::decode_yenc(&data).unwrap();
+            assert_eq!(decoded.data, segment.body);
+        }
+
+        connection.quit().await.unwrap();
+    }
+}

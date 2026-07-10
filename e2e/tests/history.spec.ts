@@ -9,6 +9,14 @@
 
 import { test, expect } from '@playwright/test';
 
+async function openAllHistory(page: import('@playwright/test').Page) {
+  await page.goto('/downloads?tab=history');
+  const history = page.locator('app-history-view');
+  await expect(history).toBeVisible();
+  await history.locator('.search-bar select').nth(2).selectOption('all');
+  return history;
+}
+
 test.describe('5. Download History', () => {
   // Auto-accept confirm dialogs (used by delete tests)
   test.beforeEach(async ({ page }) => {
@@ -18,7 +26,7 @@ test.describe('5. Download History', () => {
   // ── 5.1 Completed entry visible ────────────────────────────────────────────
 
   test('5.1 completed history entry visible with status pill', async ({ page }) => {
-    await page.goto('/downloads?tab=history');
+    await openAllHistory(page);
 
     const row = page.locator('tr, .row', { hasText: 'Completed.Movie.2025.mkv' }).first();
     await expect(row).toBeVisible();
@@ -30,7 +38,7 @@ test.describe('5. Download History', () => {
   // ── 5.2 Failed entry visible with error accessible ─────────────────────────
 
   test('5.2 failed history entry has failed pill and error detail', async ({ page }) => {
-    await page.goto('/downloads?tab=history');
+    await openAllHistory(page);
 
     const row = page.locator('tr, .row', { hasText: 'Failed.Show.S02E05.mkv' }).first();
     await expect(row).toBeVisible();
@@ -55,7 +63,7 @@ test.describe('5. Download History', () => {
   // ── 5.3 Filter by name ─────────────────────────────────────────────────────
 
   test('5.3 name filter hides non-matching entries', async ({ page }) => {
-    await page.goto('/downloads?tab=history');
+    await openAllHistory(page);
 
     // All three entries present initially
     await expect(page.locator('tr, .row', { hasText: 'Completed.Movie.2025.mkv' }).first()).toBeVisible();
@@ -63,10 +71,7 @@ test.describe('5. Download History', () => {
     await expect(page.locator('tr, .row', { hasText: 'Good.Podcast.EP100.mp3' }).first()).toBeVisible();
 
     // Type in the search / filter input
-    const searchInput = page
-      .locator('.search-bar')
-      .or(page.getByPlaceholder('Filter name…'))
-      .first();
+    const searchInput = page.getByPlaceholder('Filter name…');
     await searchInput.fill('Movie');
 
     // Only "Completed.Movie.2025.mkv" matches
@@ -88,10 +93,10 @@ test.describe('5. Download History', () => {
   // ── 5.4 Filter by status "Failed" ─────────────────────────────────────────
 
   test('5.4 status filter "Failed" hides completed entries', async ({ page }) => {
-    await page.goto('/downloads?tab=history');
+    const history = await openAllHistory(page);
 
     // Select "Failed" from the status dropdown
-    const statusSelect = page.locator('select').or(page.getByRole('combobox')).first();
+    const statusSelect = history.locator('.search-bar select').first();
     await statusSelect.selectOption({ label: 'Failed' });
 
     // Only the failed row visible
@@ -113,13 +118,13 @@ test.describe('5. Download History', () => {
   // ── 5.5 Delete history entry ───────────────────────────────────────────────
 
   test('5.5 deleting a history entry removes it from the list', async ({ page }) => {
-    await page.goto('/downloads?tab=history');
+    await openAllHistory(page);
 
     const podcastRow = page.locator('tr, .row', { hasText: 'Good.Podcast.EP100.mp3' }).first();
     await expect(podcastRow).toBeVisible();
 
     // Click the delete (✕) action
-    await podcastRow.locator('button', { hasText: '✕' }).click();
+    await podcastRow.getByRole('button', { name: 'Delete' }).click();
 
     // Entry must disappear
     await expect(
@@ -134,18 +139,18 @@ test.describe('5. Download History', () => {
   // ── 5.6 Stat cards show correct counts ────────────────────────────────────
 
   test('5.6 stat cards show 2 completed and 1 failed', async ({ page }) => {
-    await page.goto('/downloads?tab=history');
+    const history = await openAllHistory(page);
 
     // Completed card — seeded: Completed.Movie + Good.Podcast = 2
-    const completedCard = page.locator('.stat-card, [class*="stat"]', { hasText: 'Completed' }).first();
+    const completedCard = history.locator('.cards4 .card', { hasText: 'Completed' });
     await expect(completedCard).toContainText('2');
 
     // Failed card — seeded: Failed.Show = 1
-    const failedCard = page.locator('.stat-card, [class*="stat"]', { hasText: 'Failed' }).first();
+    const failedCard = history.locator('.cards4 .card', { hasText: 'Failed' });
     await expect(failedCard).toContainText('1');
 
     // Success rate card — 2 out of 3 = 66% or 67%
-    const rateCard = page.locator('.stat-card, [class*="stat"]', { hasText: 'Success rate' }).first();
+    const rateCard = history.locator('.cards4 .card', { hasText: 'Success rate' });
     await expect(rateCard).toBeVisible();
   });
 });

@@ -108,8 +108,11 @@ test.describe('3. Category Management', () => {
     const catRow = page.locator('tr, .cat-row, li', { hasText: catName }).first();
     await expect(catRow).toBeVisible();
 
-    // Click the del button — dialog auto-accepted
+    // Click the row action, then confirm in the application's modal.
     await catRow.getByRole('button', { name: /del/i }).click();
+    const dialog = page.getByRole('dialog', { name: `Delete category "${catName}"?` });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
 
     // Row should be gone
     await expect(page.getByText(catName, { exact: true })).not.toBeVisible();

@@ -50,7 +50,29 @@ steps:
       - curl -sSfL "https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp && mv /tmp/sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache
       - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n' > $CARGO_HOME/config.toml
       - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
-      - cargo test --workspace -- --skip frugal_auth_all_endpoints --skip ngd_auth --skip supernews_auth
+      - cargo test --workspace --all-targets
+      - cargo test -p rustnzb --features webdav --lib
+      - cargo test --manifest-path benchnzb/Cargo.toml --all-targets --locked
+
+  - name: frontend-unit
+    image: node:22-bookworm-slim
+    commands:
+      - cd apps/rustnzb/frontend
+      - npm ci
+      - npm audit --audit-level=high
+      - npm test -- --coverage --coverage-reporters=text-summary
+
+  - name: desktop-test
+    image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n' > $CARGO_HOME/config.toml
+      - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
+      - apt-get update
+      - apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - cargo test --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked
 
   - name: clippy
     image: rust:1.88-bookworm
@@ -64,15 +86,11 @@ steps:
       - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n' > $CARGO_HOME/config.toml
       - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
       - rustup component add clippy
-      - cargo clippy --workspace --all-targets -- -D warnings
-      - cargo clippy -p rustnzb --all-targets --features webdav -- -D warnings
+      - cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   # ─── Playwright E2E (push, PR, manual) ───────────────────────────────────
-  # Builds the frontend + debug binary, then runs the Playwright suite.
-  # Scoped to the `fresh`, `fresh-auth` projects and a subset of `main` that
-  # is known-green — the rest of the `main` project has bit-rotted against
-  # current UI/routing (Search→/groups, seed schema drift, etc.) and needs
-  # a dedicated cleanup pass before it can gate CI.
+  # Builds the frontend + debug binary, then runs every deterministic
+  # Playwright project (seeded, first-boot/auth, and mock-download).
   - name: e2e
     image: rust:1.88-bookworm
     environment:
@@ -98,11 +116,8 @@ steps:
       - cargo build --workspace --bins
       # Install Playwright (browsers + system deps)
       - cd e2e && npm ci && npx playwright install --with-deps chromium
-      # Fresh + fresh-auth projects are currently green end-to-end
-      - npx playwright test --project=fresh --project=fresh-auth --reporter=list
-      - npx playwright test --project=mock-downloads tests/downloads-mock.spec.ts --reporter=list
-      # Main-project tests currently known to pass (server mgmt + navigation)
-      - npx playwright test --project=main tests/servers.spec.ts tests/navigation.spec.ts --reporter=list
+      - npm audit --audit-level=high
+      - npx playwright test --reporter=list
 
   # ─── Build (push to main + tags only) ────────────────────────────────────
 

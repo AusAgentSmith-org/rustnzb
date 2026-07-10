@@ -37,7 +37,7 @@ test.describe('7. Newsgroup Browser (extended)', () => {
     await page.goto('/groups');
 
     await page.locator('.g', { hasText: 'alt.test' }).click();
-    await expect(page.locator('h3')).toContainText('alt.test');
+    await expect(page.getByRole('heading', { name: /Results — alt\.test/ })).toBeVisible();
 
     // alt.test has 5 seeded headers — verify total visible
     await expect(page.locator('table.data tbody tr')).toHaveCount(5);
@@ -49,11 +49,11 @@ test.describe('7. Newsgroup Browser (extended)', () => {
     await page.goto('/groups');
     await page.locator('.g', { hasText: 'alt.test' }).click();
 
-    await expect(page.locator('h3')).toContainText('alt.test');
+    await expect(page.getByRole('heading', { name: /Results — alt\.test/ })).toBeVisible();
 
     // Both the parent and the reply are in the list
     await expect(page.getByText('Test Post Alpha', { exact: true })).toBeVisible();
-    await expect(page.getByText('Re: Test Post Alpha')).toBeVisible();
+    await expect(page.getByText('Re: Test Post Alpha', { exact: true })).toBeVisible();
   });
 
   // ── 7.4 Selecting then deselecting a checkbox hides the download bar ───────
@@ -61,7 +61,7 @@ test.describe('7. Newsgroup Browser (extended)', () => {
   test('7.4 deselecting all checkboxes hides the download bar', async ({ page }) => {
     await page.goto('/groups');
     await page.locator('.g', { hasText: 'alt.test' }).click();
-    await expect(page.getByText('Binary File [1/3]')).toBeVisible();
+    await expect(page.getByText('Binary File [1/3]', { exact: true })).toBeVisible();
 
     // Select first row
     const firstCheckbox = page.locator('table.data tbody tr').nth(0).locator('input[type="checkbox"]');
@@ -73,11 +73,7 @@ test.describe('7. Newsgroup Browser (extended)', () => {
     await firstCheckbox.uncheck();
 
     // Download bar should disappear (or show 0 selected)
-    const barHidden = await page.locator('.download-bar').isHidden();
-    const zeroSelected =
-      (await page.getByText('0 selected').isVisible()) ||
-      (await page.getByText('0 selected').count()) > 0;
-    expect(barHidden || zeroSelected).toBeTruthy();
+    await expect(page.locator('.download-bar')).toHaveCount(0);
   });
 
   // ── 7.5 Download bar updates count correctly on multi-select ──────────────
@@ -85,7 +81,7 @@ test.describe('7. Newsgroup Browser (extended)', () => {
   test('7.5 download bar updates count as items are selected', async ({ page }) => {
     await page.goto('/groups');
     await page.locator('.g', { hasText: 'alt.test' }).click();
-    await expect(page.getByText('Binary File [1/3]')).toBeVisible();
+    await expect(page.getByText('Binary File [1/3]', { exact: true })).toBeVisible();
 
     const rows = page.locator('table.data tbody tr');
 
@@ -106,7 +102,7 @@ test.describe('7. Newsgroup Browser (extended)', () => {
   test('7.6 select-all header checkbox then deselect-all clears bar', async ({ page }) => {
     await page.goto('/groups');
     await page.locator('.g', { hasText: 'alt.test' }).click();
-    await expect(page.getByText('Binary File [1/3]')).toBeVisible();
+    await expect(page.getByText('Binary File [1/3]', { exact: true })).toBeVisible();
 
     const selectAllCheckbox = page.locator('table.data thead input[type="checkbox"]');
 
@@ -120,11 +116,7 @@ test.describe('7. Newsgroup Browser (extended)', () => {
 
     // Download bar hidden or count is 0
     await page.waitForTimeout(300);
-    const barHidden = await page.locator('.download-bar').isHidden();
-    const zeroSelected =
-      (await page.getByText('0 selected').isVisible()) ||
-      (await page.getByText('0 selected').count()) > 0;
-    expect(barHidden || zeroSelected).toBeTruthy();
+    await expect(page.locator('.download-bar')).toHaveCount(0);
   });
 
   // ── 7.7 Search in one group does not affect other group's headers ──────────
@@ -143,10 +135,10 @@ test.describe('7. Newsgroup Browser (extended)', () => {
 
     // Switch group — filter should reset or be scoped to the new group
     await page.locator('.g', { hasText: 'alt.binaries.test' }).click();
-    await expect(page.locator('h3')).toContainText('alt.binaries.test');
+    await expect(page.getByRole('heading', { name: /Results — alt\.binaries\.test/ })).toBeVisible();
 
     // No headers seeded for alt.binaries.test — the panel opens to an empty list
     // but must not carry over alt.test's search state as an error state.
-    await expect(page.locator('h3')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Results — alt\.binaries\.test/ })).toBeVisible();
   });
 });

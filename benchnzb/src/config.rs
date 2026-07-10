@@ -152,14 +152,20 @@ pub fn parse_size(s: &str) -> anyhow::Result<u64> {
     let s = s.trim().to_lowercase();
 
     if let Some(n) = s.strip_suffix("gb") {
-        let v: u64 = n.parse().map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
+        let v: u64 = n
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
         Ok(v * GB)
     } else if let Some(n) = s.strip_suffix("mb") {
-        let v: u64 = n.parse().map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
+        let v: u64 = n
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
         Ok(v * MB)
     } else {
         // Try as raw bytes
-        let v: u64 = s.parse().map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
+        let v: u64 = s
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Invalid size: {s}"))?;
         Ok(v)
     }
 }
@@ -229,5 +235,66 @@ pub fn resolve_scenarios(selector: &str) -> Vec<Scenario> {
             }
             matched
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_compound_and_bare_durations() {
+        assert_eq!(parse_duration("2h30m").unwrap().as_secs(), 9_000);
+        assert_eq!(parse_duration(" 45S ").unwrap().as_secs(), 45);
+        assert_eq!(parse_duration("90").unwrap().as_secs(), 90);
+    }
+
+    #[test]
+    fn rejects_invalid_or_zero_durations() {
+        for value in ["", "0", "5d", "hours", "1.5h"] {
+            assert!(parse_duration(value).is_err(), "{value} should be invalid");
+        }
+    }
+
+    #[test]
+    fn parses_and_formats_sizes_at_boundaries() {
+        assert_eq!(parse_size("2gb").unwrap(), 2 * GB);
+        assert_eq!(parse_size("512MB").unwrap(), 512 * MB);
+        assert_eq!(parse_size("123").unwrap(), 123);
+        assert_eq!(format_size(GB + GB / 2), "1.5 GB");
+        assert_eq!(format_size(MB / 2), format!("{} B", MB / 2));
+    }
+
+    #[test]
+    fn scenario_selectors_cover_expected_groups() {
+        assert_eq!(resolve_scenarios("full").len(), 9);
+        assert_eq!(resolve_scenarios("quick").len(), 1);
+        assert_eq!(resolve_scenarios("medium").len(), 6);
+        assert_eq!(resolve_scenarios("speed").len(), 3);
+        assert_eq!(resolve_scenarios("postproc").len(), 4);
+        assert!(resolve_scenarios("missing").is_empty());
+    }
+
+    #[test]
+    fn explicit_scenario_selector_is_trimmed_and_case_insensitive() {
+        let scenarios = resolve_scenarios(" SZ5GB_RAW, sz10gb_unpack ");
+        let names = scenarios
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["sz5gb_raw", "sz10gb_unpack"]);
+    }
+
+    #[test]
+    fn duration_formatting_is_stable() {
+        assert_eq!(format_duration(std::time::Duration::from_secs(5)), "5s");
+        assert_eq!(
+            format_duration(std::time::Duration::from_secs(65)),
+            "1m 05s"
+        );
+        assert_eq!(
+            format_duration(std::time::Duration::from_secs(9_015)),
+            "2h 30m 15s"
+        );
     }
 }
