@@ -4,10 +4,13 @@ set -eu
 task_start package-release cargo makensis sha256sum tar
 
 tag=${CI_COMMIT_TAG:?CI_COMMIT_TAG is required for release packaging}
+version=${tag#v}
 out=${CI_PACKAGE_DIR:-$REPO_ROOT/.ci-output/packages}
 amd64=${LINUX_AMD64_BINARY:-$REPO_ROOT/.ci-output/targets/build-linux/release/rustnzb}
 arm64=${LINUX_ARM64_BINARY:-$REPO_ROOT/.ci-output/targets/build-linux-arm64/aarch64-unknown-linux-gnu/release/rustnzb}
 windows=${WINDOWS_AMD64_BINARY:-$REPO_ROOT/.ci-output/targets/build-windows/x86_64-pc-windows-msvc/release/rustnzb.exe}
+deb_root=$(mktemp -d)
+trap 'rm -rf "$deb_root"' EXIT
 test -x "$amd64"
 test -x "$arm64"
 test -f "$windows"
@@ -28,12 +31,40 @@ cp "$windows" installer/rustnzb.exe
 mv "rustnzb-$tag-windows-x86_64-setup.exe" "$out/"
 rm -f installer/rustnzb.exe
 
-CARGO_TARGET_DIR=$(dirname "$(dirname "$amd64")") \
-    cargo deb --manifest-path apps/rustnzb/Cargo.toml --no-build --no-strip \
-    -o "$out/rustnzb-$tag-amd64.deb"
-CARGO_TARGET_DIR=$(dirname "$(dirname "$(dirname "$arm64")")") \
-    cargo deb --manifest-path apps/rustnzb/Cargo.toml --no-build --no-strip \
-    --target aarch64-unknown-linux-gnu -o "$out/rustnzb-$tag-arm64.deb"
+mkdir -p "$deb_root/src" "$deb_root/payload"
+printf 'fn main() {}\n' >"$deb_root/src/main.rs"
+cp apps/rustnzb/config.example.toml "$deb_root/config.example.toml"
+cp apps/rustnzb/systemd/rustnzb.service "$deb_root/rustnzb.service"
+cat >"$deb_root/Cargo.toml" <<EOF
+[package]
+name = "rustnzb"
+version = "$version"
+edition = "2024"
+license = "MIT"
+description = "A modern Usenet NZB downloader written in Rust"
+
+[package.metadata.deb]
+maintainer = "AusAgentSmith <admin@rustnzb.dev>"
+copyright = "2024-2026 AusAgentSmith"
+extended-description = "A modern Usenet NZB downloader written in Rust. SABnzbd-compatible API, web UI, PAR2 repair, archive extraction."
+depends = "p7zip-full"
+recommends = "unrar | unrar-free"
+section = "net"
+priority = "optional"
+conf-files = ["/etc/rustnzb/config.toml"]
+assets = [
+    ["payload/rustnzb", "usr/bin/", "755"],
+    ["config.example.toml", "etc/rustnzb/config.toml", "644"],
+    ["rustnzb.service", "lib/systemd/system/rustnzb.service", "644"],
+]
+EOF
+
+cp "$amd64" "$deb_root/payload/rustnzb"
+(cd "$deb_root" && cargo deb --no-build --no-strip \
+    -o "$out/rustnzb-$tag-amd64.deb")
+cp "$arm64" "$deb_root/payload/rustnzb"
+(cd "$deb_root" && cargo deb --no-build --no-strip \
+    --target aarch64-unknown-linux-gnu -o "$out/rustnzb-$tag-arm64.deb")
 
 (cd "$out" && sha256sum rustnzb-* >"SHA256SUMS-$tag.txt")
 ls -lh "$out"/rustnzb-* "$out/SHA256SUMS-$tag.txt"

@@ -220,18 +220,11 @@ steps:
         TAG="$CI_COMMIT_TAG"
         API="https://repo.indexarr.net/api/v1"
         REPO="indexarr/rustnzb"
+        NOTES="$CI_WORKSPACE/RELEASE_NOTES_$TAG.md"
+        test -f "$NOTES"
         # stable if tag has no alpha/beta/rc suffix
         echo "$TAG" | grep -qE '(alpha|beta|rc)' && PRERELEASE=true || PRERELEASE=false
         echo "Creating Forgejo release $TAG (prerelease=$PRERELEASE)"
-
-        BODY="## Downloads\n\n"
-        BODY="$BODY- **Linux x86_64**: \`rustnzb-$TAG-linux-x86_64.tar.gz\`\n"
-        BODY="$BODY- **Linux aarch64**: \`rustnzb-$TAG-linux-aarch64.tar.gz\`\n"
-        BODY="$BODY- **Windows x86_64 installer**: \`rustnzb-$TAG-windows-x86_64-setup.exe\`\n"
-        BODY="$BODY- **Debian/Ubuntu (amd64)**: \`rustnzb-$TAG-amd64.deb\`\n"
-        BODY="$BODY- **Debian/Ubuntu (arm64)**: \`rustnzb-$TAG-arm64.deb\`\n"
-        BODY="$BODY- **Docker (multi-arch: amd64/arm64)**: \`ghcr.io/ausagentsmith-org/rustnzb:$TAG\`\n"
-        BODY="$BODY\nSHA256 checksums in \`SHA256SUMS-$TAG.txt\`"
 
         EXISTING_ID=$(curl -s -H "Authorization: token $FORGEJO_TOKEN" \
           "$API/repos/$REPO/releases/tags/$TAG" | jq -r '.id // empty')
@@ -240,10 +233,17 @@ steps:
             "$API/repos/$REPO/releases/$EXISTING_ID"
         fi
 
+        jq -n \
+          --arg tag "$TAG" \
+          --arg name "rustnzb $TAG" \
+          --rawfile body "$NOTES" \
+          --argjson prerelease "$PRERELEASE" \
+          '{tag_name:$tag,name:$name,body:$body,draft:false,prerelease:$prerelease}' \
+          > /tmp/forgejo-release.json
         RELEASE_ID=$(curl -s -X POST \
           -H "Authorization: token $FORGEJO_TOKEN" \
           -H "Content-Type: application/json" \
-          -d "{\"tag_name\":\"$TAG\",\"name\":\"rustnzb $TAG\",\"body\":\"$BODY\",\"draft\":false,\"prerelease\":$PRERELEASE}" \
+          --data-binary @/tmp/forgejo-release.json \
           "$API/repos/$REPO/releases" | jq -r '.id')
 
         [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ] && { echo "ERROR: Failed to create Forgejo release"; exit 1; }
@@ -319,6 +319,20 @@ steps:
         from_secret: git_auth_token
     commands:
       - ci/tasks/promote-dev
+
+  - name: mirror-github-main
+    image: repo.indexarr.net/indexarr/rustnzb-ci-core@sha256:63a6ecb9f4897f223419c69bdc1bbae3d930f028955fdaa480fac156daedfb47
+    when:
+      - event: push
+        branch: main
+    depends_on:
+      - promote-dev
+      - build-windows
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+    commands:
+      - ci/tasks/mirror-github branch
 
   - name: build-and-push-release-amd64
     image: woodpeckerci/plugin-docker-buildx@sha256:9a22c00b4952e405d11e66d29772edbeb1f7b24f27f71cda251ecb838e725e86
@@ -442,12 +456,24 @@ steps:
       - skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch amd64 "docker://ghcr.io/ausagentsmith-org/rustnzb:latest" > /dev/null
       - skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch arm64 "docker://ghcr.io/ausagentsmith-org/rustnzb:latest" > /dev/null
 
+  - name: mirror-github-tag
+    image: repo.indexarr.net/indexarr/rustnzb-ci-core@sha256:63a6ecb9f4897f223419c69bdc1bbae3d930f028955fdaa480fac156daedfb47
+    when:
+      - event: tag
+    depends_on:
+      - verify-release-images
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+    commands:
+      - ci/tasks/mirror-github tag
+
   - name: github-release
     image: alpine@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
     when:
       - event: tag
     depends_on:
-      - verify-release-images
+      - mirror-github-tag
     environment:
       GH_TOKEN:
         from_secret: gh_release_token
@@ -457,31 +483,29 @@ steps:
       - |
         TAG="$CI_COMMIT_TAG"
         REPO="AusAgentSmith-org/rustnzb"
+        NOTES="$CI_WORKSPACE/RELEASE_NOTES_$TAG.md"
+        test -f "$NOTES"
         echo "$TAG" | grep -qE '(alpha|beta|rc)' && PRERELEASE=true || PRERELEASE=false
         echo "Creating GitHub release $TAG (prerelease=$PRERELEASE)"
-
-        BODY="## Downloads\n\n"
-        BODY="$BODY- **Linux x86_64**: \`rustnzb-$TAG-linux-x86_64.tar.gz\`\n"
-        BODY="$BODY- **Linux aarch64**: \`rustnzb-$TAG-linux-aarch64.tar.gz\`\n"
-        BODY="$BODY- **Windows x86_64 installer**: \`rustnzb-$TAG-windows-x86_64-setup.exe\`\n"
-        BODY="$BODY- **Debian/Ubuntu (amd64)**: \`rustnzb-$TAG-amd64.deb\`\n"
-        BODY="$BODY- **Debian/Ubuntu (arm64)**: \`rustnzb-$TAG-arm64.deb\`\n"
-        BODY="$BODY- **Docker (multi-arch: amd64/arm64)**: \`ghcr.io/ausagentsmith-org/rustnzb:$TAG\`\n"
-        BODY="$BODY\nSHA256 checksums in \`SHA256SUMS-$TAG.txt\`"
 
         EXISTING_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
           "https://api.github.com/repos/$REPO/releases/tags/$TAG" | jq -r '.id // empty')
         if [ -n "$EXISTING_ID" ]; then
           curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
             "https://api.github.com/repos/$REPO/releases/$EXISTING_ID"
-          curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/$REPO/git/refs/tags/$TAG" || true
         fi
 
+        jq -n \
+          --arg tag "$TAG" \
+          --arg name "rustnzb $TAG" \
+          --rawfile body "$NOTES" \
+          --argjson prerelease "$PRERELEASE" \
+          '{tag_name:$tag,target_commitish:"main",name:$name,body:$body,draft:false,prerelease:$prerelease}' \
+          > /tmp/github-release.json
         RELEASE_ID=$(curl -s -X POST \
           -H "Authorization: token $GH_TOKEN" \
           -H "Content-Type: application/json" \
-          -d "{\"tag_name\":\"$TAG\",\"target_commitish\":\"main\",\"name\":\"rustnzb $TAG\",\"body\":\"$BODY\",\"draft\":false,\"prerelease\":$PRERELEASE}" \
+          --data-binary @/tmp/github-release.json \
           "https://api.github.com/repos/$REPO/releases" | jq -r '.id')
 
         [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ] && { echo "ERROR: Failed to create GitHub release"; exit 1; }

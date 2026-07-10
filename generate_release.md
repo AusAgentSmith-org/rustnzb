@@ -222,7 +222,10 @@ git checkout main && git pull
 git status                            # working tree must be clean (or only release-related changes)
 ```
 
-Drop or commit stray files (`Dockerfile.local`, `e2e/playwright-report/`, etc.). Do not commit `.claude/scheduled_tasks.lock`.
+Drop generated outputs such as `e2e/playwright-report/`, `.ci-output/`, and
+`.ci-artifacts/`. `Dockerfile.local` is currently tracked as a compatibility
+path; do not delete it as incidental release cleanup. Do not commit
+`.claude/scheduled_tasks.lock`.
 
 ### 2. Bump rustnzb version
 
@@ -263,11 +266,13 @@ Expected Docker result for a normal `main` push:
 
 `latest` should remain unchanged here.
 
-Current caveat: the Dockerfile still authenticates to Forgejo with build args
-(`GIT_AUTH_TOKEN` / `PLUGIN_PASSWORD`) so private `nzbdav-*` crates can
-resolve. Docker warns about this during build because args are not secret-safe.
-Treat local and CI logs for these builds as sensitive until the auth path is
-converted to BuildKit secrets or another secret-mount flow.
+The canonical Dockerfile authenticates private `nzbdav-*` resolution through
+an environment-backed BuildKit secret named `forgejo_token`. The token is read
+only inside the Cargo build `RUN`, is never passed as a Docker build argument,
+and is excluded from image layers and registry cache exports. The main pipeline
+uses `ci/tasks/build-image` with a temporary cache-capable
+`docker-container` builder rather than the Docker Buildx plugin's comma-split
+secret setting.
 
 ### 4. Tag the release on Forgejo
 
@@ -284,27 +289,30 @@ Expected Docker result for the tag:
 - Forgejo multi-arch: `vX.Y.Z`, `latest`
 - GHCR multi-arch: `vX.Y.Z`, `latest`
 
-### 5. Merge `main` → `public-main` and push to GitHub
+### 5. Verify the exact GitHub mirror
 
-`public-main` is the public branch mirrored to GitHub.
-
-```bash
-git checkout public-main
-git pull origin public-main
-git merge --no-ff main -m "release: vX.Y.Z"
-git push origin public-main           # Forgejo
-git push github public-main           # GitHub mirror
-```
-
-Then tag on GitHub too:
+After a successful `main` pipeline, `mirror-github-main` pushes the verified
+Forgejo commit to GitHub `main` with the Woodpecker `gh_release_token`. Tag
+pipelines similarly run `mirror-github-tag` before creating the GitHub release.
+The two remotes must therefore resolve the branch and tag to identical commits:
 
 ```bash
-git push github vX.Y.Z
+git ls-remote origin refs/heads/main refs/tags/vX.Y.Z
+git ls-remote github refs/heads/main refs/tags/vX.Y.Z
 ```
 
-### 6. Build + publish GitHub release artefacts
+If the histories have diverged, reconcile them with a normal merge on Forgejo
+before releasing. Do not force-push either remote or create a second public-only
+release commit.
 
-The Forgejo release pipeline builds Linux + Windows binaries and uploads to `dl.rustnzb.dev`. Mirror those to a GitHub Release:
+### 6. Build + publish release artefacts
+
+The tag pipeline builds Linux x86_64, Linux aarch64, Windows x86_64, and both
+Debian packages. It uploads the same files and checksum manifest to
+`dl.rustnzb.dev`, Forgejo, and GitHub. Both release objects read the checked-in
+`RELEASE_NOTES_vX.Y.Z.md` verbatim.
+
+Manual publication is a recovery path only:
 
 ```bash
 # Pull binaries the Forgejo pipeline produced
@@ -318,11 +326,12 @@ scp root@100.92.4.57:/var/www/dl.rustnzb.dev/vX.Y.Z/* .
 gh release create vX.Y.Z \
   --repo AusAgentSmith-org/rustnzb \
   --title "rustnzb vX.Y.Z" \
-  --notes-file RELEASE_NOTES.md \
+  --notes-file RELEASE_NOTES_vX.Y.Z.md \
   ./*
 ```
 
-`RELEASE_NOTES.md` should summarise: notable features, fixes, breaking changes, upgrade notes, and bumped crate versions.
+`RELEASE_NOTES_vX.Y.Z.md` should summarise notable features, fixes, breaking
+changes, upgrade notes, and bundled crate versions.
 
 ### 7. Verify
 
@@ -335,7 +344,7 @@ gh release create vX.Y.Z \
 - [ ] GHCR has `ghcr.io/ausagentsmith-org/rustnzb:latest`
 - [ ] GitHub release published with artefacts attached
 - [ ] Discord changelog webhook fired
-- [ ] `public-main` on GitHub is at the new tag
+- [ ] Forgejo and GitHub `main` and `vX.Y.Z` resolve to identical commits
 
 ---
 
@@ -354,5 +363,6 @@ gh release create vX.Y.Z \
 - **No Co-Authored-By Claude/AI lines in commits.** (Workspace rule.)
 - **Forgejo is always pushed first**, GitHub second.
 - **Pre-push hooks** in lib repos run `cargo fmt --check` + `cargo clippy`. Fix locally before retrying.
-- **`[patch]` sections** are stripped by CI — they only help local builds.
+- **Root `[patch.crates-io]` entries are used by local and CI builds.** Keep
+  them while external `nzbdav-*` crates resolve published `nzb-*` versions.
 - **Major bumps to `nzb-nntp` or `nzb-core`** ripple into nearly every app — review the dependency matrix in `~/Working/CLAUDE.md` before tagging.

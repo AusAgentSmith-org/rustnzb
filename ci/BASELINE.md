@@ -23,3 +23,19 @@ Runtime metrics are written under `.ci-output/metrics` by image-build and cold
 build tasks. Fill the cold/warm comparison in the final migration record from
 the first successful production-runner pipelines; local timings are not a
 substitute for runner metrics.
+
+## Post-migration result (2026-07-10)
+
+- First fully successful converged main pipeline: repo 38, pipeline 218,
+  commit `2385c85fcad7981c08b0ae8b12725c05c3b89558`.
+- The pipeline passed the complete deterministic suite, including 85
+  Playwright tests, and published/smoke-tested/promoted the immutable amd64
+  candidate.
+- The candidate manifest digest was
+  `sha256:de788ac1ed31d2ccca47ca0af6e0903fb0d4083eb9ce5f08b760663f4258d947`.
+- Node B deployment used ops commit `404f604` and Komodo `personal-arr`.
+  Runtime validation returned healthy, zero restarts, HTTP 200 for `/`, and
+  `{"status":"ok"}` from `/api/health`.
+- The runner reached 100% filesystem usage during the migration. Removing only
+  reproducible checkout outputs (`target/` and `.ci-output/`) recovered about
+  88 GiB; no application data or live container state was removed.

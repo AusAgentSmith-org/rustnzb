@@ -8,11 +8,18 @@ A first-boot setup wizard in the web UI that lets users import their SABnzbd con
 
 ## Current State
 
-- **No first-boot flow exists.** rustnzbd creates a default config (no servers, one "Default" category) and drops the user straight into the main UI.
-- **No INI parsing** exists in the codebase. Config is TOML-only (`nzb-core/src/config.rs`).
-- **Web UI** is an embedded React SPA served via `rust-embed` from `crates/nzb-web/static/`.
-- **Config is loaded** in `AppConfig::load()` — if no file exists, defaults are written and returned.
-- **Config updates** are handled by existing REST endpoints (`PUT /api/config/*`) and persisted back to TOML via `AppConfig::save()`.
+- **Implemented first-boot flow.** An unconfigured instance is redirected to
+  account setup and then the Angular welcome/import wizard.
+- **Implemented import parsers.** SABnzbd INI and live API imports are handled
+  by `crates/nzb-core/src/sabnzbd_import.rs` and the app handlers.
+- **Angular embedded UI.** The Angular 21 SPA lives under
+  `apps/rustnzb/frontend` and is embedded by `apps/rustnzb/src/server.rs`.
+- **Setup API is live.** `GET /setup/status`,
+  `POST /setup/import-sabnzbd`, `POST /setup/import-sabnzbd-api`, and
+  `POST /setup/apply` implement preview and confirmation.
+- **Coverage exists.** Parser/integration tests live in
+  `apps/rustnzb/tests/sabnzbd_import_test.rs`; browser coverage lives in
+  `e2e/tests/first-boot.spec.ts`.
 
 ---
 
@@ -20,7 +27,8 @@ A first-boot setup wizard in the web UI that lets users import their SABnzbd con
 
 ### Backend: `POST /api/setup/import-sabnzbd`
 
-New endpoint in `nzb-web/src/handlers.rs` that:
+Implemented in `apps/rustnzb/src/handlers.rs` and routed by
+`apps/rustnzb/src/server.rs`. The import endpoint:
 
 1. Accepts a multipart upload of `sabnzbd.ini`
 2. Parses the INI file

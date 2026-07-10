@@ -20,6 +20,12 @@ Common commands:
 ./ci/run --cold-cache test
 ```
 
+`ci/tasks/build-image` also supports the CI-only controls
+`RUSTNZB_PUSH=true`, `RUSTNZB_CACHE_IMAGE=<registry-ref>`,
+`RUSTNZB_PLATFORM=<platform>`, and `RUSTNZB_BUILD_REF=<ref>`. When registry
+cache export is requested it creates a temporary `docker-container` Buildx
+builder, pushes the candidate and cache, and removes the builder afterward.
+
 Warm local runs use Docker named volumes for Cargo downloads and npm downloads.
 Targets and declared artifacts are always written beneath `.ci-output` or
 `.ci-artifacts`; the host `target/`, Cargo installation, and npm installation
@@ -59,7 +65,7 @@ consumer and its three binary input paths are listed in `package-release`.
    the resolved digest assignments.
 3. Copy those four assignments into `ci/images.lock` and update the immutable
    references in `.woodpecker.yml` in the same commit.
-4. Run `ci/verify-image-pins`, then all local parity gates.
+4. Run `ci/tasks/verify-image-pins`, then all local parity gates.
 5. Push to Forgejo and monitor Woodpecker. Do not delete the replaced manifests.
 
 For rollback, restore all four `PREVIOUS_*` digest values to the active values
@@ -76,6 +82,11 @@ checks `7z`, and shuts down cleanly. Only then does promotion copy the candidate
 digest to mutable Forgejo tags and from Forgejo to GHCR. A failed gate does not
 run promotion.
 
+The `main` development image is amd64-only. The pipeline still cross-compiles
+the standalone Linux arm64 artifact and Windows artifact as independent build
+proofs, but routine container promotion publishes only the amd64 SHA and
+`dev` references. Tagged releases build and verify both container platforms.
+
 Record the previous `dev`/`latest` digest before each promotion. Rollback is a
 Skopeo copy of that digest back to the mutable tag, followed by the same remote
 digest checks and runtime smoke test; it never recompiles source.
@@ -88,6 +99,16 @@ Never cache credentials, `target`, frontend `dist`, package outputs, databases,
 or runtime data. Registry administrators own retention: retain two toolchain
 generations and the current plus previous production cache; delete older cache
 tags before deleting immutable release or SHA candidates.
+
+Debug E2E binaries embed the Angular assets. This is intentional: Woodpecker
+steps share a checkout, and the parallel Linux build removes its generated
+`frontend/dist` during cleanup. Without the `debug-embed` feature, a running
+debug server would begin returning 404 for `/` when that cleanup occurs.
+
+If the runner filesystem is under pressure, remove reproducible checkout build
+outputs (`target/`, `.ci-output/`) before considering Docker-wide pruning. Do
+not remove persisted application data, active images, or unrelated caches as a
+routine pipeline step.
 
 The current arm64 candidate is cross-built on amd64. The pipeline records disk
 usage around the Buildx step and executes the target binary's smoke test under

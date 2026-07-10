@@ -5,7 +5,7 @@
 Built from scratch with zero legacy dependencies. Fast, efficient, and designed for self-hosters. Full NNTP pipeline with yEnc decoding, PAR2 verification & repair, archive extraction, and a clean web UI. No inherited technical debt -- just modern Rust with async I/O, connection pooling, and NNTP pipelining for maximum throughput.
 
 [![Rust](https://img.shields.io/badge/Rust-2024_edition-orange)](https://www.rust-lang.org/)
-[![Docker](https://img.shields.io/badge/Docker-Hub-blue)](https://hub.docker.com/r/ausagentsmith/rustnzb)
+[![Container](https://img.shields.io/badge/container-GHCR-blue)](https://github.com/AusAgentSmith-org/rustnzb/pkgs/container/rustnzb)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -67,7 +67,7 @@ docker run -d \
   -v ./config:/config \
   -v ./data:/data \
   -v /path/to/downloads:/downloads \
-  ausagentsmith/rustnzb:latest
+  ghcr.io/ausagentsmith-org/rustnzb:latest
 ```
 
 Open `http://localhost:9090` and add your NNTP servers via the web UI.
@@ -227,8 +227,8 @@ The SABnzbd-compatible API is available at `/sabnzbd/api`.
 ```bash
 cargo build -p rustnzb              # Debug build
 cargo build -p rustnzb --release    # Release build
-cargo test --workspace   # All tests
-cargo test -p nzb-decode # Single crate
+cargo test --workspace              # All tests
+cargo test -p nzb-decode            # Single crate
 ```
 
 Release-feature app build from the monorepo root:
@@ -243,12 +243,42 @@ dependencies by published version, so removing the patch currently makes
 `--features webdav` builds pull mixed registry and workspace copies of
 `nzb-core` / `nzb-nntp`.
 
-Local and CI Docker builds also still pass Forgejo registry credentials through
-`--build-arg GIT_AUTH_TOKEN` (falling back to `PLUGIN_PASSWORD`) so the private
-`nzbdav-*` crates can resolve during image builds. Docker warns about this
-pattern because build args are not secret-safe; use short-lived tokens and do
-not retain verbose build logs longer than needed until this moves to a
-BuildKit-secret flow.
+The Angular production output is embedded with `rust-embed`. Asset lookup is
+anchored to the app crate's `CARGO_MANIFEST_DIR`, and debug binaries use
+`debug-embed`, so they remain self-contained even if a parallel task removes
+`apps/rustnzb/frontend/dist` after compilation.
+
+For CI parity, use the checked-in container task interface:
+
+```bash
+./ci/run fmt
+./ci/run check
+./ci/run test
+./ci/run clippy
+./ci/run e2e
+./ci/run build-image rustnzb:local
+./ci/run smoke-image rustnzb:local
+```
+
+The canonical Dockerfile builds the frontend and Rust application from tracked
+inputs. Private Forgejo dependencies are authenticated with an
+environment-backed BuildKit secret (`forgejo_token`); the token is not a
+Docker build argument, image environment value, layer, or exported cache
+entry. See [`ci/README.md`](ci/README.md) for task, cache, candidate-promotion,
+and rollback details.
+
+### CI images and Node B deployment
+
+Every `main` push that passes all gates publishes an immutable amd64 candidate
+to Forgejo as `:<full-commit-sha>`, smoke-tests that exact image, and then
+promotes the same digest to Forgejo/GHCR `:dev`. `latest` moves only for tagged
+releases.
+
+A successful application pipeline does not automatically restart Node B.
+Deployment remains GitOps-managed: pin the verified Forgejo SHA in
+`indexarr/ops` at `personal/arr/compose.yaml`, push the ops commit, deploy the
+Komodo stack `personal-arr`, and validate port `8081`, `/api/health`, the
+embedded frontend, container health, and restart count.
 
 ---
 

@@ -1,11 +1,40 @@
 # Containerized Build and Woodpecker Convergence Plan
 
-Status: Proposed
+Status: Core convergence implemented on 2026-07-10
 
 Date: 2026-07-10
 
 Scope: Local development builds, Woodpecker quality gates, release builds, and
 container publication for `indexarr/rustnzb`
+
+## Implementation Record
+
+The convergence work is complete. Woodpecker pipeline 218 for commit
+`2385c85fcad7981c08b0ae8b12725c05c3b89558` passed every quality gate, 85
+Playwright E2E tests, Linux/arm64/Windows artifact builds, immutable dev-image
+publication, runtime smoke verification, and digest promotion.
+
+Two implementation details differ from the original proposal:
+
+- The main dev-image step calls `ci/tasks/build-image` in the pinned Buildx
+  image with the host Docker socket. The script creates an isolated temporary
+  `docker-container` builder, uses an environment-backed BuildKit secret, and
+  exports the registry cache. This avoids the plugin's comma-splitting of
+  `id=forgejo_token,env=...` and its constrained nested overlay.
+- Debug binaries enable `rust-embed`'s `debug-embed` feature and resolve the
+  asset directory through `CARGO_MANIFEST_DIR`. This prevents another
+  concurrently cleaning Woodpecker step from removing assets underneath the
+  running E2E server.
+
+The verified image was deployed through `indexarr/ops` commit `404f604` and
+Komodo stack `personal-arr`; Node B reported the pinned container healthy with
+zero restarts and served `/api/health` plus the embedded UI successfully.
+
+Remaining cleanup items from the original definition of done are deleting the
+tracked compatibility-only `Dockerfile.local`, recording a dedicated cold-path
+runner comparison, and exercising/documenting an actual mutable-tag rollback.
+They do not block the implemented container-first main pipeline, but they keep
+the broader plan from being marked unconditionally complete.
 
 ## Decision
 
@@ -20,9 +49,9 @@ different requirements. The reproducibility guarantee is that a given task
 uses the same image digest, command, inputs, and cache policy locally and in
 Woodpecker.
 
-## Why This Is Needed
+## Pre-migration problem statement
 
-The current pipeline is containerized, but the build definition is split
+Before this work, the pipeline was containerized but the build definition was split
 across several paths:
 
 - `.woodpecker.yml` repeats tool installation and Cargo registry setup in most
@@ -66,8 +95,8 @@ published.
   and Tauri desktop application contain one identical binary. They are
   different product formats and targets, but they will use versioned build
   environments and shared task definitions.
-- Enabling generic Docker-in-Docker on every step. The Buildx plugin already
-  supplies an isolated Docker environment for image builds.
+- Enabling generic Docker-in-Docker on every step. Only the image publication
+  task uses the authorized host Docker socket and an ephemeral Buildx builder.
 - Moving private source or primary CI ownership to GitHub.
 - Changing runtime configuration, deployment topology, or application
   behavior as part of the build migration.

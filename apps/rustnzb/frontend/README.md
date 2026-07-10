@@ -1,59 +1,53 @@
-# Frontend
+# rustnzb Angular frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.5.
+Angular 21 single-page application for the rustnzb web UI. The production
+output is written to `dist/frontend/browser` and embedded into the Rust binary
+by `apps/rustnzb/src/server.rs`.
 
-## Development server
+## Local development
 
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+From this directory:
 
 ```bash
-ng generate component component-name
+npm ci
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+The development server listens on `http://localhost:4200` and uses
+`proxy.conf.json` to reach the Rust API. Start the backend separately from the
+repository root when exercising API-backed views.
+
+## Build and unit tests
 
 ```bash
-ng generate --help
+npm ci --no-audit --no-fund
+npm run build -- --configuration=production
+npm test -- --watch=false
 ```
 
-## Building
+The production build must create
+`dist/frontend/browser/index.html`. Do not commit `node_modules`, `.angular`,
+or `dist`; CI creates and removes them as generated task output.
 
-To build the project run:
+The repository-level equivalents are:
 
 ```bash
-ng build
+./ci/run frontend-test
+./ci/run frontend-audit
+./ci/run e2e
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Browser E2E tests live in the root `e2e/` project and use Playwright with the
+pinned browser included in the `rustnzb-ci-e2e` image.
 
-## Running unit tests
+## Rust embedding behavior
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+The `rust-embed` folder is resolved from the app crate's
+`CARGO_MANIFEST_DIR`, not the process working directory. Debug builds enable
+`debug-embed`, so a compiled E2E/backend binary keeps serving its embedded SPA
+even if another CI task removes `dist` while that binary is running. Release
+builds embed the same production assets normally.
 
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+`index.html` is served with revalidation headers; content-hashed Angular assets
+receive immutable caching. Unknown frontend routes fall back to `index.html`
+for client-side routing.
