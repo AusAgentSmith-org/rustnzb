@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { HistoryEntry, StatusResponse } from '../../core/models/queue.model';
+import { ConfirmService } from '../../shared/confirm.service';
+import { IconComponent } from '../../shared/icon.component';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type TimeFilter = '7d' | '30d' | 'all';
@@ -11,7 +13,7 @@ type TimeFilter = '7d' | '30d' | 'all';
 @Component({
   selector: 'app-history-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, IconComponent],
   template: `
     <!-- Stat cards -->
     <div class="cards4">
@@ -76,7 +78,7 @@ type TimeFilter = '7d' | '30d' | 'all';
               <th>Duration</th>
               <th>Completed</th>
               <th>Status</th>
-              <th style="width:140px"></th>
+              <th style="width:1%"></th>
             </tr>
           </thead>
           <tbody>
@@ -97,20 +99,30 @@ type TimeFilter = '7d' | '30d' | 'all';
                     {{ e.status }}
                   </span>
                 </td>
-                <td>
+                <td class="actions-cell">
                   @if (e.status === 'failed') {
-                    <button class="row-action warn" (click)="retry(e.id)">↻ retry</button>
+                    <button class="row-action warn" (click)="retry(e.id)">
+                      <app-icon name="retry" [size]="11" /> retry
+                    </button>
                   }
                   @if (e.status === 'completed' && webdavEnabled()) {
-                    <button class="row-action media" (click)="addToMedia(e.id)" title="Add to Media Library">▶ media</button>
+                    <button class="row-action media" (click)="addToMedia(e.id)" title="Add to Media Library">
+                      <app-icon name="play" [size]="11" /> media
+                    </button>
                   }
                   <button class="row-action" (click)="openOutput(e)">open</button>
-                  <button class="row-action danger" (click)="remove(e.id)">✕</button>
+                  <button class="row-action danger" (click)="remove(e.id)" aria-label="Delete">
+                    <app-icon name="close" [size]="11" />
+                  </button>
                 </td>
               </tr>
             }
 
-            @if (filteredEntries().length === 0) {
+            @if (loading()) {
+              <tr>
+                <td colspan="7" class="empty-cell">Loading…</td>
+              </tr>
+            } @else if (filteredEntries().length === 0) {
               <tr>
                 <td colspan="7" class="empty-cell">
                   @if (entries().length === 0) {
@@ -136,9 +148,17 @@ type TimeFilter = '7d' | '30d' | 'all';
       color: var(--mute); font-size: 13px;
     }
     .row-action.media { color: var(--accent, #7c6af7); border-color: var(--accent, #7c6af7); }
+    .actions-cell {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 2px;
+      white-space: nowrap;
+    }
   `],
 })
 export class HistoryViewComponent implements OnInit, OnDestroy {
+  loading = signal(true);
   entries = signal<HistoryEntry[]>([]);
   webdavEnabled = signal(false);
   filterStatus: StatusFilter = 'all';
@@ -148,7 +168,11 @@ export class HistoryViewComponent implements OnInit, OnDestroy {
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private api: ApiService, private snack: MatSnackBar) {}
+  constructor(
+    private api: ApiService,
+    private snack: MatSnackBar,
+    private confirmSvc: ConfirmService,
+  ) {}
 
   ngOnInit(): void {
     this.load();
@@ -165,8 +189,8 @@ export class HistoryViewComponent implements OnInit, OnDestroy {
 
   load(): void {
     this.api.get<{ entries: HistoryEntry[] }>('/history').subscribe({
-      next: r => this.entries.set(r.entries || []),
-      error: () => {},
+      next: r => { this.entries.set(r.entries || []); this.loading.set(false); },
+      error: () => this.loading.set(false),
     });
   }
 
@@ -264,11 +288,20 @@ export class HistoryViewComponent implements OnInit, OnDestroy {
   }
 
   clearAll(): void {
-    if (!confirm('Clear all history?')) return;
-    this.api.delete('/history').subscribe(() => {
-      this.load();
-      this.snack.open('History cleared', 'Close', { duration: 2000 });
-    });
+    this.confirmSvc
+      .confirm({
+        title: 'Clear all history?',
+        message: 'This permanently deletes every history entry. This cannot be undone.',
+        confirmLabel: 'Clear all',
+        danger: true,
+      })
+      .subscribe((ok) => {
+        if (!ok) return;
+        this.api.delete('/history').subscribe(() => {
+          this.load();
+          this.snack.open('History cleared', 'Close', { duration: 2000 });
+        });
+      });
   }
 
   openOutput(e: HistoryEntry): void {
