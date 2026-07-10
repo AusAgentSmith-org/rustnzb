@@ -40,23 +40,17 @@ test('4.3 paused job shows paused status pill', async ({ page }) => {
   await expect(jobRow.locator('.s-paused')).toBeVisible();
 });
 
-// ── 4.4 Pause / resume "Another.Show.S01E01" ─────────────────────────────────
+// ── 4.4 Global pause owns "Another.Show.S01E01" ──────────────────────────────
 
-test('4.4 queued job can be paused', async ({ page }) => {
+test('4.4 global pause overrides queued job controls', async ({ page }) => {
   await page.goto('/downloads');
 
   const jobRow = page.locator('.data').locator('tr, .row', { hasText: 'Another.Show.S01E01' }).first();
   await expect(jobRow).toBeVisible();
 
-  // Should start as queued
-  await expect(jobRow.locator('.s-q')).toBeVisible();
-
-  // Click pause (❚❚)
-  await jobRow.getByRole('button', { name: 'Pause' }).click();
-
-  // Status changes to paused
+  // The backend row is queued, but global pause is the effective status.
   await expect(jobRow.locator('.s-paused')).toBeVisible();
-
+  await expect(jobRow.getByRole('button', { name: 'Resume' })).toBeDisabled();
 });
 
 // ── 4.5 Status filter buttons ─────────────────────────────────────────────────

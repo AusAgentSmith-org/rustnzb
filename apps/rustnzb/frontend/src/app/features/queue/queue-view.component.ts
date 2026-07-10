@@ -1314,9 +1314,13 @@ export class QueueViewComponent implements OnInit, OnDestroy {
     const all = this.jobs();
     if (this.filterStatus === 'all') return all;
     if (this.filterStatus === 'active')
-      return all.filter((j) => j.status === 'downloading' || this.isPostProc(j.status));
-    if (this.filterStatus === 'queued') return all.filter((j) => j.status === 'queued');
-    if (this.filterStatus === 'paused') return all.filter((j) => j.status === 'paused');
+      return all.filter(
+        (j) => this.effectiveStatus(j.status) === 'downloading' || this.isPostProc(j.status),
+      );
+    if (this.filterStatus === 'queued')
+      return all.filter((j) => this.effectiveStatus(j.status) === 'queued');
+    if (this.filterStatus === 'paused')
+      return all.filter((j) => this.effectiveStatus(j.status) === 'paused');
     return all;
   }
 

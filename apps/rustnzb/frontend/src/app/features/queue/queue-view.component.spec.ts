@@ -188,6 +188,17 @@ describe('QueueViewComponent', () => {
     expect(component.effectiveStatus('extracting')).toBe('extracting');
   });
 
+  it('filters globally stopped queued jobs as paused', () => {
+    const { component } = makeComponent();
+    component.jobs.set([makeJob({ status: 'queued' })]);
+    component.paused.set(true);
+
+    component.filterStatus = 'paused';
+    expect(component.filteredJobs().map((job) => job.id)).toEqual(['job-1']);
+    component.filterStatus = 'queued';
+    expect(component.filteredJobs()).toEqual([]);
+  });
+
   it('never sends an individual resume while global pause is active', () => {
     const { component, api } = makeComponent();
     component.paused.set(true);
