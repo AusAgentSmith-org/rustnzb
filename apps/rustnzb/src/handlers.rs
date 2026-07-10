@@ -290,6 +290,8 @@ pub struct StatusResponse {
     pub speed_limit_bps: u64,
     pub queue_size: usize,
     pub disk_space_free: u64,
+    /// Total filesystem capacity, 0 if unknown (see `get_disk_space_total`).
+    pub disk_space_total: u64,
     pub min_free_space_bytes: u64,
     pub pause_remaining_secs: Option<i64>,
     pub webdav_available: bool,
@@ -786,6 +788,7 @@ pub async fn h_status(
         speed_limit_bps: qm.get_speed_limit(),
         queue_size: qm.queue_size(),
         disk_space_free: get_disk_space_free(&config.general.complete_dir),
+        disk_space_total: get_disk_space_total(&config.general.complete_dir),
         min_free_space_bytes: qm.min_free_space(),
         pause_remaining_secs: qm.pause_remaining_secs(),
         #[cfg(feature = "webdav")]
@@ -1615,27 +1618,44 @@ pub async fn h_server_stats(
 
 /// Get free disk space for a path (returns 0 on error).
 fn get_disk_space_free(path: &std::path::Path) -> u64 {
+    get_disk_space(path).0
+}
+
+/// Get total disk space for a path's filesystem (returns 0 on error or
+/// unsupported platform — the UI treats 0 as "unknown" and hides any
+/// usage bar derived from it rather than showing a bogus percentage).
+fn get_disk_space_total(path: &std::path::Path) -> u64 {
+    get_disk_space(path).1
+}
+
+/// Get (free, total) disk space in bytes for the filesystem containing
+/// `path`. Returns `(0, 0)` on error or on platforms without a `statvfs`
+/// equivalent wired up (currently: everything but Unix).
+#[cfg_attr(not(unix), allow(unused_variables))]
+fn get_disk_space(path: &std::path::Path) -> (u64, u64) {
     #[cfg(unix)]
     {
         use std::ffi::CString;
         use std::mem::MaybeUninit;
         let c_path = match CString::new(path.to_string_lossy().as_bytes()) {
             Ok(p) => p,
-            Err(_) => return 0,
+            Err(_) => return (0, 0),
         };
         unsafe {
             let mut stat = MaybeUninit::<libc::statvfs>::uninit();
             if libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) == 0 {
                 let stat = stat.assume_init();
                 #[allow(clippy::unnecessary_cast)] // u32 on macOS, u64 on Linux
-                return stat.f_bavail as u64 * stat.f_frsize as u64;
+                let frsize = stat.f_frsize as u64;
+                #[allow(clippy::unnecessary_cast)]
+                return (stat.f_bavail as u64 * frsize, stat.f_blocks as u64 * frsize);
             }
         }
-        0
+        (0, 0)
     }
     #[cfg(not(unix))]
     {
-        0
+        (0, 0)
     }
 }
 
