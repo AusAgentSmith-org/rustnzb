@@ -194,7 +194,7 @@ async fn start_engine() -> anyhow::Result<(Arc<QueueManager>, u16)> {
     // Spawn the HTTP server in the background
     let state = result.state;
     tokio::spawn(async move {
-        if let Err(e) = nzb_web::run(state).await {
+        if let Err(e) = rustnzb::server::run(state).await {
             error!("HTTP server error: {e}");
         }
     });
