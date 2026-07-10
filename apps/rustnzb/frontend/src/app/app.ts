@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, OnDestroy, ViewChild, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -7,11 +7,12 @@ import { AuthService } from './core/services/auth.service';
 import { StatusResponse } from './core/models/queue.model';
 import { AddNzbService } from './core/services/add-nzb.service';
 import { WidthModeService } from './core/services/width-mode.service';
+import { IconComponent } from './shared/icon.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, IconComponent],
   template: `
     @if (!authenticated()) {
       <!-- Full-screen login (no chrome) -->
@@ -46,6 +47,8 @@ import { WidthModeService } from './core/services/width-mode.service';
                 [class.active]="widthMode.mode() === 'compact'"
                 (click)="widthMode.set('compact')"
                 title="Compact"
+                aria-label="Compact layout"
+                [attr.aria-pressed]="widthMode.mode() === 'compact'"
               >
                 <svg
                   viewBox="0 0 16 16"
@@ -62,6 +65,8 @@ import { WidthModeService } from './core/services/width-mode.service';
                 [class.active]="widthMode.mode() === 'expanded'"
                 (click)="widthMode.set('expanded')"
                 title="Expanded"
+                aria-label="Expanded layout"
+                [attr.aria-pressed]="widthMode.mode() === 'expanded'"
               >
                 <svg
                   viewBox="0 0 16 16"
@@ -75,29 +80,38 @@ import { WidthModeService } from './core/services/width-mode.service';
               </button>
             </div>
             <button class="action primary" (click)="onAddNzb()">+ Upload NZB</button>
-            <div class="pause-group">
+            <div class="pause-group" (keydown.escape)="closePauseMenu()">
               <button class="action" (click)="togglePause()">
-                {{ paused() ? '▶ Resume' : '❚❚ Pause' }}
+                @if (paused()) {
+                  <app-icon name="play" [size]="11" /> Resume
+                } @else {
+                  <app-icon name="pause" [size]="11" /> Pause
+                }
               </button>
               @if (!paused()) {
                 <button
+                  #pauseCaretBtn
                   class="action pause-caret"
                   (click)="pauseMenuOpen = !pauseMenuOpen"
                   title="Pause for…"
+                  aria-label="Pause for…"
+                  aria-haspopup="true"
+                  [attr.aria-expanded]="pauseMenuOpen"
                 >
-                  ▾
+                  <app-icon name="chevron-down" [size]="11" />
                 </button>
                 @if (pauseMenuOpen) {
-                  <div class="pause-menu" (click)="$event.stopPropagation()">
+                  <div class="pause-menu" role="menu" (click)="$event.stopPropagation()">
                     <div class="pm-title">Pause for…</div>
                     @for (opt of pauseTimerOptions; track opt.secs) {
-                      <button class="pm-item" (click)="pauseFor(opt.secs)">{{ opt.label }}</button>
+                      <button class="pm-item" role="menuitem" (click)="pauseFor(opt.secs)">{{ opt.label }}</button>
                     }
                     <div class="pm-custom">
                       <input
                         type="number"
                         min="1"
                         placeholder="min"
+                        aria-label="Custom pause duration in minutes"
                         [(ngModel)]="customPauseMin"
                         (keydown.enter)="pauseForCustom()"
                       />
@@ -367,6 +381,7 @@ export class App implements OnInit, OnDestroy {
   authenticated = signal(false);
   pauseMenuOpen = false;
   customPauseMin: number | null = null;
+  @ViewChild('pauseCaretBtn') pauseCaretBtn?: ElementRef<HTMLButtonElement>;
   readonly pauseTimerOptions = [
     { label: '5 minutes', secs: 5 * 60 },
     { label: '15 minutes', secs: 15 * 60 },
@@ -437,6 +452,12 @@ export class App implements OnInit, OnDestroy {
     const action = this.paused() ? '/queue/resume' : '/queue/pause';
     this.api.post(action).subscribe(() => this.pollStatus());
     this.pauseMenuOpen = false;
+  }
+
+  closePauseMenu(): void {
+    if (!this.pauseMenuOpen) return;
+    this.pauseMenuOpen = false;
+    this.pauseCaretBtn?.nativeElement.focus();
   }
 
   pauseFor(secs: number): void {

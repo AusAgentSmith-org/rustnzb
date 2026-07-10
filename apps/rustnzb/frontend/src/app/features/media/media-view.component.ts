@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
+import { IconComponent } from '../../shared/icon.component';
 
 interface DavFile {
   href: string; // path from WebDAV root, e.g. /content/Release/file.mkv
@@ -63,7 +64,7 @@ const AUDIO_EXTS = new Set(['mp3', 'flac', 'aac', 'ogg', 'wav', 'm4a', 'opus']);
 @Component({
   selector: 'app-media-view',
   standalone: true,
-  imports: [CommonModule, MatSnackBarModule],
+  imports: [CommonModule, MatSnackBarModule, IconComponent],
   template: `
     <!-- Header bar -->
     <div class="panel">
@@ -74,7 +75,7 @@ const AUDIO_EXTS = new Set(['mp3', 'flac', 'aac', 'ogg', 'wav', 'm4a', 'opus']);
         >
         <button class="btn ghost sm" style="margin-left:8px" (click)="copyBase()">Copy URL</button>
         <button class="btn ghost sm" style="margin-left:4px" (click)="loadContent()">
-          ↻ Refresh
+          <app-icon name="retry" [size]="11" /> Refresh
         </button>
       </h3>
     </div>
@@ -125,7 +126,9 @@ const AUDIO_EXTS = new Set(['mp3', 'flac', 'aac', 'ogg', 'wav', 'm4a', 'opus']);
                   >
                     <td>
                       @if (!rel.failMessage) {
-                        <span class="toggle-icon">{{ rel.expanded ? '▾' : '▸' }}</span>
+                        <span class="toggle-icon">
+                          <app-icon [name]="rel.expanded ? 'chevron-down' : 'chevron-right'" [size]="12" />
+                        </span>
                       }
                       <span class="rel-name">{{ rel.name }}</span>
                       @if (rel.loading) {
@@ -179,7 +182,7 @@ const AUDIO_EXTS = new Set(['mp3', 'flac', 'aac', 'ogg', 'wav', 'm4a', 'opus']);
                               [href]="fileUrl(f.href)"
                               target="_blank"
                               title="Open in browser / media player"
-                              >▶ play</a
+                              ><app-icon name="play" [size]="11" /> play</a
                             >
                           }
                           <button
