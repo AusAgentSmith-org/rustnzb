@@ -1786,6 +1786,13 @@ impl QueueManager {
     }
 
     /// Remove a specific job from the queue.
+    ///
+    /// If the job was sitting in an error state (e.g. paused because no
+    /// server was reachable, or stalled) when removed, it's preserved as a
+    /// `Failed` history entry first — otherwise the only record of the
+    /// failure (the error message) is lost the moment the user clears it.
+    /// A job removed with no error (the user simply doesn't want it) is
+    /// just deleted, matching prior behavior.
     pub fn remove_job(&self, id: &str) -> crate::nzb_core::Result<()> {
         // Silently cancel in the pool — drains queued items and unregisters.
         self.worker_pool.cancel_job(id);
@@ -1795,9 +1802,36 @@ impl QueueManager {
                 handle.abort();
             }
 
-            // Remove from DB
             let db = self.db.lock();
+
+            if state.job.error_message.is_some() {
+                let history_entry = HistoryEntry {
+                    id: state.job.id.clone(),
+                    name: state.job.name.clone(),
+                    category: state.job.category.clone(),
+                    status: JobStatus::Failed,
+                    total_bytes: state.job.total_bytes,
+                    downloaded_bytes: state.job.downloaded_bytes,
+                    added_at: state.job.added_at,
+                    completed_at: state.job.completed_at.unwrap_or_else(chrono::Utc::now),
+                    output_dir: state.job.output_dir.clone(),
+                    stages: Vec::new(),
+                    error_message: state.job.error_message.clone(),
+                    server_stats: state.job.server_stats.clone(),
+                    nzb_data: state.nzb_data.clone(),
+                };
+                if let Err(e) = db.history_insert(&history_entry) {
+                    error!(job_id = %id, "Failed to insert history for removed failed job: {e}");
+                } else if let Some(max) = *self.history_retention.lock()
+                    && let Err(e) = db.history_enforce_retention(max)
+                {
+                    warn!("Failed to enforce history retention: {e}");
+                }
+            }
+
+            // Remove from DB
             let _ = db.queue_remove(id);
+            drop(db);
 
             // Remove from order
             self.job_order.lock().retain(|jid| jid != id);
