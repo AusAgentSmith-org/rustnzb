@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, WritableSignal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -7,6 +7,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Observable, Subscription, finalize } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AddNzbService } from '../../core/services/add-nzb.service';
+import { PauseStateService } from '../../core/services/pause-state.service';
 import { NzbJob, QueueResponse, StatusResponse } from '../../core/models/queue.model';
 import { HistoryViewComponent } from '../history/history-view.component';
 import { ConfirmService } from '../../shared/confirm.service';
@@ -405,8 +406,8 @@ interface PipelineStep {
                 <td>{{ job.speed_bps > 0 ? formatSpeed(job.speed_bps) : '—' }}</td>
                 <td>{{ job.speed_bps > 0 ? eta(job) : '—' }}</td>
                 <td>
-                  <span class="status-pill" [class]="statusClass(job.status)">{{
-                    displayStatus(job.status)
+                  <span class="status-pill" [class]="statusClass(effectiveStatus(job.status))">{{
+                    displayStatus(effectiveStatus(job.status))
                   }}</span>
                 </td>
                 <td>
@@ -426,12 +427,12 @@ interface PipelineStep {
                   </select>
                 </td>
                 <td class="action-cell">
-                  @if (job.status === 'paused') {
+                  @if (effectiveStatus(job.status) === 'paused') {
                     <button
                       class="row-action"
-                      [disabled]="isActionPending(job.id)"
+                      [disabled]="paused() || isActionPending(job.id)"
                       (click)="resumeJob(job.id)"
-                      title="resume"
+                      [title]="paused() ? 'Global pause is active' : 'resume'"
                       aria-label="Resume"
                     >
                       <app-icon name="play" [size]="12" />
@@ -439,9 +440,9 @@ interface PipelineStep {
                   } @else {
                     <button
                       class="row-action"
-                      [disabled]="isActionPending(job.id)"
+                      [disabled]="paused() || isActionPending(job.id)"
                       (click)="pauseJob(job.id)"
-                      title="pause"
+                      [title]="paused() ? 'Global pause is active' : 'pause'"
                       aria-label="Pause"
                     >
                       <app-icon name="pause" [size]="12" />
@@ -1068,7 +1069,7 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   servers = signal<ServerConfigLite[]>([]);
   status = signal<StatusResponse | null>(null);
   selectedIds = signal<Set<string>>(new Set());
-  paused = signal(false);
+  paused: WritableSignal<boolean>;
   actionPendingIds = signal<Set<string>>(new Set());
   draggingJobId = signal<string | null>(null);
   dragOverJobId = signal<string | null>(null);
@@ -1119,7 +1120,10 @@ export class QueueViewComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private confirmSvc: ConfirmService,
-  ) {}
+    pauseState: PauseStateService,
+  ) {
+    this.paused = pauseState.paused;
+  }
 
   ngOnInit(): void {
     this.routeSub = this.route.data.subscribe((data) => {
@@ -1440,6 +1444,10 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   }
 
   resumeJob(id: string): void {
+    // The backend enforces the same invariant. Keeping the guard here avoids
+    // a misleading request/toast if stale DOM or keyboard input fires while
+    // the global pause state is active.
+    if (this.paused()) return;
     this.withPendingJobAction(id, () => this.api.post(`/queue/${id}/resume`), 'Job resumed');
   }
 
@@ -1666,6 +1674,11 @@ export class QueueViewComponent implements OnInit, OnDestroy {
     if (status === 'failed') return 's-fail';
     if (this.isPostProc(status)) return 's-pp';
     return 's-q';
+  }
+
+  effectiveStatus(status: string): string {
+    if (this.paused() && (status === 'downloading' || status === 'queued')) return 'paused';
+    return status;
   }
 
   displayStatus(status: string): string {

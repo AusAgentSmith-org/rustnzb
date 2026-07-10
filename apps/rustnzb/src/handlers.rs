@@ -612,6 +612,12 @@ pub async fn h_queue_resume(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<SimpleResponse>, ApiError> {
+    if state.queue_manager.is_paused() {
+        return Err(ApiError::from((
+            StatusCode::CONFLICT,
+            "Cannot resume an individual job while downloads are globally paused".to_string(),
+        )));
+    }
     state
         .queue_manager
         .resume_job(&id)

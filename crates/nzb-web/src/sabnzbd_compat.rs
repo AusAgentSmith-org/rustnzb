@@ -489,20 +489,46 @@ fn handle_queue_delete(state: &AppState, req: &SabApiRequest) -> Json<serde_json
     Json(serde_json::json!({ "status": false }))
 }
 
-/// Stub for mode=queue&name=pause&value=nzo_ID
-fn handle_queue_item_pause(_state: &AppState, req: &SabApiRequest) -> Json<serde_json::Value> {
+/// Handle mode=queue&name=pause&value=nzo_ID.
+fn handle_queue_item_pause(state: &AppState, req: &SabApiRequest) -> Json<serde_json::Value> {
     let target = req.value.as_deref().unwrap_or("");
     let search_id = target.strip_prefix("SABnzbd_nzo_").unwrap_or(target);
-    tracing::debug!(id = %search_id, "Queue item pause requested (stub)");
-    Json(serde_json::json!({ "status": true }))
+    let Some(job) = state
+        .queue_manager
+        .get_jobs()
+        .into_iter()
+        .find(|job| job.id == search_id || job.id.starts_with(search_id))
+    else {
+        return Json(serde_json::json!({ "status": false, "error": "Job not found" }));
+    };
+    match state.queue_manager.pause_job(&job.id) {
+        Ok(()) => Json(serde_json::json!({ "status": true })),
+        Err(error) => Json(serde_json::json!({ "status": false, "error": error.to_string() })),
+    }
 }
 
-/// Stub for mode=queue&name=resume&value=nzo_ID
-fn handle_queue_item_resume(_state: &AppState, req: &SabApiRequest) -> Json<serde_json::Value> {
+/// Handle mode=queue&name=resume&value=nzo_ID.
+fn handle_queue_item_resume(state: &AppState, req: &SabApiRequest) -> Json<serde_json::Value> {
+    if state.queue_manager.is_paused() {
+        return Json(serde_json::json!({
+            "status": false,
+            "error": "Cannot resume an individual job while downloads are globally paused"
+        }));
+    }
     let target = req.value.as_deref().unwrap_or("");
     let search_id = target.strip_prefix("SABnzbd_nzo_").unwrap_or(target);
-    tracing::debug!(id = %search_id, "Queue item resume requested (stub)");
-    Json(serde_json::json!({ "status": true }))
+    let Some(job) = state
+        .queue_manager
+        .get_jobs()
+        .into_iter()
+        .find(|job| job.id == search_id || job.id.starts_with(search_id))
+    else {
+        return Json(serde_json::json!({ "status": false, "error": "Job not found" }));
+    };
+    match state.queue_manager.resume_job(&job.id) {
+        Ok(()) => Json(serde_json::json!({ "status": true })),
+        Err(error) => Json(serde_json::json!({ "status": false, "error": error.to_string() })),
+    }
 }
 
 fn handle_history(state: &AppState, req: &SabApiRequest) -> Json<serde_json::Value> {
@@ -622,6 +648,12 @@ fn handle_resume(state: &AppState, req: &SabApiRequest) -> Json<serde_json::Valu
     if let Some(nzo_id) = target_id
         && !nzo_id.is_empty()
     {
+        if qm.is_paused() {
+            return Json(serde_json::json!({
+                "status": false,
+                "error": "Cannot resume an individual job while downloads are globally paused"
+            }));
+        }
         let search_id = nzo_id.strip_prefix("SABnzbd_nzo_").unwrap_or(nzo_id);
 
         let jobs = qm.get_jobs();

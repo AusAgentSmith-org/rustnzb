@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { convertToParamMap, ParamMap } from '@angular/router';
 
 import { AddNzbService } from '../../core/services/add-nzb.service';
+import { PauseStateService } from '../../core/services/pause-state.service';
 import { ApiService } from '../../core/services/api.service';
 import { NzbJob } from '../../core/models/queue.model';
 import { QueueViewComponent } from './queue-view.component';
@@ -86,6 +87,7 @@ function makeComponent(
     route as never,
     router as never,
     confirmSvc as never,
+    new PauseStateService(),
   );
 
   return { component, api, http, snackBar: snackbarStub, route, router };
@@ -175,6 +177,24 @@ describe('QueueViewComponent', () => {
 
     expect(loadQueue).toHaveBeenCalledTimes(1);
     expect(snackBar.open).toHaveBeenCalledWith('Job paused', 'Close', { duration: 2500 });
+  });
+
+  it('shows active download states as paused while global pause is active', () => {
+    const { component } = makeComponent();
+    component.paused.set(true);
+
+    expect(component.effectiveStatus('downloading')).toBe('paused');
+    expect(component.effectiveStatus('queued')).toBe('paused');
+    expect(component.effectiveStatus('extracting')).toBe('extracting');
+  });
+
+  it('never sends an individual resume while global pause is active', () => {
+    const { component, api } = makeComponent();
+    component.paused.set(true);
+
+    component.resumeJob('job-1');
+
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('reloads queue and shows feedback after a failed row action', () => {

@@ -1,4 +1,12 @@
-import { Component, ElementRef, OnInit, OnDestroy, ViewChild, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnInit,
+  OnDestroy,
+  ViewChild,
+  signal,
+  WritableSignal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -7,6 +15,7 @@ import { AuthService } from './core/services/auth.service';
 import { StatusResponse } from './core/models/queue.model';
 import { AddNzbService } from './core/services/add-nzb.service';
 import { WidthModeService } from './core/services/width-mode.service';
+import { PauseStateService } from './core/services/pause-state.service';
 import { IconComponent } from './shared/icon.component';
 
 @Component({
@@ -374,7 +383,7 @@ export class App implements OnInit, OnDestroy {
   version = signal('');
 
   speed = signal(0);
-  paused = signal(false);
+  paused: WritableSignal<boolean>;
   queueCount = signal(0);
   diskFree = signal(0);
   webdavEnabled = signal(false);
@@ -402,7 +411,10 @@ export class App implements OnInit, OnDestroy {
     private router: Router,
     private addNzbService: AddNzbService,
     public widthMode: WidthModeService,
-  ) {}
+    pauseState: PauseStateService,
+  ) {
+    this.paused = pauseState.paused;
+  }
 
   ngOnInit(): void {
     this.authenticated.set(this.authService.isLoggedIn());
@@ -449,8 +461,18 @@ export class App implements OnInit, OnDestroy {
   }
 
   togglePause(): void {
-    const action = this.paused() ? '/queue/resume' : '/queue/pause';
-    this.api.post(action).subscribe(() => this.pollStatus());
+    const wasPaused = this.paused();
+    const action = wasPaused ? '/queue/resume' : '/queue/pause';
+    // Update every consumer immediately; the backend remains authoritative
+    // and the next status poll corrects this if the request fails.
+    this.paused.set(!wasPaused);
+    this.api.post(action).subscribe({
+      next: () => this.pollStatus(),
+      error: () => {
+        this.paused.set(wasPaused);
+        this.pollStatus();
+      },
+    });
     this.pauseMenuOpen = false;
   }
 

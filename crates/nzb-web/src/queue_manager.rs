@@ -4,7 +4,7 @@
 //! engine instances, and exposes a thread-safe API for the HTTP handlers
 //! to interact with.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
@@ -383,6 +383,14 @@ pub struct QueueManager {
     servers: Arc<Mutex<Vec<ServerConfig>>>,
     /// Whether all downloads are globally paused.
     globally_paused: AtomicBool,
+    /// Serializes global pause/resume transitions with individual resume
+    /// attempts so the global gate cannot be bypassed by a racing request.
+    pause_transition: Mutex<()>,
+    /// Jobs whose `Paused` status was applied by the current global pause.
+    ///
+    /// Keeping this separate from ordinary per-job pause state means that
+    /// `resume_all` only resumes work stopped by `pause_all`.
+    globally_paused_jobs: Mutex<HashSet<String>>,
     /// Global speed tracker.
     speed: SpeedTracker,
     /// Database for persistence.
@@ -425,6 +433,8 @@ pub struct QueueManager {
 }
 
 impl QueueManager {
+    const GLOBAL_PAUSED_JOBS_SETTING: &'static str = "globally_paused_job_ids";
+
     /// Create a new queue manager.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -475,6 +485,8 @@ impl QueueManager {
             job_order: Mutex::new(Vec::new()),
             servers: servers_arc,
             globally_paused: AtomicBool::new(false),
+            pause_transition: Mutex::new(()),
+            globally_paused_jobs: Mutex::new(HashSet::new()),
             speed: SpeedTracker::new(),
             db: Mutex::new(db),
             incomplete_dir: Mutex::new(incomplete_dir),
@@ -508,6 +520,16 @@ impl QueueManager {
     /// Get history retention limit (None = keep all).
     pub fn get_history_retention(&self) -> Option<usize> {
         *self.history_retention.lock()
+    }
+
+    fn persist_globally_paused_jobs(&self) {
+        let mut ids: Vec<_> = self.globally_paused_jobs.lock().iter().cloned().collect();
+        ids.sort();
+        if let Ok(value) = serde_json::to_string(&ids) {
+            self.db
+                .lock()
+                .set_setting(Self::GLOBAL_PAUSED_JOBS_SETTING, &value);
+        }
     }
 
     /// Set history retention limit.
@@ -740,6 +762,8 @@ impl QueueManager {
                 hopeless_tracker: None,
             };
             self.jobs.lock().insert(job_id.clone(), state);
+            self.globally_paused_jobs.lock().insert(job_id.clone());
+            self.persist_globally_paused_jobs();
             self.job_order.lock().push(job_id);
             return Ok(());
         }
@@ -1724,6 +1748,11 @@ impl QueueManager {
             info!(job_id = %id, "Job paused");
         }
 
+        // If the job was paused by the global control, this explicit action
+        // changes it into an individual pause that must survive Resume All.
+        self.globally_paused_jobs.lock().remove(id);
+        self.persist_globally_paused_jobs();
+
         // Release the download slot so queued jobs can start
         self.start_next_queued();
         Ok(())
@@ -1731,6 +1760,13 @@ impl QueueManager {
 
     /// Resume a specific job.
     pub fn resume_job(self: &Arc<Self>, id: &str) -> crate::nzb_core::Result<()> {
+        let _transition = self.pause_transition.lock();
+        if self.globally_paused.load(Ordering::SeqCst) {
+            return Err(crate::nzb_core::NzbError::Other(
+                "Cannot resume an individual job while downloads are globally paused".to_string(),
+            ));
+        }
+
         let ctx_alive = self.worker_pool.has_job(id);
 
         let needs_launch = {
@@ -1798,6 +1834,8 @@ impl QueueManager {
         self.worker_pool.cancel_job(id);
         let removed = self.jobs.lock().remove(id);
         if let Some(state) = removed {
+            self.globally_paused_jobs.lock().remove(id);
+            self.persist_globally_paused_jobs();
             if let Some(handle) = state.progress_handle {
                 handle.abort();
             }
@@ -1899,7 +1937,11 @@ impl QueueManager {
 
     /// Pause all downloads globally.
     pub fn pause_all(&self) {
-        self.globally_paused.store(true, Ordering::Relaxed);
+        let _transition = self.pause_transition.lock();
+        // Publish the global gate before touching individual jobs. This
+        // prevents every scheduling and per-job resume path from starting
+        // more work while the active contexts are being paused.
+        self.globally_paused.store(true, Ordering::SeqCst);
         self.db.lock().set_setting("globally_paused", "true");
 
         // Collect ids to pause in the pool, to avoid holding the jobs lock
@@ -1914,6 +1956,7 @@ impl QueueManager {
                         state.job.status = JobStatus::Paused;
                     }
                     JobStatus::Queued => {
+                        ids.push(id.clone());
                         state.job.status = JobStatus::Paused;
                     }
                     _ => {}
@@ -1921,6 +1964,10 @@ impl QueueManager {
             }
             ids
         };
+        self.globally_paused_jobs
+            .lock()
+            .extend(to_pause.iter().cloned());
+        self.persist_globally_paused_jobs();
         for id in to_pause {
             self.worker_pool.pause_job(&id);
         }
@@ -1930,16 +1977,19 @@ impl QueueManager {
     /// Pause all downloads for a specified duration.
     pub fn pause_for(self: &Arc<Self>, duration_secs: u64) {
         self.pause_all();
-        let until = Utc::now() + chrono::Duration::seconds(duration_secs as i64);
-        *self.pause_until.lock() = Some(until);
+        let until_value = Utc::now() + chrono::Duration::seconds(duration_secs as i64);
+        *self.pause_until.lock() = Some(until_value);
 
         let qm = Arc::clone(self);
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(duration_secs)).await;
-            // Only auto-resume if the pause_until hasn't been cleared
+            // Only this exact timer may resume the queue. A newer timed pause
+            // must not be cancelled when an older timer wakes up.
             let should_resume = {
                 let until = qm.pause_until.lock();
-                until.is_some()
+                until
+                    .as_ref()
+                    .is_some_and(|current| *current == until_value)
             };
             if should_resume {
                 *qm.pause_until.lock() = None;
@@ -1962,21 +2012,28 @@ impl QueueManager {
 
     /// Resume all downloads globally.
     pub fn resume_all(self: &Arc<Self>) {
-        self.globally_paused.store(false, Ordering::Relaxed);
+        let _transition = self.pause_transition.lock();
+        self.globally_paused.store(false, Ordering::SeqCst);
         self.db.lock().set_setting("globally_paused", "false");
         *self.pause_until.lock() = None;
+
+        let paused_by_global = std::mem::take(&mut *self.globally_paused_jobs.lock());
+        self.persist_globally_paused_jobs();
 
         // Decide per job whether to just unpause (ctx still in pool) or
         // mark it as Queued so start_next_queued re-submits it.
         let mut to_unpause: Vec<String> = Vec::new();
         {
             let mut jobs = self.jobs.lock();
-            for (id, state) in jobs.iter_mut() {
+            for id in paused_by_global {
+                let Some(state) = jobs.get_mut(&id) else {
+                    continue;
+                };
                 if state.job.status == JobStatus::Paused {
                     state.job.error_message = None;
-                    if self.worker_pool.has_job(id) {
+                    if self.worker_pool.has_job(&id) {
                         state.job.status = JobStatus::Downloading;
-                        to_unpause.push(id.clone());
+                        to_unpause.push(id);
                     } else {
                         state.job.status = JobStatus::Queued;
                     }
@@ -2045,6 +2102,12 @@ impl QueueManager {
     /// Only targets jobs where `error_message` is set (i.e. paused by the
     /// circuit breaker / `NoServersAvailable`), not user-paused jobs.
     fn resume_server_paused_jobs(self: &Arc<Self>) {
+        let _transition = self.pause_transition.lock();
+        if self.globally_paused.load(Ordering::SeqCst) {
+            debug!("Global pause active; deferring automatic server-error resumes");
+            return;
+        }
+
         let mut resumed = 0u32;
         let mut to_unpause: Vec<String> = Vec::new();
         {
@@ -2115,7 +2178,7 @@ impl QueueManager {
 
     /// Check if downloads are globally paused.
     pub fn is_paused(&self) -> bool {
-        self.globally_paused.load(Ordering::Relaxed)
+        self.globally_paused.load(Ordering::SeqCst)
     }
 
     /// Get the number of jobs in the queue.
@@ -2418,13 +2481,18 @@ impl QueueManager {
     /// mark already-downloaded articles, so downloads resume where they left off.
     pub fn restore_from_db(self: &Arc<Self>) -> crate::nzb_core::Result<()> {
         // Restore globally_paused from persisted state
-        let was_paused = {
+        let (was_paused, persisted_global_ids) = {
             let db = self.db.lock();
-            db.get_setting("globally_paused")
-                .is_some_and(|v| v == "true")
+            let paused = db
+                .get_setting("globally_paused")
+                .is_some_and(|v| v == "true");
+            let ids = db
+                .get_setting(Self::GLOBAL_PAUSED_JOBS_SETTING)
+                .and_then(|value| serde_json::from_str::<HashSet<String>>(&value).ok());
+            (paused, ids)
         };
         if was_paused {
-            self.globally_paused.store(true, Ordering::Relaxed);
+            self.globally_paused.store(true, Ordering::SeqCst);
             info!("Restored global pause state from database");
         }
 
@@ -2520,10 +2588,14 @@ impl QueueManager {
                 }
             }
 
-            if job.status == JobStatus::Paused && was_paused {
-                // Keep as Paused — it's globally paused; resume_all will
-                // re-submit it to the pool.
-            } else if job.status == JobStatus::Paused || job.status == JobStatus::Downloading {
+            let paused_by_global = was_paused
+                && persisted_global_ids
+                    .as_ref()
+                    .map_or(job.status == JobStatus::Paused, |ids| ids.contains(&job_id));
+            if paused_by_global {
+                job.status = JobStatus::Paused;
+                self.globally_paused_jobs.lock().insert(job_id.clone());
+            } else if job.status == JobStatus::Downloading {
                 job.status = JobStatus::Queued;
             }
 
@@ -2793,22 +2865,133 @@ impl QueueManager {
                             min_free_space = qm.min_free_space,
                             "Low disk space, auto-pausing downloads"
                         );
-                        qm.globally_paused.store(true, Ordering::Relaxed);
-                        qm.db.lock().set_setting("globally_paused", "true");
-                        let to_pause: Vec<String> = {
-                            let jobs = qm.jobs.lock();
-                            jobs.iter()
-                                .filter(|(_, s)| s.job.status == JobStatus::Downloading)
-                                .map(|(id, _)| id.clone())
-                                .collect()
-                        };
-                        for id in to_pause {
-                            qm.worker_pool.pause_job(&id);
-                        }
+                        qm.pause_all();
                     }
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod global_pause_tests {
+    use super::*;
+
+    fn job(id: &str, status: JobStatus, root: &std::path::Path) -> NzbJob {
+        NzbJob {
+            id: id.to_string(),
+            name: id.to_string(),
+            category: "Default".to_string(),
+            status,
+            priority: Priority::Normal,
+            total_bytes: 1,
+            downloaded_bytes: 0,
+            file_count: 0,
+            files_completed: 0,
+            article_count: 0,
+            articles_downloaded: 0,
+            articles_failed: 0,
+            added_at: Utc::now(),
+            completed_at: None,
+            work_dir: root.join(id),
+            output_dir: root.join("complete").join(id),
+            password: None,
+            error_message: None,
+            speed_bps: 0,
+            server_stats: Vec::new(),
+            files: Vec::new(),
+        }
+    }
+
+    fn manager() -> (Arc<QueueManager>, tempfile::TempDir) {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let db = Database::open_memory().expect("database");
+        let manager = QueueManager::new(
+            Vec::new(),
+            db,
+            tempdir.path().join("incomplete"),
+            tempdir.path().join("complete"),
+            LogBuffer::default(),
+            1,
+            Vec::new(),
+            0,
+            0,
+            false,
+            false,
+            false,
+            100.0,
+            30,
+        );
+        (manager, tempdir)
+    }
+
+    fn insert_job(manager: &QueueManager, job: NzbJob) {
+        let id = job.id.clone();
+        manager.jobs.lock().insert(
+            id.clone(),
+            JobState {
+                job,
+                progress_handle: None,
+                speed: Arc::new(SpeedTracker::new()),
+                nzb_data: None,
+                direct_unpacker: None,
+                hopeless_tracker: None,
+            },
+        );
+        manager.job_order.lock().push(id);
+    }
+
+    #[tokio::test]
+    async fn global_pause_blocks_job_resume_and_preserves_manual_pause() {
+        let (manager, tempdir) = manager();
+        insert_job(
+            &manager,
+            job("active", JobStatus::Downloading, tempdir.path()),
+        );
+        insert_job(&manager, job("queued", JobStatus::Queued, tempdir.path()));
+        insert_job(&manager, job("manual", JobStatus::Paused, tempdir.path()));
+
+        manager.pause_all();
+
+        assert!(manager.is_paused());
+        assert_eq!(manager.get_job("active").unwrap().status, JobStatus::Paused);
+        assert_eq!(manager.get_job("queued").unwrap().status, JobStatus::Paused);
+        assert_eq!(manager.get_job("manual").unwrap().status, JobStatus::Paused);
+        assert!(manager.globally_paused_jobs.lock().contains("active"));
+        assert!(manager.globally_paused_jobs.lock().contains("queued"));
+        assert!(!manager.globally_paused_jobs.lock().contains("manual"));
+
+        let error = manager.resume_job("active").unwrap_err();
+        assert!(error.to_string().contains("globally paused"));
+        assert_eq!(manager.get_job("active").unwrap().status, JobStatus::Paused);
+
+        manager
+            .jobs
+            .lock()
+            .get_mut("active")
+            .unwrap()
+            .job
+            .error_message = Some("server unavailable".to_string());
+        manager.resume_server_paused_jobs();
+        assert_eq!(manager.get_job("active").unwrap().status, JobStatus::Paused);
+
+        manager.resume_all();
+
+        assert!(!manager.is_paused());
+        assert_eq!(manager.get_job("manual").unwrap().status, JobStatus::Paused);
+    }
+
+    #[tokio::test]
+    async fn job_added_during_global_pause_is_owned_by_global_pause() {
+        let (manager, tempdir) = manager();
+        manager.pause_all();
+
+        manager
+            .add_job(job("new", JobStatus::Queued, tempdir.path()), None)
+            .unwrap();
+
+        assert_eq!(manager.get_job("new").unwrap().status, JobStatus::Paused);
+        assert!(manager.globally_paused_jobs.lock().contains("new"));
     }
 }
 
