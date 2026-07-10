@@ -23,8 +23,17 @@ set -- \
     --provenance=false \
     --secret id=forgejo_token,env=GIT_AUTH_TOKEN \
     --build-arg "RUSTNZB_BUILD_REF=$build_ref" \
-    --tag "$image" \
-    --load
+    --tag "$image"
+if [ "${RUSTNZB_PUSH:-false}" = true ]; then
+    set -- "$@" --push
+else
+    set -- "$@" --load
+fi
+if [ -n "${RUSTNZB_CACHE_IMAGE:-}" ]; then
+    set -- "$@" \
+        --cache-from "$RUSTNZB_CACHE_IMAGE" \
+        --cache-to "type=registry,ref=$RUSTNZB_CACHE_IMAGE,mode=max,image-manifest=true,oci-mediatypes=true"
+fi
 if [ "${CI_COLD_CACHE:-false}" = true ]; then
     set -- "$@" --no-cache
 fi

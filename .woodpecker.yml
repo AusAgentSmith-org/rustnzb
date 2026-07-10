@@ -282,23 +282,13 @@ steps:
     depends_on:
       - build-linux
       - e2e
-    settings:
-      repo: repo.indexarr.net/indexarr/rustnzbd
-      registry: repo.indexarr.net
-      username: x-access-token
-      password:
+    environment:
+      GIT_AUTH_TOKEN:
         from_secret: git_auth_token
-      platforms: linux/amd64
-      target: runtime
-      provenance: false
-      secrets:
-        - id=forgejo_token,env=PLUGIN_PASSWORD
-      cache_images:
-        - repo.indexarr.net/indexarr/rustnzbd:buildcache-amd64
-      tags:
-        - ${CI_COMMIT_SHA}
-      build_args:
-        - RUSTNZB_BUILD_REF=${CI_COMMIT_SHA}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - RUSTNZB_BUILD_REF="${CI_COMMIT_SHA}" RUSTNZB_PUSH=true RUSTNZB_CACHE_IMAGE=repo.indexarr.net/indexarr/rustnzbd:buildcache-amd64 ci/tasks/build-image "repo.indexarr.net/indexarr/rustnzbd:${CI_COMMIT_SHA}"
 
   - name: smoke-dev-image
     image: repo.indexarr.net/indexarr/rustnzb-ci-cross@sha256:89f1f570acb0f8e6514ffcca39bd9f26305263d95274e4c170eedf867d113ad9
