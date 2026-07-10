@@ -84,12 +84,12 @@ import { AuthService } from '../../core/services/auth.service';
   styles: [`
     .login-wrapper {
       display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; background: #0d1117; padding: 16px;
+      min-height: 100vh; background: var(--bg); padding: 16px;
     }
 
     .login-card {
-      width: 100%; max-width: 400px; background: #161b22;
-      border: 1px solid #30363d; border-radius: 8px; padding: 32px;
+      width: 100%; max-width: 400px; background: var(--panel);
+      border: 1px solid var(--line); border-radius: 8px; padding: 32px;
     }
 
     .login-header { text-align: center; margin-bottom: 24px; }
@@ -97,39 +97,40 @@ import { AuthService } from '../../core/services/auth.service';
     .login-logo { width: 220px; height: auto; }
 
     .login-subtitle {
-      color: #8b949e; font-size: 14px; margin: 8px 0 0;
+      color: var(--mute); font-size: 14px; margin: 8px 0 0;
     }
 
     .login-loading {
-      text-align: center; color: #8b949e; padding: 24px 0;
+      text-align: center; color: var(--mute); padding: 24px 0;
     }
 
     .login-form { display: flex; flex-direction: column; gap: 16px; }
 
     .login-error {
-      background: rgba(248, 81, 73, 0.1); border: 1px solid #f85149;
-      border-radius: 6px; padding: 10px 14px; color: #f85149;
+      background: color-mix(in srgb, var(--danger) 10%, transparent);
+      border: 1px solid var(--danger);
+      border-radius: 6px; padding: 10px 14px; color: var(--danger);
       font-size: 13px;
     }
 
     .form-group { display: flex; flex-direction: column; gap: 6px; }
 
-    .form-label { color: #c9d1d9; font-size: 13px; font-weight: 600; }
+    .form-label { color: var(--text); font-size: 13px; font-weight: 600; }
 
     .form-input {
-      background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
-      padding: 8px 12px; color: #c9d1d9; font-size: 14px;
+      background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+      padding: 8px 12px; color: var(--text); font-size: 14px;
       outline: none; transition: border-color 0.15s ease;
     }
-    .form-input:focus { border-color: #58a6ff; }
-    .form-input::placeholder { color: #484f58; }
+    .form-input:focus { border-color: var(--accent); }
+    .form-input::placeholder { color: var(--mute); opacity: 0.7; }
 
     .submit-btn {
-      background: #238636; border: 1px solid #2ea043; border-radius: 6px;
+      background: var(--accent); border: 1px solid var(--accent); border-radius: 6px;
       padding: 10px 16px; color: #ffffff; font-size: 14px; font-weight: 600;
       cursor: pointer; transition: background 0.15s ease; margin-top: 4px;
     }
-    .submit-btn:hover:not(:disabled) { background: #2ea043; }
+    .submit-btn:hover:not(:disabled) { background: #2563eb; border-color: #2563eb; }
     .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   `],
 })
