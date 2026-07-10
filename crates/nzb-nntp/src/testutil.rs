@@ -259,6 +259,7 @@ pub fn test_config(port: u16) -> ServerConfig {
         recv_buffer_size: 0,
         proxy_url: None,
         trusted_fingerprint: None,
+        connect_timeout_secs: 30,
     }
 }
 

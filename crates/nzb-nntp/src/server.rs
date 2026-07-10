@@ -298,6 +298,7 @@ mod tests {
             recv_buffer_size: 0,
             proxy_url: None,
             trusted_fingerprint: None,
+            connect_timeout_secs: 30,
         }
     }
 

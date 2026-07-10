@@ -53,11 +53,20 @@ pub struct ServerConfig {
     /// Use this to pin self-signed certs for a bundled client binary.
     #[serde(default)]
     pub trusted_fingerprint: Option<String>,
+    /// Seconds to wait for a connection (TCP + TLS + welcome banner + auth)
+    /// to this server before giving up and treating it as unreachable.
+    #[serde(default = "default_connect_timeout_secs")]
+    pub connect_timeout_secs: u32,
 }
 
 /// Default TCP receive buffer: 2 MiB.
 fn default_recv_buffer_size() -> u32 {
     2 * 1024 * 1024
+}
+
+/// Default connection timeout: 30s.
+fn default_connect_timeout_secs() -> u32 {
+    30
 }
 
 impl ServerConfig {
@@ -93,6 +102,7 @@ impl Default for ServerConfig {
             recv_buffer_size: default_recv_buffer_size(),
             proxy_url: None,
             trusted_fingerprint: None,
+            connect_timeout_secs: default_connect_timeout_secs(),
         }
     }
 }
@@ -189,6 +199,7 @@ mod tests {
             recv_buffer_size: 2 * 1024 * 1024,
             proxy_url: Some("socks5://proxy:1080".to_string()),
             trusted_fingerprint: None,
+            connect_timeout_secs: 30,
         };
 
         let toml_str = toml::to_string(&config).unwrap();
@@ -225,6 +236,7 @@ mod tests {
         assert!(!config.compress);
         assert_eq!(config.ramp_up_delay_ms, 250);
         assert!(config.proxy_url.is_none());
+        assert_eq!(config.connect_timeout_secs, 30);
     }
 
     #[test]

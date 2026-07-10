@@ -343,8 +343,26 @@ impl NntpConnection {
     /// Connect to the NNTP server described by `config`.
     ///
     /// This performs TCP connection, optional TLS upgrade, reads the welcome
-    /// banner, and authenticates if credentials are configured.
+    /// banner, and authenticates if credentials are configured. The whole
+    /// sequence is bounded by `config.connect_timeout_secs` — a server that's
+    /// unreachable (firewalled, dead host) would otherwise hang on the TCP
+    /// handshake for the OS-level default (minutes), which stalls failover
+    /// to the next-priority server.
     pub async fn connect(&mut self, config: &ServerConfig) -> NntpResult<()> {
+        let budget = Duration::from_secs(config.connect_timeout_secs.max(1) as u64);
+        match tokio::time::timeout(budget, self.connect_inner(config)).await {
+            Ok(result) => result,
+            Err(_) => {
+                self.state = ConnectionState::Error;
+                Err(NntpError::Timeout(format!(
+                    "connect to {}:{} did not complete within {}s",
+                    config.host, config.port, config.connect_timeout_secs
+                )))
+            }
+        }
+    }
+
+    async fn connect_inner(&mut self, config: &ServerConfig) -> NntpResult<()> {
         self.state = ConnectionState::Connecting;
         let t_connect = Instant::now();
 
