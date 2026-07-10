@@ -282,9 +282,6 @@ steps:
     depends_on:
       - build-linux
       - e2e
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -295,7 +292,7 @@ steps:
       target: runtime
       provenance: false
       secrets:
-        - id=forgejo_token,env=GIT_AUTH_TOKEN
+        - id=forgejo_token,env=PLUGIN_PASSWORD
       cache_images:
         - repo.indexarr.net/indexarr/rustnzbd:buildcache-amd64
       tags:
@@ -339,9 +336,6 @@ steps:
       - event: tag
     depends_on:
       - package-release
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -352,7 +346,7 @@ steps:
       target: runtime
       provenance: false
       secrets:
-        - id=forgejo_token,env=GIT_AUTH_TOKEN
+        - id=forgejo_token,env=PLUGIN_PASSWORD
       cache_images:
         - repo.indexarr.net/indexarr/rustnzbd:buildcache-amd64
       tags:
@@ -367,9 +361,6 @@ steps:
       - event: tag
     depends_on:
       - package-release
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
     settings:
       repo: repo.indexarr.net/indexarr/rustnzbd
       registry: repo.indexarr.net
@@ -380,7 +371,7 @@ steps:
       target: runtime
       provenance: false
       secrets:
-        - id=forgejo_token,env=GIT_AUTH_TOKEN
+        - id=forgejo_token,env=PLUGIN_PASSWORD
       cache_images:
         - repo.indexarr.net/indexarr/rustnzbd:buildcache-arm64
       tags:
