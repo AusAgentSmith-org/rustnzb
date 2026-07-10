@@ -6,11 +6,12 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { GroupService } from '../../core/services/group.service';
 import { GroupRow, HeaderRow } from '../../core/models/group.model';
 import { GroupBrowserDialogComponent } from './group-browser-dialog.component';
+import { IconComponent } from '../../shared/icon.component';
 
 @Component({
   selector: 'app-groups-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatDialogModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, MatDialogModule, IconComponent],
   template: `
     <!-- Top search panel -->
     <div class="panel">
@@ -90,7 +91,11 @@ import { GroupBrowserDialogComponent } from './group-browser-dialog.component';
                 }
               </span>
               <button class="btn sm" (click)="fetchHeaders()" [disabled]="fetching()">
-                {{ fetching() ? 'Fetching…' : '↻ Fetch' }}
+                @if (fetching()) {
+                  Fetching…
+                } @else {
+                  <app-icon name="retry" [size]="11" /> Fetch
+                }
               </button>
               <button class="btn sm" (click)="markAllRead()">✓ Mark read</button>
             </h3>
@@ -497,11 +502,17 @@ export class GroupsViewComponent implements OnInit {
       if (this.newAvailable() <= 0) {
         this.fetching.set(false);
         clearInterval(poll);
+        clearTimeout(giveUp);
       }
     }, 3000);
-    setTimeout(() => {
+    const giveUp = setTimeout(() => {
       clearInterval(poll);
       this.fetching.set(false);
+      this.snack.open(
+        'Header fetch is taking longer than expected — it may still finish in the background. Refresh to check.',
+        'Close',
+        { duration: 6000 },
+      );
     }, 120_000);
   }
 

@@ -9,16 +9,19 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { HttpErrorResponse } from '@angular/common/http';
 import { GroupService } from '../../core/services/group.service';
 import { GroupRow } from '../../core/models/group.model';
+import { IconComponent } from '../../shared/icon.component';
 
 @Component({
   selector: 'app-group-browser-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, MatSnackBarModule, IconComponent],
   template: `
     <h2 mat-dialog-title>Browse Newsgroups</h2>
     <mat-dialog-content>
       <div class="toolbar">
-        <button class="tool-btn" (click)="refresh()" [disabled]="refreshing()">↻ Refresh from Server</button>
+        <button class="tool-btn" (click)="refresh()" [disabled]="refreshing()">
+          <app-icon name="retry" [size]="11" /> Refresh from Server
+        </button>
         <input [(ngModel)]="search" (keyup.enter)="loadGroups()" placeholder="Search groups..." class="search-input" />
       </div>
       @if (refreshing()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
@@ -27,7 +30,12 @@ import { GroupRow } from '../../core/models/group.model';
           <div class="group-row">
             <span class="gname">{{ g.name }}</span>
             <span class="gcount">{{ g.article_count | number }}</span>
-            <button class="sub-btn" [class.subscribed]="g.subscribed" (click)="toggleSub(g)">
+            <button
+              class="sub-btn"
+              [class.subscribed]="g.subscribed"
+              [disabled]="subPendingIds().has(g.id)"
+              (click)="toggleSub(g)"
+            >
               {{ g.subscribed ? '★' : '☆' }}
             </button>
           </div>
@@ -46,18 +54,19 @@ import { GroupRow } from '../../core/models/group.model';
   `,
   styles: [`
     .toolbar { display: flex; gap: 8px; margin-bottom: 8px; }
-    .search-input { flex: 1; padding: 6px 10px; background: #161b22; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 13px; outline: none; }
-    .search-input:focus { border-color: #58a6ff; }
-    .tool-btn { padding: 5px 12px; border-radius: 4px; border: 1px solid #30363d; background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 12px; white-space: nowrap; }
-    .tool-btn:hover { background: #30363d; }
+    .search-input { flex: 1; padding: 6px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; color: var(--text); font-size: 13px; outline: none; }
+    .search-input:focus { border-color: var(--accent); }
+    .tool-btn { padding: 5px 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); cursor: pointer; font-size: 12px; white-space: nowrap; }
+    .tool-btn:hover { border-color: var(--accent); }
     .tool-btn:disabled { opacity: 0.4; }
     .group-list { max-height: 400px; overflow-y: auto; }
-    .group-row { display: flex; align-items: center; padding: 6px 4px; border-bottom: 1px solid #21262d; font-size: 13px; }
+    .group-row { display: flex; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--panel2); font-size: 13px; }
     .gname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .gcount { width: 80px; text-align: right; color: #8b949e; font-size: 12px; padding: 0 8px; }
-    .sub-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #8b949e; padding: 0 4px; }
-    .sub-btn.subscribed { color: #f0c040; }
-    .empty { padding: 24px; text-align: center; color: #484f58; }
+    .gcount { width: 80px; text-align: right; color: var(--mute); font-size: 12px; padding: 0 8px; }
+    .sub-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--mute); padding: 0 4px; }
+    .sub-btn.subscribed { color: var(--warn); }
+    .sub-btn:disabled { opacity: 0.4; cursor: wait; }
+    .empty { padding: 24px; text-align: center; color: var(--mute); }
     .more { text-align: center; padding: 8px; }
   `],
 })
@@ -67,6 +76,7 @@ export class GroupBrowserDialogComponent implements OnInit {
   search = '';
   offset = 0;
   refreshing = signal(false);
+  subPendingIds = signal<Set<number>>(new Set());
 
   constructor(private svc: GroupService, private snack: MatSnackBar, private dialogRef: MatDialogRef<GroupBrowserDialogComponent>) {}
 
@@ -101,7 +111,35 @@ export class GroupBrowserDialogComponent implements OnInit {
   }
 
   toggleSub(g: GroupRow): void {
-    const obs = g.subscribed ? this.svc.unsubscribe(g.id) : this.svc.subscribe(g.id);
-    obs.subscribe(() => { g.subscribed = !g.subscribed; this.groups.set([...this.groups()]); });
+    const wasSubscribed = g.subscribed;
+    const obs = wasSubscribed ? this.svc.unsubscribe(g.id) : this.svc.subscribe(g.id);
+    const pending = new Set(this.subPendingIds());
+    pending.add(g.id);
+    this.subPendingIds.set(pending);
+    const clearPending = () => {
+      const next = new Set(this.subPendingIds());
+      next.delete(g.id);
+      this.subPendingIds.set(next);
+    };
+    obs.subscribe({
+      next: () => {
+        g.subscribed = !wasSubscribed;
+        this.groups.set([...this.groups()]);
+        this.snack.open(
+          wasSubscribed ? `Unsubscribed from ${g.name}` : `Subscribed to ${g.name}`,
+          'Close',
+          { duration: 2000 },
+        );
+        clearPending();
+      },
+      error: () => {
+        this.snack.open(
+          `Failed to ${wasSubscribed ? 'unsubscribe from' : 'subscribe to'} ${g.name}`,
+          'Close',
+          { duration: 4000 },
+        );
+        clearPending();
+      },
+    });
   }
 }
