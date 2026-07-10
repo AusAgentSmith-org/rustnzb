@@ -1,8 +1,8 @@
 import '@angular/compiler';
 
-import { of, Subject, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { convertToParamMap } from '@angular/router';
+import { convertToParamMap, ParamMap } from '@angular/router';
 
 import { AddNzbService } from '../../core/services/add-nzb.service';
 import { ApiService } from '../../core/services/api.service';
@@ -17,7 +17,8 @@ type ApiStub = {
 };
 type HttpStub = { post: ReturnType<typeof vi.fn> };
 type SnackBarStub = { open: ReturnType<typeof vi.fn> };
-type RouteStub = { data: ReturnType<typeof of>; queryParamMap: ReturnType<typeof of> };
+type ConfirmStub = { confirm: ReturnType<typeof vi.fn> };
+type RouteStub = { data: Observable<Record<string, unknown>>; queryParamMap: Observable<ParamMap> };
 type RouterStub = { navigate: ReturnType<typeof vi.fn> };
 
 function installLocalStorageMock(): Storage {
@@ -74,6 +75,9 @@ function makeComponent(
   const router: RouterStub = {
     navigate: vi.fn(() => Promise.resolve(true)),
   };
+  const confirmSvc: ConfirmStub = {
+    confirm: vi.fn(() => of(true)),
+  };
   const component = new QueueViewComponent(
     api as unknown as ApiService,
     http as unknown as import('@angular/common/http').HttpClient,
@@ -81,6 +85,7 @@ function makeComponent(
     new AddNzbService(),
     route as never,
     router as never,
+    confirmSvc as never,
   );
 
   return { component, api, http, snackBar: snackbarStub, route, router };
@@ -136,7 +141,9 @@ describe('QueueViewComponent', () => {
     expect(component.eta(makeJob({ speed_bps: 0 }))).toBe('—');
     expect(component.eta(makeJob({ speed_bps: -10 }))).toBe('—');
     expect(component.eta(makeJob({ speed_bps: Number.NaN }))).toBe('—');
-    expect(component.eta(makeJob({ downloaded_bytes: 150, total_bytes: 100, speed_bps: 10 }))).toBe('—');
+    expect(component.eta(makeJob({ downloaded_bytes: 150, total_bytes: 100, speed_bps: 10 }))).toBe(
+      '—',
+    );
   });
 
   it('ignores a duplicate row action while the first request is pending', () => {
@@ -176,7 +183,7 @@ describe('QueueViewComponent', () => {
     });
     const loadQueue = vi.spyOn(component, 'loadQueue').mockImplementation(() => {});
 
-    component.deleteJob('job-1');
+    component.deleteJob(makeJob({ id: 'job-1' }));
 
     expect(loadQueue).toHaveBeenCalledTimes(1);
     expect(snackBar.open).toHaveBeenCalledWith('Delete failed', 'Close', { duration: 4000 });
@@ -190,11 +197,9 @@ describe('QueueViewComponent', () => {
       makeJob({ id: 'job-3', name: 'Three' }),
     ];
 
-    expect(component.buildReorderedJobs(jobs, 'job-3', 'job-1', false)?.map((job) => job.id)).toEqual([
-      'job-3',
-      'job-1',
-      'job-2',
-    ]);
+    expect(
+      component.buildReorderedJobs(jobs, 'job-3', 'job-1', false)?.map((job) => job.id),
+    ).toEqual(['job-3', 'job-1', 'job-2']);
   });
 
   it('reorders jobs after the target row', () => {
@@ -205,11 +210,9 @@ describe('QueueViewComponent', () => {
       makeJob({ id: 'job-3', name: 'Three' }),
     ];
 
-    expect(component.buildReorderedJobs(jobs, 'job-1', 'job-3', true)?.map((job) => job.id)).toEqual([
-      'job-2',
-      'job-3',
-      'job-1',
-    ]);
+    expect(
+      component.buildReorderedJobs(jobs, 'job-1', 'job-3', true)?.map((job) => job.id),
+    ).toEqual(['job-2', 'job-3', 'job-1']);
   });
 
   it('optimistically reorders rows and persists the new position', () => {
@@ -232,31 +235,30 @@ describe('QueueViewComponent', () => {
     expect(loadQueue).toHaveBeenCalledTimes(1);
   });
 
-  it('canonicalizes the legacy history route to downloads history tab', () => {
+  it('canonicalizes the legacy history route and expands history', () => {
     const { component, route, router } = makeComponent();
     route.data = of({ legacyTab: 'history' });
-    vi.spyOn(component as never, 'loadAll').mockImplementation(() => {});
+    component.historyCollapsed.set(true);
+    vi.spyOn(component as unknown as { loadAll(): void }, 'loadAll').mockImplementation(() => {});
 
     component.ngOnInit();
 
     expect(router.navigate).toHaveBeenCalledWith(['/downloads'], {
       replaceUrl: true,
-      queryParams: { tab: 'history' },
     });
+    expect(component.historyCollapsed()).toBe(false);
     component.ngOnDestroy();
   });
 
-  it('switches tabs through the canonical downloads route', () => {
-    const { component, router } = makeComponent();
+  it('persists history panel collapse state', () => {
+    const { component } = makeComponent();
 
-    component.openTab('history');
-    component.openTab('queue');
+    component.toggleHistory();
+    expect(component.historyCollapsed()).toBe(true);
+    expect(localStorage.getItem(component.HISTORY_KEY)).toBe('true');
 
-    expect(router.navigate).toHaveBeenNthCalledWith(1, ['/downloads'], {
-      queryParams: { tab: 'history' },
-    });
-    expect(router.navigate).toHaveBeenNthCalledWith(2, ['/downloads'], {
-      queryParams: {},
-    });
+    component.toggleHistory();
+    expect(component.historyCollapsed()).toBe(false);
+    expect(localStorage.getItem(component.HISTORY_KEY)).toBe('false');
   });
 });
