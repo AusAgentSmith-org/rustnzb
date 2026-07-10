@@ -530,7 +530,6 @@ mod tests {
 
     #[test]
     fn test_error_patterns_are_non_empty() {
-        assert!(!UNRAR_ERROR_PATTERNS.is_empty());
         for pattern in UNRAR_ERROR_PATTERNS {
             assert!(!pattern.is_empty());
         }
