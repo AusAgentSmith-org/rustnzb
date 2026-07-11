@@ -100,20 +100,22 @@ type TimeFilter = '7d' | '30d' | 'all';
                   </span>
                 </td>
                 <td class="actions-cell">
-                  @if (e.status === 'failed') {
-                    <button class="row-action warn" (click)="retry(e.id)">
-                      <app-icon name="retry" [size]="11" /> retry
+                  <div class="actions">
+                    @if (e.status === 'failed') {
+                      <button class="row-action warn" (click)="retry(e.id)">
+                        <app-icon name="retry" [size]="11" /> retry
+                      </button>
+                    }
+                    @if (e.status === 'completed' && webdavEnabled()) {
+                      <button class="row-action media" (click)="addToMedia(e.id)" title="Add to Media Library">
+                        <app-icon name="play" [size]="11" /> media
+                      </button>
+                    }
+                    <button class="row-action" (click)="openOutput(e)">open</button>
+                    <button class="row-action danger" (click)="remove(e.id)" aria-label="Delete">
+                      <app-icon name="close" [size]="11" />
                     </button>
-                  }
-                  @if (e.status === 'completed' && webdavEnabled()) {
-                    <button class="row-action media" (click)="addToMedia(e.id)" title="Add to Media Library">
-                      <app-icon name="play" [size]="11" /> media
-                    </button>
-                  }
-                  <button class="row-action" (click)="openOutput(e)">open</button>
-                  <button class="row-action danger" (click)="remove(e.id)" aria-label="Delete">
-                    <app-icon name="close" [size]="11" />
-                  </button>
+                  </div>
                 </td>
               </tr>
             }
@@ -149,11 +151,13 @@ type TimeFilter = '7d' | '30d' | 'all';
     }
     .row-action.media { color: var(--accent, #7c6af7); border-color: var(--accent, #7c6af7); }
     .actions-cell {
+      white-space: nowrap;
+    }
+    .actions {
       display: flex;
       align-items: center;
       justify-content: flex-end;
       gap: 2px;
-      white-space: nowrap;
     }
   `],
 })
