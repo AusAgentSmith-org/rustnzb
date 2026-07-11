@@ -60,6 +60,48 @@ test.describe('5. Download History', () => {
     // Either path is acceptable — the test passes if the error is reachable.
   });
 
+  test('5.2a long failed history details remain on one line', async ({ page }) => {
+    const name = 'Law.And.Order.S15E20.1080p.AMZN.WEB-DL.DDP5.1.H.264-PlayWEB';
+    const error =
+      'Aborted: only 99.9% of content available (need 100.2%), 6 of 4408 content articles missing';
+
+    await page.route('**/api/history', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          entries: [{
+            id: 'long-failed-history-entry',
+            name,
+            category: 'sonarr',
+            status: 'failed',
+            total_bytes: 3_400_000_000,
+            downloaded_bytes: 3_396_600_000,
+            added_at: new Date(Date.now() - 13 * 60 * 60 * 1000 - 188_000).toISOString(),
+            completed_at: new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString(),
+            output_dir: '',
+            stages: [],
+            error_message: error,
+            server_stats: [],
+            has_nzb_data: true,
+          }],
+        }),
+      });
+    });
+    await page.setViewportSize({ width: 1000, height: 720 });
+
+    const history = await openAllHistory(page);
+    const row = history.locator('tbody tr').filter({ hasText: name });
+    const nameLine = row.locator('.e-name');
+    const errorLine = row.locator('.e-err');
+
+    await expect(nameLine).toHaveAttribute('title', name);
+    await expect(errorLine).toHaveAttribute('title', error);
+    for (const line of [nameLine, errorLine]) {
+      await expect(line).toHaveCSS('white-space', 'nowrap');
+      expect(await line.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    }
+  });
+
   // ── 5.3 Filter by name ─────────────────────────────────────────────────────
 
   test('5.3 name filter hides non-matching entries', async ({ page }) => {

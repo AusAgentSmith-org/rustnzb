@@ -72,7 +72,7 @@ type TimeFilter = '7d' | '30d' | 'all';
         <table class="data">
           <thead>
             <tr>
-              <th style="width:36%">Name</th>
+              <th class="name-column">Name</th>
               <th>Category</th>
               <th>Size</th>
               <th>Duration</th>
@@ -84,9 +84,11 @@ type TimeFilter = '7d' | '30d' | 'all';
           <tbody>
             @for (e of filteredEntries(); track e.id) {
               <tr>
-                <td>
-                  <div class="e-name" [class.dim]="e.status === 'failed'">{{ e.name }}</div>
-                  @if (e.error_message) { <div class="e-err">{{ e.error_message }}</div> }
+                <td class="name-cell">
+                  <div class="e-name" [class.dim]="e.status === 'failed'" [title]="e.name">{{ e.name }}</div>
+                  @if (e.error_message) {
+                    <div class="e-err" [title]="e.error_message">{{ e.error_message }}</div>
+                  }
                 </td>
                 <td>
                   @if (e.category) { <span class="tag cat">{{ e.category }}</span> }
@@ -142,6 +144,13 @@ type TimeFilter = '7d' | '30d' | 'all';
   `,
   styles: [`
     :host { display: block; }
+    .name-column, .name-cell { width: 36%; }
+    .name-cell { max-width: 0; }
+    .e-name, .e-err {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .e-name { color: var(--text); font-size: 13px; }
     .e-name.dim { color: var(--mute); }
     .e-err { color: var(--danger); font-size: 11px; margin-top: 2px; opacity: .8; }
