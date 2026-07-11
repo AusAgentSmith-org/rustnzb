@@ -88,6 +88,16 @@ steps:
     depends_on:
       - desktop-test
 
+  # Build the Angular application once for every downstream Rust compile.
+  # Woodpecker steps share a checkout, so concurrent npm ci/ng build calls in
+  # e2e and build-linux would otherwise mutate the same node_modules/dist tree.
+  - name: frontend-build
+    image: repo.indexarr.net/indexarr/rustnzb-ci-core@sha256:63a6ecb9f4897f223419c69bdc1bbae3d930f028955fdaa480fac156daedfb47
+    commands:
+      - ci/tasks/frontend-build
+    depends_on:
+      - clippy
+
   # ─── Playwright E2E (push, PR, manual) ───────────────────────────────────
   # Builds the frontend + debug binary, then runs every deterministic
   # Playwright project (seeded, first-boot/auth, and mock-download).
@@ -106,7 +116,7 @@ steps:
     commands:
       - ci/tasks/e2e
     depends_on:
-      - clippy
+      - frontend-build
 
   # ─── Build (push to main + tags only) ────────────────────────────────────
 
@@ -120,7 +130,7 @@ steps:
     commands:
       - ci/tasks/build-linux
     depends_on:
-      - clippy
+      - frontend-build
     when:
       - event: push
         branch: main

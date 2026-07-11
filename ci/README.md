@@ -14,6 +14,7 @@ Common commands:
 ./ci/run check
 ./ci/run test
 ./ci/run clippy
+./ci/run frontend-build
 ./ci/run e2e
 ./ci/run build-image rustnzb:local
 ./ci/run smoke-image rustnzb:local
@@ -43,6 +44,7 @@ container checkout path to the source path visible to the host Docker daemon.
 | `clippy` | core | yes | `.ci-output/targets/clippy` | amd64 host | no |
 | `frontend-test` | core | no | coverage console output | amd64 host | no |
 | `frontend-audit` | core | no | policy result | amd64 host | yes, advisory API |
+| `frontend-build` | core | no | `apps/rustnzb/frontend/dist`, `.ci-output/frontend-ready-*` | amd64 host | no |
 | `e2e` | e2e | yes | failure-only `.ci-artifacts/e2e` | amd64 host/Chromium | no |
 | `desktop-test` | desktop | yes | `.ci-output/targets/desktop-test` | Linux amd64 | no |
 | `build-linux` | cross | yes | `.ci-output/targets/build-linux` | Linux amd64 | no |
@@ -52,10 +54,15 @@ container checkout path to the source path visible to the host Docker daemon.
 | `build-image` | host Buildx | yes | named local image | amd64 or arm64 | registry/dependency access |
 | `smoke-image` | host Docker | registry pull only | failure-only `.ci-artifacts/runtime-smoke` | native runtime | no |
 
-All source tasks consume tracked source and lockfiles. A task removes any
-frontend `dist` it created. No task consumes an untracked `frontend/dist` or a
-host `target/`. Release packaging is the one explicit cross-step artifact
-consumer and its three binary input paths are listed in `package-release`.
+All source tasks consume tracked source and lockfiles. In Woodpecker,
+`frontend-build` is the sole producer of the Angular `dist` tree and writes a
+pipeline-and-commit marker. E2E and platform build tasks consume that marked
+tree without mutating `node_modules` or cleaning `dist`; standalone `ci/run`
+invocations build and clean their own frontend instead. This prevents parallel
+steps from racing over shared checkout state. No task consumes an unmarked
+frontend `dist` or a host `target/`. Release packaging is the other explicit
+cross-step artifact consumer and its three binary input paths are listed in
+`package-release`.
 
 ## Toolchain image update and bootstrap
 
@@ -101,9 +108,9 @@ generations and the current plus previous production cache; delete older cache
 tags before deleting immutable release or SHA candidates.
 
 Debug E2E binaries embed the Angular assets. This is intentional: Woodpecker
-steps share a checkout, and the parallel Linux build removes its generated
-`frontend/dist` during cleanup. Without the `debug-embed` feature, a running
-debug server would begin returning 404 for `/` when that cleanup occurs.
+steps share a checkout, and all compile tasks consume the single frontend tree
+produced by `frontend-build`. The pipeline marker prevents a task from
+mistaking an unrelated or stale local `dist` tree for its declared input.
 
 If the runner filesystem is under pressure, remove reproducible checkout build
 outputs (`target/`, `.ci-output/`) before considering Docker-wide pruning. Do

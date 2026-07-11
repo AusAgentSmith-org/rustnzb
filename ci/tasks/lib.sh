@@ -42,8 +42,44 @@ build_frontend() {
     test -s "$frontend_dir/dist/frontend/browser/index.html"
 }
 
+frontend_ready_marker() {
+    [ -n "${CI_PIPELINE_NUMBER:-}" ] || return 1
+    printf '%s/.ci-output/frontend-ready-%s\n' "$REPO_ROOT" "$CI_PIPELINE_NUMBER"
+}
+
+publish_frontend() {
+    build_frontend
+    marker=$(frontend_ready_marker) || return 0
+    mkdir -p "$REPO_ROOT/.ci-output"
+    printf '%s\n' "${CI_COMMIT_SHA:-unknown}" > "$marker"
+}
+
+ensure_frontend() {
+    marker=$(frontend_ready_marker 2>/dev/null || true)
+    index=$REPO_ROOT/apps/rustnzb/frontend/dist/frontend/browser/index.html
+    if [ -n "$marker" ]; then
+        if [ -s "$marker" ] && [ -s "$index" ] \
+            && [ "$(cat "$marker")" = "${CI_COMMIT_SHA:-unknown}" ]; then
+            FRONTEND_BUILT_BY_TASK=false
+            export FRONTEND_BUILT_BY_TASK
+            return 0
+        fi
+        printf 'frontend-build did not publish assets for pipeline %s commit %s\n' \
+            "$CI_PIPELINE_NUMBER" "${CI_COMMIT_SHA:-unknown}" >&2
+        return 1
+    fi
+
+    build_frontend
+    FRONTEND_BUILT_BY_TASK=true
+    export FRONTEND_BUILT_BY_TASK
+}
+
 cleanup_frontend() {
     rm -rf "$REPO_ROOT/apps/rustnzb/frontend/dist" "$REPO_ROOT/apps/rustnzb/frontend/.angular"
+}
+
+cleanup_task_frontend() {
+    [ "${FRONTEND_BUILT_BY_TASK:-false}" != true ] || cleanup_frontend
 }
 
 show_sccache_stats() {
