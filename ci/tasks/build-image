@@ -7,7 +7,11 @@ task_start build-image docker
 image=${1:-rustnzb:local}
 build_ref=${RUSTNZB_BUILD_REF:-$(git rev-parse --short=12 HEAD)}
 docker_config=$(mktemp -d)
-builder=rustnzb-build-$$
+# Parallel Woodpecker steps share the host Docker daemon and commonly run this
+# script with the same container-local PID. Derive the builder name from the
+# unique temporary directory so one step's EXIT trap cannot remove another
+# step's active BuildKit container.
+builder=rustnzb-build-$(basename "$docker_config")
 mkdir -p "$docker_config/cli-plugins"
 if [ -x "$HOME/.docker/cli-plugins/docker-buildx" ]; then
     ln -s "$HOME/.docker/cli-plugins/docker-buildx" "$docker_config/cli-plugins/docker-buildx"
