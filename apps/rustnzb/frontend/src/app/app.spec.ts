@@ -3,7 +3,7 @@ import '@angular/compiler';
 import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import { App } from './app';
+import { App, isDemoPath } from './app';
 import { AddNzbService } from './core/services/add-nzb.service';
 import { PauseStateService } from './core/services/pause-state.service';
 
@@ -48,5 +48,19 @@ describe('App global pause control', () => {
     postResult.error(new Error('request failed'));
 
     expect(pauseState.paused()).toBe(false);
+  });
+});
+
+describe('demo path detection', () => {
+  it('recognizes the demo root and nested demo routes', () => {
+    expect(isDemoPath('/demo')).toBe(true);
+    expect(isDemoPath('/demo/')).toBe(true);
+    expect(isDemoPath('/demo/statistics')).toBe(true);
+  });
+
+  it('does not show demo chrome in a normal installation', () => {
+    expect(isDemoPath('/')).toBe(false);
+    expect(isDemoPath('/downloads')).toBe(false);
+    expect(isDemoPath('/demonstration')).toBe(false);
   });
 });

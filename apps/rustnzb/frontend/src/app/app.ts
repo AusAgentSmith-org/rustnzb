@@ -19,6 +19,10 @@ import { PauseStateService } from './core/services/pause-state.service';
 import { ThemeService } from './core/services/theme.service';
 import { IconComponent } from './shared/icon.component';
 
+export function isDemoPath(pathname: string): boolean {
+  return pathname === '/demo' || pathname.startsWith('/demo/');
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -44,6 +48,9 @@ import { IconComponent } from './shared/icon.component';
             <a routerLink="/statistics" routerLinkActive="active">Statistics</a>
             <a routerLink="/settings" routerLinkActive="active">Settings</a>
             <div class="spacer"></div>
+            @if (demoMode) {
+              <a class="action demo-exit" href="/">Exit demo</a>
+            }
             <div class="status">
               <span class="pill" [class.ok]="!paused()" [class.warn]="paused()">
                 ● {{ paused() ? 'Paused' : 'Live' }}
@@ -115,7 +122,9 @@ import { IconComponent } from './shared/icon.component';
                   <div class="pause-menu" role="menu" (click)="$event.stopPropagation()">
                     <div class="pm-title">Pause for…</div>
                     @for (opt of pauseTimerOptions; track opt.secs) {
-                      <button class="pm-item" role="menuitem" (click)="pauseFor(opt.secs)">{{ opt.label }}</button>
+                      <button class="pm-item" role="menuitem" (click)="pauseFor(opt.secs)">
+                        {{ opt.label }}
+                      </button>
                     }
                     <div class="pm-custom">
                       <input
@@ -258,6 +267,18 @@ import { IconComponent } from './shared/icon.component';
         color: var(--mute);
         font-size: 12px;
       }
+      nav.topbar .demo-exit {
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        color: var(--accent);
+        font-weight: 600;
+        margin: 0 8px;
+        padding: 5px 10px;
+      }
+      nav.topbar .demo-exit:hover {
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        color: var(--text);
+      }
 
       /* Pause split-button + dropdown */
       .pause-group {
@@ -382,6 +403,7 @@ import { IconComponent } from './shared/icon.component';
   ],
 })
 export class App implements OnInit, OnDestroy {
+  readonly demoMode = isDemoPath(window.location.pathname);
   version = signal('');
 
   speed = signal(0);
