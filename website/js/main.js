@@ -1,78 +1,60 @@
-// Navigation scroll effect
-var navbar = document.getElementById('navbar');
-var navToggle = document.getElementById('navToggle');
-var navMenu = document.getElementById('navMenu');
+// rustnzb.dev — fills the article Date header and upgrades download links
+// with the latest GitHub release. Every link works without JS: it falls
+// back to the GitHub releases page.
 
-window.addEventListener('scroll', function() {
-    if (window.scrollY > 20) {
-        navbar.classList.add('scrolled');
-    } else {
-        navbar.classList.remove('scrolled');
+(function () {
+    'use strict';
+
+    // NNTP-style date header (RFC 5322-ish), purely decorative.
+    var dateEl = document.querySelector('.js-date');
+    if (dateEl) {
+        dateEl.textContent = new Date().toUTCString().replace('GMT', '+0000');
     }
-});
 
-// Mobile menu toggle
-navToggle.addEventListener('click', function() {
-    navToggle.classList.toggle('active');
-    navMenu.classList.toggle('open');
-});
+    function formatSize(bytes) {
+        if (!bytes) return '';
+        var mb = bytes / (1024 * 1024);
+        return mb >= 1 ? mb.toFixed(1) + ' MB' : Math.round(bytes / 1024) + ' KB';
+    }
 
-// Close mobile menu on link click
-navMenu.querySelectorAll('a').forEach(function(link) {
-    link.addEventListener('click', function() {
-        navToggle.classList.remove('active');
-        navMenu.classList.remove('open');
-    });
-});
+    fetch('https://api.github.com/repos/AusAgentSmith-org/rustnzb/releases/latest', {
+        headers: { Accept: 'application/vnd.github+json' }
+    })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (release) {
+            var tag = release.tag_name;
+            if (!tag) return;
 
-// Tab switching for Getting Started
-function switchTab(tab) {
-    document.querySelectorAll('.start-tab').forEach(function(btn) {
-        btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
-    });
-    document.querySelectorAll('.start-pane').forEach(function(pane) {
-        pane.classList.toggle('active', pane.id === 'pane-' + tab);
-    });
-}
+            document.querySelectorAll('.js-ver').forEach(function (el) {
+                el.textContent = tag;
+            });
 
-// Active nav link on scroll
-var sections = document.querySelectorAll('section[id]');
-
-function updateActiveNav() {
-    var scrollPos = window.scrollY + 100;
-    sections.forEach(function(section) {
-        var top = section.offsetTop;
-        var height = section.offsetHeight;
-        var id = section.getAttribute('id');
-        var link = document.querySelector('.nav-menu a[href="#' + id + '"]');
-        if (link) {
-            if (scrollPos >= top && scrollPos < top + height) {
-                link.style.color = 'var(--text-primary)';
-            } else {
-                link.style.color = '';
+            var note = document.querySelector('.js-relnote');
+            if (note && release.published_at) {
+                note.textContent = '— released ' + release.published_at.slice(0, 10);
             }
-        }
-    });
-}
 
-window.addEventListener('scroll', updateActiveNav);
+            var latestBtn = document.querySelector('.js-latest');
+            if (latestBtn) {
+                latestBtn.href = release.html_url;
+            }
 
-// Smooth reveal on scroll
-var observer = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-        if (entry.isIntersecting) {
-            entry.target.style.opacity = '1';
-            entry.target.style.transform = 'translateY(0)';
-        }
-    });
-}, { threshold: 0.1 });
-
-document.addEventListener('DOMContentLoaded', function() {
-    var cards = document.querySelectorAll('.feature-card, .arch-card, .pipeline-step, .bench-info-card, .bench-stat-card');
-    cards.forEach(function(card) {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
-        observer.observe(card);
-    });
-});
+            var assets = release.assets || [];
+            document.querySelectorAll('.js-asset').forEach(function (link) {
+                var suffix = link.dataset.suffix;
+                var prefix = link.dataset.prefix;
+                var asset = assets.find(function (a) {
+                    return suffix ? a.name.endsWith(suffix)
+                        : prefix ? a.name.indexOf(prefix) === 0
+                        : false;
+                });
+                if (!asset) return;
+                link.href = asset.browser_download_url;
+                var file = link.querySelector('.dl-file');
+                if (file) file.textContent = asset.name;
+                var size = link.querySelector('.js-size');
+                if (size) size.textContent = formatSize(asset.size);
+            });
+        })
+        .catch(function () { /* static fallback links remain */ });
+})();
