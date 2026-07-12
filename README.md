@@ -12,7 +12,7 @@ web UI with real automation. One static binary, built for self-hosters.
 
 ## Try it now — live demo
 
-**[rustnzb.dev/demo](https://rustnzb.dev/demo/)**
+**[www.rustnzb.dev/demo](https://www.rustnzb.dev/demo/)**
 
 The demo is the complete rustnzb interface running against a simulated backend
 in your browser — queue, history, statistics, newsgroup search, RSS rules, the
