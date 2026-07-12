@@ -1,62 +1,47 @@
 # rustnzb
 
-**A Modern Usenet Binary Downloader, Rewritten From the Ground Up in Rust**
+**A modern Usenet downloader written in Rust.**
 
-Built from scratch with zero legacy dependencies. Fast, efficient, and designed for self-hosters. Full NNTP pipeline with yEnc decoding, PAR2 verification & repair, archive extraction, and a clean web UI. No inherited technical debt -- just modern Rust with async I/O, connection pooling, and NNTP pipelining for maximum throughput.
+rustnzb takes an NZB and does the rest — pipelined NNTP downloads, SIMD yEnc
+decoding, PAR2 verification and repair, and archive extraction, wrapped in a
+web UI with real automation. One static binary, built for self-hosters.
 
 [![Rust](https://img.shields.io/badge/Rust-2024_edition-orange)](https://www.rust-lang.org/)
 [![Container](https://img.shields.io/badge/container-GHCR-blue)](https://github.com/AusAgentSmith-org/rustnzb/pkgs/container/rustnzb)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+## Try it now — live demo
+
+**[rustnzb.dev/demo](https://rustnzb.dev/demo/)**
+
+The demo is the complete rustnzb interface running against a simulated backend
+in your browser — queue, history, statistics, newsgroup search, RSS rules, the
+media library, settings, all of it. Nothing to install, no Usenet provider
+required, and nothing leaves the page.
+
+More at [rustnzb.dev](https://rustnzb.dev/) · [GitHub Releases](https://github.com/AusAgentSmith-org/rustnzb/releases) · [Discord](https://discord.gg/pu6chSqpnJ)
+
 ---
 
 ## Features
 
-| | Feature | Description |
-|-|---------|-------------|
-| **⚡** | **NNTP Pipelining** | Send multiple ARTICLE commands per connection before reading responses. Configurable pipeline depth per server eliminates round-trip latency. |
-| **🔄** | **Multi-Server Failover** | Priority-ordered server list with automatic failover. Articles not found on one server are retried on the next. Optional servers for fill providers. |
-| **📦** | **yEnc Decoding** | Fast yEnc decoder with CRC32 validation. Handles multi-part articles, escape sequences, and assembles files from decoded segments. |
-| **🔧** | **PAR2 Verify & Repair** | Automatic PAR2 verification after download. Damaged files are repaired using recovery blocks before extraction. |
-| **📂** | **Archive Extraction** | Automatic extraction of RAR, 7z, and ZIP archives after download and repair. Supports multi-part RAR with cleanup. |
-| **🖥️** | **Clean Web UI** | Responsive single-page interface. Queue management, download history, server configuration, real-time logs, and drag-and-drop NZB upload. |
-| **🖱️** | **Desktop App** | Native desktop application for Windows, macOS, and Linux powered by Tauri. System tray with queue count and speed. |
-| **🔌** | **REST API** | Full HTTP API with Swagger/OpenAPI documentation. Queue, history, server management, status, and log endpoints. |
-| **🔁** | **SABnzbd Compatible** | Drop-in replacement for SABnzbd. Works out of the box with Sonarr, Radarr, Lidarr, and other *arr applications. |
-| **📡** | **OpenTelemetry** | Built-in tracing and metrics export via OTLP. Ship logs and metrics to Grafana, Jaeger, or any OTLP-compatible backend. |
-| **📥** | **SABnzbd Migration** | Import your SABnzbd configuration with one click. Upload your `sabnzbd.ini` or connect to a live instance. |
+| Feature | Description |
+|---------|-------------|
+| **NNTP pipelining** | Multiple ARTICLE commands in flight per connection. Configurable pipeline depth per server eliminates round-trip latency. |
+| **Multi-server failover** | Priority-ordered server list over TLS (rustls). Articles missing on one server are retried on the next; fill servers are only used when needed. |
+| **yEnc decoding** | SIMD-accelerated yEnc decoder with CRC32 validation, streamed straight into the file assembler. |
+| **PAR2 verify & repair** | Automatic verification after download. Damaged files are rebuilt from recovery blocks in pure Rust — no external par2 binary. |
+| **Archive extraction** | Automatic extraction of RAR, 7z, and ZIP archives after repair, multi-part sets included, with cleanup. |
+| **Web UI** | Queue, history with per-download insights, lifetime statistics, live logs, drag-and-drop NZB upload, and selectable themes. |
+| **Automation** | RSS feeds with regex rules, a watch folder, and a newsgroup browser with header search and threaded views. |
+| **Media library** | WebDAV library that streams files on demand, straight from Usenet, without downloading first. |
+| **REST API** | Full HTTP API with Swagger/OpenAPI documentation, plus a compatibility API for *arr applications. |
+| **Desktop app** | Native application for Windows, macOS, and Linux powered by Tauri. System tray with queue count and speed. |
+| **OpenTelemetry** | Built-in tracing and metrics export via OTLP. Ship logs and metrics to Grafana, Jaeger, or any OTLP-compatible backend. |
 
 ---
 
-## Benchmarks
-
-Head-to-head comparison with SABnzbd under identical conditions.
-
-### 1-Hour Stress Test
-
-Sustained load with continuous NZB submission -- 50 NNTP connections, 5 concurrent jobs.
-
-| Metric | rustnzb | SABnzbd |
-|--------|---------|---------|
-| Avg speed | **5,059 Mbps** | 1,002 Mbps |
-| NZBs completed / hour | **401** | 37 |
-| Downloaded in 1 hour | **2,287 GB** | 455 GB |
-| Memory over time | **Stable** (+2 MB/hr) | +2,412 MB/hr |
-
-### Scenario Comparisons
-
-| Scenario | rustnzb | SABnzbd | Improvement |
-|----------|---------|---------|-------------|
-| 5 GB raw download | **4.2s** @ 10,316 Mbps | 5.0s @ 8,535 Mbps | +21% faster |
-| 10 GB raw download | **10.2s** @ 8,394 Mbps | 14.1s @ 6,098 Mbps | +38% faster |
-| 10 GB + 7z extraction | **19.9s** | 29.2s | +47% faster |
-| 5 GB + PAR2 repair | 33.5s (4.0s download) | 30.4s (9.4s download) | 2.4x faster download, 60% less memory |
-
-All benchmarks run on the same machine using Docker containers with identical configuration. Data served by a mock NNTP server to eliminate network variability. Full methodology and raw data in `benchnzb/`.
-
----
-
-## Getting Started
+## Getting started
 
 ### Docker
 
@@ -81,19 +66,15 @@ cp apps/rustnzb/config.example.toml config.toml
 docker compose up -d
 ```
 
-For the real homelab deployment on Node B, do not treat this repo's local
-`docker-compose.yml` as the source of truth. Runtime state is managed through
-the `indexarr/ops` repo stack `personal/arr` and deployed through Komodo.
+### Binaries
 
-### Desktop App
+Download the latest release from [GitHub Releases](https://github.com/AusAgentSmith-org/rustnzb/releases):
 
-Native application for Windows and Linux powered by Tauri.
+- **Linux** — `tar.gz` (x86_64, aarch64) or `.deb` (amd64, arm64, installs a systemd service)
+- **Windows** — NSIS installer
+- SHA256 checksums are attached to every release
 
-Download the latest installer from [GitHub Releases](https://github.com/AusAgentSmith-org/rustnzb/releases):
-- **Windows** -- `.exe` (NSIS installer)
-- **Linux** -- `.deb` or `.rpm`
-
-### From Source
+### From source
 
 ```bash
 git clone https://github.com/AusAgentSmith-org/rustnzb.git
@@ -107,11 +88,13 @@ Requirements: Rust 1.88+ (2024 edition), `7z` for archive extraction.
 
 ---
 
-## Sonarr & Radarr Integration
+## Sonarr & Radarr integration
 
-rustnzb is a drop-in replacement for SABnzbd -- use the **SABnzbd** download client type in your *arr apps.
+rustnzb speaks the download-client API that *arr applications already use —
+Sonarr, Radarr, Lidarr, Readarr, and Prowlarr connect with their standard
+settings.
 
-1. In Sonarr/Radarr, go to **Settings > Download Clients > Add** and select **SABnzbd**
+1. In your *arr app, go to **Settings > Download Clients > Add** and select the **SABnzbd** client type
 2. Set **Host** and **Port** to your rustnzb instance
 3. Enter your `api_key` (if configured in `config.toml`)
 4. Set **Category** to match your rustnzb categories (e.g. `tv`, `movies`)
@@ -129,8 +112,6 @@ name = "movies"
 output_dir = "movies"
 ```
 
-Works with Sonarr, Radarr, Lidarr, Readarr, and Prowlarr.
-
 ---
 
 ## Architecture
@@ -145,9 +126,9 @@ A modular Rust workspace with clean separation of concerns.
 | **nzb-nntp** | NNTP protocol, connection pool, TLS (rustls), pipelining, server failover |
 | **nzb-decode** | yEnc decoder, CRC32 validation, file assembler |
 | **nzb-postproc** | PAR2 verify & repair, RAR/7z/ZIP extraction, cleanup |
-| **nzb-web** | Axum HTTP server, REST API, web UI, queue manager, SABnzbd compat |
+| **nzb-web** | Axum HTTP server, REST API, web UI, queue manager |
 
-### Download Pipeline
+### Download pipeline
 
 ```
 Parse NZB
@@ -169,9 +150,11 @@ rustnzb uses TOML configuration with CLI and environment variable overrides.
 
 **Priority:** CLI args > environment variables > TOML file > defaults
 
-Most settings can be configured through the web UI. See [`apps/rustnzb/config.example.toml`](apps/rustnzb/config.example.toml) for the full reference.
+Most settings can be configured through the web UI. See
+[`apps/rustnzb/config.example.toml`](apps/rustnzb/config.example.toml) for the
+full reference.
 
-### Key Environment Variables
+### Key environment variables
 
 | Variable | Description |
 |----------|-------------|
@@ -179,18 +162,11 @@ Most settings can be configured through the web UI. See [`apps/rustnzb/config.ex
 | `RUSTNZB_PORT` | Listen port |
 | `RUSTNZB_LOG_LEVEL` | Log level (trace/debug/info/warn/error) |
 | `RUSTNZB_DAV_ENABLED` | Enable the Media Library (DAV) at startup |
-| `RUSTNZB_BUILD_REF` | Optional build ref appended to the reported version |
-| `OTEL_ENABLED` | Shared fallback toggle for OTEL logs+metrics |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Shared fallback OTLP gRPC endpoint |
-| `OTEL_LOGS_ENABLED` | Enable OTEL log export |
-| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | OTLP gRPC endpoint for logs |
-| `OTEL_METRICS_ENABLED` | Enable OTEL metrics export |
-| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | OTLP gRPC endpoint for metrics |
+| `OTEL_ENABLED` | Toggle for OTEL logs + metrics export |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint |
 | `OTEL_SERVICE_NAME` | Service name for telemetry |
 
-If your platform already ships container stdout/stderr to Loki, leave OTEL log export disabled to avoid duplicate log streams.
-
-### Docker Volumes
+### Docker volumes
 
 | Path | Purpose |
 |------|---------|
@@ -202,7 +178,8 @@ If your platform already ships container stdout/stderr to Loki, leave OTEL log e
 
 ## API
 
-Interactive API documentation is available at `/swagger-ui` when the server is running.
+Interactive API documentation is available at `/swagger-ui` when the server is
+running.
 
 ```bash
 # Add NZB by URL
@@ -218,7 +195,7 @@ curl -X POST http://localhost:9090/api/queue/add \
 curl http://localhost:9090/api/status
 ```
 
-The SABnzbd-compatible API is available at `/sabnzbd/api`.
+The *arr-compatible API is served at `/sabnzbd/api`.
 
 ---
 
@@ -231,24 +208,7 @@ cargo test --workspace              # All tests
 cargo test -p nzb-decode            # Single crate
 ```
 
-Release-feature app build from the monorepo root:
-
-```bash
-cargo build -p rustnzb --release --features webdav
-```
-
-The root `[patch.crates-io]` section is still intentional after the monorepo
-cutover. The private external `nzbdav-*` crates still resolve shared `nzb-*`
-dependencies by published version, so removing the patch currently makes
-`--features webdav` builds pull mixed registry and workspace copies of
-`nzb-core` / `nzb-nntp`.
-
-The Angular production output is embedded with `rust-embed`. Asset lookup is
-anchored to the app crate's `CARGO_MANIFEST_DIR`, and debug binaries use
-`debug-embed`, so they remain self-contained even if a parallel task removes
-`apps/rustnzb/frontend/dist` after compilation.
-
-For CI parity, use the checked-in container task interface:
+For exact CI parity, use the checked-in container task interface:
 
 ```bash
 ./ci/run fmt
@@ -256,29 +216,11 @@ For CI parity, use the checked-in container task interface:
 ./ci/run test
 ./ci/run clippy
 ./ci/run e2e
-./ci/run build-image rustnzb:local
-./ci/run smoke-image rustnzb:local
 ```
 
-The canonical Dockerfile builds the frontend and Rust application from tracked
-inputs. Private Forgejo dependencies are authenticated with an
-environment-backed BuildKit secret (`forgejo_token`); the token is not a
-Docker build argument, image environment value, layer, or exported cache
-entry. See [`ci/README.md`](ci/README.md) for task, cache, candidate-promotion,
-and rollback details.
-
-### CI images and Node B deployment
-
-Every `main` push that passes all gates publishes an immutable amd64 candidate
-to Forgejo as `:<full-commit-sha>`, smoke-tests that exact image, and then
-promotes the same digest to Forgejo/GHCR `:dev`. `latest` moves only for tagged
-releases.
-
-A successful application pipeline does not automatically restart Node B.
-Deployment remains GitOps-managed: pin the verified Forgejo SHA in
-`indexarr/ops` at `personal/arr/compose.yaml`, push the ops commit, deploy the
-Komodo stack `personal-arr`, and validate port `8081`, `/api/health`, the
-embedded frontend, container health, and restart count.
+See [`ci/README.md`](ci/README.md) for the full task list, caching, and image
+promotion details, and [`CLAUDE.md`](CLAUDE.md) for repository layout and build
+conventions.
 
 ---
 
