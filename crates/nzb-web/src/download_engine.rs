@@ -143,6 +143,7 @@ struct ServerSlot {
     name: String,
     limit: usize,
     semaphore: Arc<tokio::sync::Semaphore>,
+    connected: Arc<AtomicUsize>,
 }
 
 impl ConnectionTracker {
@@ -191,6 +192,7 @@ impl ConnectionTracker {
                         name: server_name.to_string(),
                         limit,
                         semaphore: Arc::new(tokio::sync::Semaphore::new(limit)),
+                        connected: Arc::new(AtomicUsize::new(0)),
                     },
                 );
                 if let Some(prev) = prev_limit {
@@ -242,6 +244,8 @@ impl ConnectionTracker {
             server_id: server_id.to_string(),
             server_name: server_slot.name,
             semaphore_origin: server_slot.semaphore,
+            connected: server_slot.connected,
+            is_connected: false,
             _permit: permit,
         })
     }
@@ -282,6 +286,21 @@ impl ConnectionTracker {
                     .limit
                     .saturating_sub(slot.semaphore.available_permits());
                 (id.clone(), active, slot.limit)
+            })
+            .collect()
+    }
+
+    /// `(server_id, connected, limit)` triples for established NNTP sockets.
+    pub fn connected_snapshot(&self) -> Vec<(String, usize, usize)> {
+        let pools = self.pools.lock();
+        pools
+            .iter()
+            .map(|(id, slot)| {
+                (
+                    id.clone(),
+                    slot.connected.load(Ordering::Relaxed).min(slot.limit),
+                    slot.limit,
+                )
             })
             .collect()
     }
@@ -327,6 +346,8 @@ pub struct ConnectionSlot {
     /// Used by `ConnectionTracker::slot_is_current` to detect a stale slot
     /// after a `set_limit` shrink (which replaces the semaphore).
     semaphore_origin: Arc<tokio::sync::Semaphore>,
+    connected: Arc<AtomicUsize>,
+    is_connected: bool,
     _permit: tokio::sync::OwnedSemaphorePermit,
 }
 
@@ -336,6 +357,26 @@ impl ConnectionSlot {
     }
     pub fn server_name(&self) -> &str {
         &self.server_name
+    }
+
+    fn mark_connected(&mut self) {
+        if !self.is_connected {
+            self.connected.fetch_add(1, Ordering::Relaxed);
+            self.is_connected = true;
+        }
+    }
+
+    fn mark_disconnected(&mut self) {
+        if self.is_connected {
+            self.connected.fetch_sub(1, Ordering::Relaxed);
+            self.is_connected = false;
+        }
+    }
+}
+
+impl Drop for ConnectionSlot {
+    fn drop(&mut self) {
+        self.mark_disconnected();
     }
 }
 
@@ -1484,6 +1525,7 @@ async fn pool_worker(
             tokio::time::sleep(RECONNECT_DELAY).await;
             continue 'reconnect;
         }
+        conn_slot.mark_connected();
 
         let pipe_depth = primary_server.pipelining.max(1);
         let active_conns = pool.conn_tracker.total();
@@ -1527,6 +1569,7 @@ async fn pool_worker(
         };
 
         let _ = conn.quit().await;
+        conn_slot.mark_disconnected();
 
         match reconnect_needed {
             WorkerExit::Reconnect => {
@@ -3284,5 +3327,21 @@ mod tests {
         assert_eq!(snap.len(), 2);
         assert_eq!(snap[0], ("srv1".into(), 2, 3));
         assert_eq!(snap[1], ("srv2".into(), 1, 5));
+    }
+
+    #[tokio::test]
+    async fn connected_snapshot_counts_only_established_sockets() {
+        let t = ConnectionTracker::new();
+        t.set_limit("srv1", "Server 1", 3);
+
+        let mut connected = t.acquire("srv1").await.unwrap();
+        let _disconnected = t.acquire("srv1").await.unwrap();
+        assert_eq!(t.connected_snapshot(), vec![("srv1".into(), 0, 3)]);
+
+        connected.mark_connected();
+        assert_eq!(t.connected_snapshot(), vec![("srv1".into(), 1, 3)]);
+
+        connected.mark_disconnected();
+        assert_eq!(t.connected_snapshot(), vec![("srv1".into(), 0, 3)]);
     }
 }

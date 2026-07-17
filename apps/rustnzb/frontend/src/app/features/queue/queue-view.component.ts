@@ -30,6 +30,13 @@ interface ServerConfigLite {
   ssl: boolean;
 }
 
+interface DisplayConnectionCount {
+  count: number;
+  recent: boolean;
+}
+
+const CONNECTION_HOLD_MS = 5_000;
+
 // One post-processing step in the inline pipeline strip. `state` drives styling.
 interface PipelineStep {
   label: string;
@@ -123,16 +130,18 @@ interface PipelineStep {
               <span class="srv-prio">P{{ s.priority }}</span>
               <div class="srv-bar" [class.disabled]="!s.enabled">
                 @if (s.enabled) {
-                  <div class="seg active" [style.width.%]="pct(s.active, s.connections)"></div>
-                  <div class="seg idle" [style.width.%]="pct(s.idle, s.connections)"></div>
+                  <div
+                    class="seg active"
+                    [class.recent]="s.recent"
+                    [style.width.%]="pct(s.active, s.connections)"
+                  ></div>
                 }
               </div>
               <span class="srv-count">
                 @if (s.enabled) {
-                  {{ s.active }} active · {{ s.idle }} idle · {{
-                    s.connections - s.active - s.idle
-                  }}
-                  free
+                  {{ s.active }} {{ s.recent ? 'recent' : 'connected' }} · {{
+                    s.connections - s.active
+                  }} free
                 } @else {
                   disabled
                 }
@@ -140,8 +149,8 @@ interface PipelineStep {
             </div>
           }
           <div class="legend">
-            <span class="sw a">Active</span>
-            <span class="sw i">Idle</span>
+            <span class="sw a">Connected now</span>
+            <span class="sw r">Recent (held 5s)</span>
             <span style="margin-left:auto">NNTPS · rustls (ring)</span>
           </div>
         </div>
@@ -698,7 +707,7 @@ interface PipelineStep {
       .srv-bar .seg.active {
         background: var(--accent2);
       }
-      .srv-bar .seg.idle {
+      .srv-bar .seg.active.recent {
         background: var(--accent);
       }
       .srv-count {
@@ -733,6 +742,9 @@ interface PipelineStep {
         background: var(--accent2);
       }
       .legend .i::before {
+        background: var(--accent);
+      }
+      .legend .r::before {
         background: var(--accent);
       }
       .empty {
@@ -1105,6 +1117,9 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   }
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private connectionHoldTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly connectionHold = new Map<string, { count: number; expiresAt: number }>();
+  connectionClock = signal(Date.now());
   private routeSub: Subscription | null = null;
 
   // Filter
@@ -1154,6 +1169,7 @@ export class QueueViewComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this.connectionHoldTimer) clearTimeout(this.connectionHoldTimer);
     this.routeSub?.unsubscribe();
     this.toggleSub?.unsubscribe();
   }
@@ -1183,7 +1199,10 @@ export class QueueViewComponent implements OnInit, OnDestroy {
       error: () => this.loading.set(false),
     });
     this.api.get<StatusResponse>('/status').subscribe({
-      next: (s) => this.status.set(s),
+      next: (s) => {
+        this.status.set(s);
+        this.updateConnectionHold(s.nntp_connections ?? [], Date.now());
+      },
       error: () => {},
     });
   }
@@ -1223,19 +1242,11 @@ export class QueueViewComponent implements OnInit, OnDestroy {
       .filter((s) => s.enabled)
       .reduce((n, s) => n + s.connections, 0),
   );
-  /**
-   * Active connection count across the pool. We don't have a live "in-use"
-   * endpoint, so derive a reasonable estimate: every job in `downloading`
-   * state burns roughly its allocated slice. Pool sizes still cap the bar.
-   */
   connsActive = computed(() => {
-    const active = this.jobs().filter((j) => j.status === 'downloading').length;
-    const total = this.connsTotal();
-    if (active === 0 || total === 0) return 0;
-    // Simple: assume each active job saturates ~half the primary server's conns.
-    const primary = this.servers().find((s) => s.enabled && s.priority === 0);
-    const primaryConns = primary?.connections ?? total;
-    return Math.min(total, Math.round(primaryConns * active));
+    this.connectionClock();
+    return this.servers()
+      .filter((server) => server.enabled)
+      .reduce((total, server) => total + this.displayConnectionCount(server.id).count, 0);
   });
   connPct = computed(() => {
     const t = this.connsTotal();
@@ -1243,22 +1254,61 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   });
 
   /**
-   * Projected servers with `active`/`idle` fields for the visualiser.
-   * The daemon doesn't expose per-server pool state yet, so we distribute
-   * `connsActive()` across enabled servers in priority order.
+   * Live established sockets per server. A just-finished non-zero value is
+   * retained for five seconds and explicitly marked `recent` so short backup
+   * cascades remain visible between two-second polling ticks.
    */
   visibleServersWithConns = computed(() => {
     const enabled = this.servers()
       .filter((s) => s.enabled)
       .sort((a, b) => a.priority - b.priority);
-    let remainingActive = this.connsActive();
     return enabled.map((s) => {
-      const active = Math.min(s.connections, remainingActive);
-      remainingActive -= active;
-      const idle = Math.min(s.connections - active, this.jobs().length > 0 ? 1 : 0);
-      return { ...s, active, idle };
+      const display = this.displayConnectionCount(s.id);
+      return { ...s, active: Math.min(s.connections, display.count), recent: display.recent };
     });
   });
+
+  updateConnectionHold(
+    snapshots: ReadonlyArray<{ server_id: string; connected: number }>,
+    now = Date.now(),
+  ): void {
+    for (const snapshot of snapshots) {
+      if (snapshot.connected > 0) {
+        this.connectionHold.set(snapshot.server_id, {
+          count: snapshot.connected,
+          expiresAt: now + CONNECTION_HOLD_MS,
+        });
+      }
+    }
+    this.connectionClock.set(now);
+    this.scheduleConnectionHoldExpiry(now);
+  }
+
+  displayConnectionCount(serverId: string, now = this.connectionClock()): DisplayConnectionCount {
+    const live = this.status()?.nntp_connections?.find((item) => item.server_id === serverId);
+    if ((live?.connected ?? 0) > 0) return { count: live!.connected, recent: false };
+    const held = this.connectionHold.get(serverId);
+    if (held && held.expiresAt > now) return { count: held.count, recent: true };
+    return { count: 0, recent: false };
+  }
+
+  private scheduleConnectionHoldExpiry(now: number): void {
+    if (this.connectionHoldTimer) clearTimeout(this.connectionHoldTimer);
+    const nextExpiry = Math.min(
+      ...Array.from(this.connectionHold.values(), (held) => held.expiresAt).filter(
+        (expiresAt) => expiresAt > now,
+      ),
+    );
+    if (!Number.isFinite(nextExpiry)) return;
+    this.connectionHoldTimer = setTimeout(() => {
+      const expiredAt = Date.now();
+      for (const [serverId, held] of this.connectionHold) {
+        if (held.expiresAt <= expiredAt) this.connectionHold.delete(serverId);
+      }
+      this.connectionClock.set(expiredAt);
+      this.scheduleConnectionHoldExpiry(expiredAt);
+    }, Math.max(0, nextExpiry - now));
+  }
 
   pct(part: number, total: number): number {
     return total > 0 ? (100 * part) / total : 0;

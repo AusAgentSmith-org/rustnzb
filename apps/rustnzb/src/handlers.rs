@@ -312,6 +312,14 @@ pub struct StatusResponse {
     pub pause_remaining_secs: Option<i64>,
     pub webdav_available: bool,
     pub webdav_enabled: bool,
+    pub nntp_connections: Vec<NntpConnectionStatus>,
+}
+
+#[derive(Serialize)]
+pub struct NntpConnectionStatus {
+    pub server_id: String,
+    pub connected: usize,
+    pub limit: usize,
 }
 
 #[derive(Serialize)]
@@ -834,6 +842,15 @@ pub async fn h_status(
         webdav_enabled: dav.is_some(),
         #[cfg(not(feature = "webdav"))]
         webdav_enabled: false,
+        nntp_connections: qm
+            .connected_snapshot()
+            .into_iter()
+            .map(|(server_id, connected, limit)| NntpConnectionStatus {
+                server_id,
+                connected,
+                limit,
+            })
+            .collect(),
     }))
 }
 

@@ -46,6 +46,13 @@ export interface StatusResponse {
   pause_remaining_secs: number | null;
   webdav_available: boolean;
   webdav_enabled: boolean;
+  nntp_connections: NntpConnectionStatus[];
+}
+
+export interface NntpConnectionStatus {
+  server_id: string;
+  connected: number;
+  limit: number;
 }
 
 export interface HistoryEntry {

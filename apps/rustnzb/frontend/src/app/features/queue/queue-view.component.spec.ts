@@ -155,6 +155,25 @@ describe('QueueViewComponent', () => {
     expect(component.failedArticlesLabel(37)).toBe('37 failed articles');
   });
 
+  it('holds a just-finished connection count for five seconds', () => {
+    const { component } = makeComponent();
+    component.status.set({ nntp_connections: [] } as never);
+
+    component.updateConnectionHold([{ server_id: 'backup', connected: 7 }], 1_000);
+    component.status.set({ nntp_connections: [{ server_id: 'backup', connected: 0, limit: 10 }] } as never);
+
+    expect(component.displayConnectionCount('backup', 5_999)).toEqual({ count: 7, recent: true });
+    expect(component.displayConnectionCount('backup', 6_000)).toEqual({ count: 0, recent: false });
+  });
+
+  it('prefers the live connection count over a held value', () => {
+    const { component } = makeComponent();
+    component.updateConnectionHold([{ server_id: 'backup', connected: 7 }], 1_000);
+    component.status.set({ nntp_connections: [{ server_id: 'backup', connected: 3, limit: 10 }] } as never);
+
+    expect(component.displayConnectionCount('backup', 2_000)).toEqual({ count: 3, recent: false });
+  });
+
   it('ignores a duplicate row action while the first request is pending', () => {
     const action$ = new Subject<unknown>();
     const { component, api } = makeComponent({

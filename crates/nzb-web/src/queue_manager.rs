@@ -791,6 +791,12 @@ impl QueueManager {
         self.conn_tracker.snapshot()
     }
 
+    /// Per-server established NNTP sockets, excluding workers that only hold
+    /// a pool permit while disconnected or reconnecting.
+    pub fn connected_snapshot(&self) -> Vec<(String, usize, usize)> {
+        self.conn_tracker.connected_snapshot()
+    }
+
     /// Total currently-held NNTP connection slots across all servers.
     pub fn connection_total(&self) -> usize {
         self.conn_tracker.total()
