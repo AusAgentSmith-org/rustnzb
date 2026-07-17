@@ -114,6 +114,11 @@ pub async fn run_pipeline(job_dir: &Path, config: &PostProcConfig) -> PostProcRe
     // during yEnc decode, so we skip the expensive MD5 verification pass.
     let par2_files = find_par2_files(job_dir);
 
+    info!(
+        par2_files = par2_files.len(),
+        "PAR2 files discovered for post-processing"
+    );
+
     if par2_files.is_empty() {
         if config.content_articles_failed > 0 {
             pipeline_ok = false;
@@ -568,7 +573,19 @@ async fn run_extract_stage(
                 } else {
                     all_ok = false;
                     warn!(kind = %archive_type, file = %path.display(), "Extraction reported failure");
-                    messages.push(format!("{archive_type}: failed"));
+                    let detail = unpack_result
+                        .error_output
+                        .trim()
+                        .lines()
+                        .filter(|line| !line.trim().is_empty())
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(" | ");
+                    if detail.is_empty() {
+                        messages.push(format!("{archive_type}: failed"));
+                    } else {
+                        messages.push(format!("{archive_type}: failed ({detail})"));
+                    }
                 }
             }
             Err(e) => {

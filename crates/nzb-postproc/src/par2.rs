@@ -17,6 +17,11 @@ pub struct Par2Result {
     pub message: String,
 }
 
+/// Return whether the available recovery blocks can cover verified damage.
+pub fn recovery_can_cover(blocks_needed: u32, blocks_available: u32) -> bool {
+    blocks_needed <= blocks_available
+}
+
 /// Repair damaged/missing files using native Rust PAR2 repair.
 ///
 /// This runs verification internally and then repairs if needed.
@@ -47,6 +52,23 @@ pub fn par2_repair_blocking(par2_file: &Path) -> anyhow::Result<Par2Result> {
         missing = verify_result.missing.len(),
         "Damage detected, attempting native repair"
     );
+
+    if !recovery_can_cover(blocks_needed, blocks_available) {
+        let message = format!(
+            "Insufficient recovery data: need {blocks_needed} blocks, have {blocks_available}"
+        );
+        warn!(
+            blocks_needed,
+            blocks_available, "Native PAR2 repair cannot cover damage"
+        );
+        return Ok(Par2Result {
+            success: false,
+            blocks_needed,
+            blocks_available,
+            repaired: false,
+            message,
+        });
+    }
 
     match rust_par2::repair_from_verify(&file_set, dir, &verify_result) {
         Ok(repair_result) => {
@@ -115,5 +137,17 @@ mod tests {
         assert!(!result.repaired);
         assert_eq!(result.blocks_needed, 0);
         assert_eq!(result.blocks_available, 10);
+    }
+
+    #[test]
+    fn repair_succeeds_when_recovery_covers_damage() {
+        assert!(recovery_can_cover(10, 10));
+        assert!(recovery_can_cover(2, 671));
+    }
+
+    #[test]
+    fn repair_fails_when_recovery_is_insufficient() {
+        assert!(!recovery_can_cover(207, 71));
+        assert!(!recovery_can_cover(1, 0));
     }
 }

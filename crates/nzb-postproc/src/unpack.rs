@@ -16,6 +16,9 @@ pub struct UnpackResult {
     pub success: bool,
     pub files_extracted: Vec<String>,
     pub output: String,
+    /// Captured stderr from the extractor, retained for actionable history
+    /// diagnostics when a command exits non-zero.
+    pub error_output: String,
 }
 
 fn unrar_password_flag(password: Option<&str>) -> String {
@@ -152,6 +155,7 @@ pub async fn extract_rar(
         success,
         files_extracted: Vec::new(), // TODO: parse from output
         output: stdout,
+        error_output: stderr,
     })
 }
 
@@ -212,6 +216,7 @@ pub async fn extract_7z(
         success,
         files_extracted: Vec::new(), // TODO: parse from output
         output: stdout,
+        error_output: stderr,
     })
 }
 
@@ -248,6 +253,7 @@ pub async fn extract_zip(zip_file: &Path, output_dir: &Path) -> anyhow::Result<U
             success: true,
             files_extracted: extracted,
             output: String::new(),
+            error_output: String::new(),
         })
     })
     .await??;
@@ -329,6 +335,7 @@ mod tests {
             success: true,
             files_extracted: vec!["file1.txt".to_string()],
             output: "OK".to_string(),
+            error_output: String::new(),
         };
         assert!(result.success);
         assert_eq!(result.files_extracted.len(), 1);

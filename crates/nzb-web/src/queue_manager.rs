@@ -238,8 +238,8 @@ impl HopelessTracker {
 
         for file in &job.files {
             if file.is_par2 {
-                // A plain .par2 is the index. Only .volNN+MM.par2 recovery
-                // volumes declare usable Reed-Solomon blocks.
+                // A plain .par2 is the index. Only .volNN+MM.par2 or
+                // .volNN-MM.par2 recovery volumes declare usable blocks.
                 if file.par2_vol.is_some() && file.par2_blocks.is_some_and(|blocks| blocks > 0) {
                     recovery_capacity_bytes = recovery_capacity_bytes.saturating_add(file.bytes);
                     recovery_blocks_total = recovery_blocks_total
@@ -1167,7 +1167,16 @@ impl QueueManager {
             if let Some(state) = jobs.get_mut(job_id) {
                 state.progress_handle = Some(progress_handle);
                 state.speed = Arc::clone(&job_speed);
-                state.hopeless_tracker = Some(HopelessTracker::new(&state.job));
+                let tracker = HopelessTracker::new(&state.job);
+                info!(
+                    job_id = %job_id,
+                    par2_recovery_volumes = tracker.recovery_capacity_by_set.len(),
+                    par2_recovery_blocks = tracker.recovery_blocks_total,
+                    par2_recovery_bytes = tracker.recovery_capacity_bytes,
+                    content_bytes = tracker.content_bytes,
+                    "PAR2 recovery capacity initialized"
+                );
+                state.hopeless_tracker = Some(tracker);
             }
         }
     }

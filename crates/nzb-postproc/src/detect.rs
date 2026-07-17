@@ -96,7 +96,7 @@ impl std::fmt::Display for ArchiveType {
 }
 
 /// Find all `.par2` files in a directory. The index par2 file (without
-/// `.volNNN+NNN.par2` suffix) is returned first so callers can use it
+/// `.volNNN+NNN.par2` or `.volNNN-NNN.par2` suffix) is returned first so callers can use it
 /// as the primary verification target.
 pub fn find_par2_files(dir: &Path) -> Vec<PathBuf> {
     let mut index_files: Vec<PathBuf> = Vec::new();
@@ -131,22 +131,22 @@ pub fn find_par2_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// Returns true if a filename looks like a par2 volume file (e.g.
-/// `foo.vol00+01.par2`) rather than the index file (`foo.par2`).
+/// `foo.vol00+01.par2` or `foo.vol00-01.par2`) rather than the index file.
 fn is_par2_volume(name_lower: &str) -> bool {
-    // Typical pattern: .vol000+000.par2
+    // Typical patterns: .vol000+000.par2 and .vol000-000.par2.
     // We check for ".vol" anywhere before the final ".par2"
     let without_ext = name_lower.trim_end_matches(".par2");
     // Look for ".vol" followed by digits, a '+', and more digits
     if let Some(vol_pos) = without_ext.rfind(".vol") {
         let after_vol = &without_ext[vol_pos + 4..];
         // Check pattern: digits + '+' + digits
-        if let Some(plus_pos) = after_vol.find('+') {
-            let before_plus = &after_vol[..plus_pos];
-            let after_plus = &after_vol[plus_pos + 1..];
-            return !before_plus.is_empty()
-                && before_plus.chars().all(|c| c.is_ascii_digit())
-                && !after_plus.is_empty()
-                && after_plus.chars().all(|c| c.is_ascii_digit());
+        if let Some(separator_pos) = after_vol.find(['+', '-']) {
+            let before_separator = &after_vol[..separator_pos];
+            let after_separator = &after_vol[separator_pos + 1..];
+            return !before_separator.is_empty()
+                && before_separator.chars().all(|c| c.is_ascii_digit())
+                && !after_separator.is_empty()
+                && after_separator.chars().all(|c| c.is_ascii_digit());
         }
     }
     false
@@ -363,6 +363,14 @@ mod tests {
     }
 
     #[test]
+    fn test_find_par2_hyphenated_volumes_after_index() {
+        let dir = make_test_dir(&["movie.vol63-67.par2", "movie.par2", "movie.vol00-01.par2"]);
+        let files = find_par2_files(dir.path());
+        assert_eq!(files[0].file_name().unwrap(), "movie.par2");
+        assert_eq!(files.len(), 3);
+    }
+
+    #[test]
     fn test_find_par2_empty_dir() {
         let dir = make_test_dir(&["readme.txt", "movie.mkv"]);
         let results = find_par2_files(dir.path());
@@ -453,6 +461,8 @@ mod tests {
     fn test_is_par2_volume() {
         assert!(is_par2_volume("file.vol00+01.par2"));
         assert!(is_par2_volume("file.vol123+456.par2"));
+        assert!(is_par2_volume("file.vol00-01.par2"));
+        assert!(is_par2_volume("file.vol63-67.par2"));
         assert!(!is_par2_volume("file.par2"));
         assert!(!is_par2_volume("file.volume.par2"));
     }
