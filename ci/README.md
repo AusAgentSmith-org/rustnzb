@@ -3,7 +3,7 @@
 `./ci/run TASK` is the supported way to reproduce a Woodpecker gate locally.
 It runs the checked-in `ci/tasks/TASK` script in the exact image digest recorded
 in `ci/images.lock`, with the checkout mounted at `/woodpecker/src` just as it
-is in CI. Docker Buildx is required. In the Sprooty workspace,
+is in CI. Docker Buildx is required. In the development workspace,
 `mydevenv2-agent-auth` supplies Forgejo credentials in memory for tasks that
 need the private WebDAV crates.
 

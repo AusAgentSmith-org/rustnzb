@@ -1,4 +1,4 @@
-> **Workspace root:** [`~/Working/CLAUDE.md`](/home/sprooty/Working/CLAUDE.md) — infrastructure, CI/CD, shared crates, dev workflow, commit rules.
+> **Local guidance:** [`AGENTS.md`](AGENTS.md) — repository workflow and workspace service-access rules.
 
 # nzb-news
 

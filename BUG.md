@@ -361,7 +361,7 @@ Results:
 
 Release/build policy clarified after review:
 - Release-candidate builds must succeed against published registries, not local `[patch.*]` overrides.
-- Any publish/push/tag work for this project must use the `AusAgentSmith` git identity, not the current local `sprooty` identity.
+- Any publish/push/tag work for this project must use the repository's approved migration identity, not a workstation-specific identity.
 - This repo already has both Forgejo and GitHub remotes configured:
   - `origin = https://repo.indexarr.net/indexarr/rustnzb.git`
   - `github = https://github.com/AusAgentSmith-org/rustnzb.git`

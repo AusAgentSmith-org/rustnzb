@@ -38,8 +38,8 @@ Status: implemented and tested
 
 Files:
 
-- [src/group_handlers.rs](/home/sprooty/Working/Active/apps/rustnzbd/src/group_handlers.rs)
-- [tests/group_mark_read.rs](/home/sprooty/Working/Active/apps/rustnzbd/tests/group_mark_read.rs)
+- [src/group_handlers.rs](src/group_handlers.rs)
+- [tests/group_mark_read.rs](tests/group_mark_read.rs)
 
 What changed:
 
@@ -65,9 +65,9 @@ Status: implemented and tested
 
 Files:
 
-- [frontend/src/app/features/queue/queue-view.component.ts](/home/sprooty/Working/Active/apps/rustnzbd/frontend/src/app/features/queue/queue-view.component.ts)
-- [frontend/src/app/features/queue/queue-view.component.spec.ts](/home/sprooty/Working/Active/apps/rustnzbd/frontend/src/app/features/queue/queue-view.component.spec.ts)
-- [frontend/angular.json](/home/sprooty/Working/Active/apps/rustnzbd/frontend/angular.json)
+- [frontend/src/app/features/queue/queue-view.component.ts](frontend/src/app/features/queue/queue-view.component.ts)
+- [frontend/src/app/features/queue/queue-view.component.spec.ts](frontend/src/app/features/queue/queue-view.component.spec.ts)
+- [frontend/angular.json](frontend/angular.json)
 
 What changed:
 

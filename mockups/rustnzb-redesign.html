@@ -842,7 +842,7 @@
               <div class="title">news-primary.example
                 <span class="pill ok" style="margin-left:6px">● connected</span>
               </div>
-              <div class="host">NNTPS · news-primary.example:563 · user <code>sprooty</code> · 20 conns · pipeline 16 · TLS 1.3 · cert pinned</div>
+              <div class="host">NNTPS · news-primary.example:563 · user <code>demo-user</code> · 20 conns · pipeline 16 · TLS 1.3 · cert pinned</div>
               <div class="meters" style="margin-top:6px">
                 <span>priority <b>0</b></span>
                 <span>in use <b>19/20</b></span>
@@ -865,7 +865,7 @@
                 <span class="pill ok" style="margin-left:6px">● connected</span>
                 <span class="tag" style="margin-left:4px">block account</span>
               </div>
-              <div class="host">NNTPS · news-backup.example:563 · user <code>sprooty</code> · 16 conns · pipeline 8</div>
+              <div class="host">NNTPS · news-backup.example:563 · user <code>demo-user</code> · 16 conns · pipeline 8</div>
               <div class="meters" style="margin-top:6px">
                 <span>priority <b>1</b></span>
                 <span>in use <b>14/16</b></span>
@@ -887,7 +887,7 @@
               <div class="title" style="color:var(--mute)">news-tertiary.example
                 <span class="pill err" style="margin-left:6px">● cert expired</span>
               </div>
-              <div class="host">NNTPS · news-tertiary.example:563 · user <code>sprooty</code> · 8 conns · disabled by health check</div>
+              <div class="host">NNTPS · news-tertiary.example:563 · user <code>demo-user</code> · 8 conns · disabled by health check</div>
               <div class="meters" style="margin-top:6px;color:var(--mute)">
                 <span>priority <b>2</b></span>
                 <span>last error <b>handshake</b></span>
@@ -917,7 +917,7 @@
                 <label class="check"><input type="checkbox" checked> Verify cert</label>
               </div>
 
-              <label>Username</label><input type="text" value="sprooty">
+              <label>Username</label><input type="text" value="demo-user">
               <label>Password</label><input type="password" value="hunter2">
 
               <label>Connections</label>
@@ -1279,7 +1279,7 @@ secret</textarea>
             <div class="form">
               <label>Enabled</label>
               <div class="check"><input type="checkbox" checked></div>
-              <label>Endpoint</label><input type="text" value="https://otel.sprooty.com:4317">
+              <label>Endpoint</label><input type="text" value="https://otel.example.invalid:4317">
               <label>Service name</label><input type="text" value="rustnzb">
               <label>Headers</label>
               <textarea>authorization=Bearer ${OTLP_TOKEN}</textarea>

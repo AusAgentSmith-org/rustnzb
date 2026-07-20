@@ -88,7 +88,7 @@ Checked against crates.io on 2026-07-07:
 ### Release constraints
 
 - Local path overrides are for development only. Any release gate for this app or its shared crates must pass using published dependencies from Forgejo/crates.io, not unpublished local checkouts.
-- Before any commit/tag/publish/push for release work, set the repo-local git identity to `AusAgentSmith` so release history is not authored as `sprooty`.
+- Before any commit/tag/publish/push for release work, set the repo-local approved migration identity so release history is not authored as a workstation-specific user.
 - This repo has a Forgejo primary remote and a GitHub mirror remote already configured; release flow must keep both in sync.
 - Add a full dependency version review across `rustnzb` and the shared crates
   before calling the release/uplift line complete. That review should cover:

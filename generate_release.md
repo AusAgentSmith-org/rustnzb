@@ -106,7 +106,7 @@ Notes:
 Hard requirements:
 
 - All release builds and quality gates must pass from the monorepo workspace using the vendored `crates/` members.
-- Any commit, tag, or publish action for this release train must be authored as `AusAgentSmith`, not `sprooty`.
+- Any commit, tag, or publish action for this release train must be authored as the approved migration identity, not a workstation-specific user.
 - `origin` (Forgejo) is primary, `github` is the public mirror. Push to both where applicable.
 
 ### Crates in scope
@@ -134,7 +134,7 @@ git config user.email "admin@rustnzb.dev"
 
 # Ensure crates.io token is loaded
 export CARGO_REGISTRY_TOKEN=$(infisical secrets get CARGO_CRATES_IO_TOKEN \
-  --domain https://se.sprooty.com \
+  --domain https://se.example.invalid \
   --projectId 6d6caff5-7aaf-42f8-a135-2455d7629af8 \
   --env prod --plain)
 

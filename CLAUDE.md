@@ -8,7 +8,7 @@ This repository is the canonical monorepo for the application and shared
 `nzb-*` crates. Forgejo is the private source of truth; GitHub is a public
 distribution mirror only.
 
-Read `/home/sprooty/Working/AGENTS.md` before authenticated CI, registry, ops,
+Read the workspace `AGENTS.md` before authenticated CI, registry, ops,
 or deployment work.
 
 ## Repository layout
@@ -216,4 +216,4 @@ reported healthy with zero restarts.
 - `generate_release.md`: crate/application release procedure
 - `CONTAINERIZED_BUILD_PLAN.md`: completed convergence design and outcome
 - `DEPLOY.local.md`: private environment-specific Node B notes (gitignored)
-- `/home/sprooty/Working/AGENTS.md`: workspace service access and commit rules
+- Workspace `AGENTS.md`: workspace service access and commit rules
