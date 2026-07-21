@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   verify-release-ref:
-    runs-on: [self-hosted, node-b, linux, x64]
+    runs-on: [self-hosted, node-b, linux, x64, rust]
     steps:
       - uses: actions/checkout@v7
         with:
