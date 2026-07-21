@@ -1,0 +1,5 @@
+[registries.forgejo]
+index = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+
+[registry]
+global-credential-providers = ["cargo:token"]
