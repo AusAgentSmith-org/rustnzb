@@ -89,9 +89,9 @@ jobs:
           FORGEJO_TOKEN: ${{ secrets.FORGEJO_CARGO_TOKEN }}
           SKOPEO_IMAGE: quay.io/skopeo/stable@sha256:c7d3c512612f52805023cd38351081dad7e2729fc13d14b701e47c7c8bdd6615
         run: |
-          docker run --rm \
+          docker run --rm --entrypoint sh \
             -e GH_TOKEN -e FORGEJO_TOKEN -e GITHUB_ACTOR -e GITHUB_REF_NAME \
-            "$SKOPEO_IMAGE" sh -ec '
+            "$SKOPEO_IMAGE" -ec '
               src="docker://ghcr.io/thedancingdeveloper-org/rustnzbd:$GITHUB_REF_NAME"
               dst="docker://repo.indexarr.net/indexarr/rustnzbd:$GITHUB_REF_NAME"
               skopeo copy --multi-arch all \
@@ -112,9 +112,9 @@ jobs:
           OLD_GHCR_TOKEN: ${{ secrets.OLD_GHCR_TOKEN }}
           SKOPEO_IMAGE: quay.io/skopeo/stable@sha256:c7d3c512612f52805023cd38351081dad7e2729fc13d14b701e47c7c8bdd6615
         run: |
-          docker run --rm \
+          docker run --rm --entrypoint sh \
             -e GH_TOKEN -e OLD_GHCR_TOKEN -e GITHUB_ACTOR -e GITHUB_REF_NAME \
-            "$SKOPEO_IMAGE" sh -ec '
+            "$SKOPEO_IMAGE" -ec '
               src="docker://ghcr.io/thedancingdeveloper-org/rustnzbd:$GITHUB_REF_NAME"
               dst="docker://ghcr.io/ausagentsmith-org/rustnzb:$GITHUB_REF_NAME"
               skopeo copy --multi-arch all \
