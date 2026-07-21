@@ -14,8 +14,19 @@ permissions:
 jobs:
   rust:
     runs-on: [self-hosted, node-b, linux, x64]
+    env:
+      FORGEJO_CARGO_TOKEN: ${{ secrets.FORGEJO_CARGO_TOKEN }}
+      CARGO_BUILD_JOBS: 1
     steps:
       - uses: actions/checkout@v7
+      - name: Configure Cargo credentials
+        run: |
+          export CARGO_HOME="$RUNNER_TEMP/cargo-home"
+          mkdir -p "$CARGO_HOME"
+          printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$FORGEJO_CARGO_TOKEN" > "$CARGO_HOME/credentials.toml"
+          chmod 600 "$CARGO_HOME/credentials.toml"
+          test -n "$FORGEJO_CARGO_TOKEN"
+          echo "CARGO_HOME=$CARGO_HOME" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.88
