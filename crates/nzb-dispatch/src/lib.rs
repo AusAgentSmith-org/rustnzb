@@ -18,14 +18,7 @@ pub mod article_failure;
 pub mod bandwidth;
 pub mod dispatch_engine;
 pub mod download_engine;
-pub mod news_engine;
 pub mod util;
-
-pub use news_engine::{NewsDispatchEngine, NewsEngineConfig};
-
-// Re-export the underlying probe-policy type so downstream crates (nzb-web,
-// Arz, ...) can configure it without depending on nzb-news directly.
-pub use nzb_news::ServerProbePolicy;
 
 // Convenience re-exports — the types downstream crates reach for.
 pub use article_failure::{ArticleFailure, ArticleFailureKind};
@@ -33,4 +26,5 @@ pub use bandwidth::{BandwidthConfig, BandwidthLimiter};
 pub use dispatch_engine::{DispatchEngine, DispatchHandle};
 pub use download_engine::{
     ConnectionSlot, ConnectionTracker, ProgressUpdate, ServerHealth, SlotStatus, WorkerPool,
+    has_known_extension,
 };

@@ -21,10 +21,11 @@ use crate::nzb_core::models::*;
 use crate::nzb_core::nzb_parser;
 use nzb_postproc::{PostProcConfig, parse_rar_volume, run_pipeline};
 
-use crate::bandwidth::BandwidthLimiter;
 use crate::direct_unpack::DirectUnpacker;
-use crate::download_engine::{ConnectionTracker, ProgressUpdate, WorkerPool, build_job_submission};
 use crate::log_buffer::LogBuffer;
+use nzb_dispatch::{
+    BandwidthConfig, BandwidthLimiter, DispatchEngine, DispatchHandle, ProgressUpdate,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerStatsData {
@@ -269,7 +270,7 @@ impl HopelessTracker {
                         .cloned()
                 };
                 content_file_sets.insert(file.id.clone(), associated_set);
-                if !crate::download_engine::has_known_extension(&file.filename) {
+                if !nzb_dispatch::has_known_extension(&file.filename) {
                     pending_file_classifications.insert(file.id.clone());
                 }
             }
@@ -351,7 +352,7 @@ impl HopelessTracker {
         &mut self,
         is_par2: bool,
         estimated_bytes: u64,
-        kind: crate::article_failure::ArticleFailureKind,
+        kind: nzb_dispatch::ArticleFailureKind,
     ) {
         self.record_file_failure(None, is_par2, estimated_bytes, kind);
     }
@@ -361,7 +362,7 @@ impl HopelessTracker {
         file_id: Option<&str>,
         is_par2: bool,
         estimated_bytes: u64,
-        kind: crate::article_failure::ArticleFailureKind,
+        kind: nzb_dispatch::ArticleFailureKind,
     ) {
         self.last_progress_at = Instant::now();
         if is_par2 {
@@ -667,10 +668,8 @@ pub struct QueueManager {
     no_progress_timeout: Mutex<Duration>,
     /// Quick initial failure check on first N articles.
     early_failure_check: bool,
-    /// Global NNTP connection tracker (shared across all download jobs).
-    conn_tracker: Arc<ConnectionTracker>,
-    /// Shared worker pool that services all active download jobs.
-    worker_pool: Arc<WorkerPool>,
+    /// Canonical article dispatcher owned by `nzb-dispatch`.
+    dispatch: Arc<dyn DispatchEngine>,
     /// Minimum effective completion percentage, including usable PAR2 capacity.
     required_completion_pct: f64,
 }
@@ -696,7 +695,6 @@ impl QueueManager {
         required_completion_pct: f64,
         article_timeout_secs: u64,
     ) -> Arc<Self> {
-        use crate::bandwidth::BandwidthConfig;
         use std::num::NonZeroU32;
 
         let download_bps = if speed_limit_bps > 0 {
@@ -706,20 +704,13 @@ impl QueueManager {
         };
         let bandwidth = Arc::new(BandwidthLimiter::new(BandwidthConfig { download_bps }));
 
-        // Build connection tracker with per-server limits.
-        let conn_tracker = Arc::new(ConnectionTracker::new());
-        for server in &servers {
-            conn_tracker.set_limit(&server.id, &server.name, server.connections as usize);
-        }
-
         let servers_arc = Arc::new(Mutex::new(servers));
-        let worker_pool = WorkerPool::new(
+        let dispatch: Arc<dyn DispatchEngine> = Arc::new(DispatchHandle::new(
             Arc::clone(&servers_arc),
             Arc::clone(&bandwidth),
-            Arc::clone(&conn_tracker),
             article_timeout_secs,
-        );
-        worker_pool.start();
+        ));
+        dispatch.start();
 
         let (add_tx, _) = broadcast::channel(64);
 
@@ -743,8 +734,7 @@ impl QueueManager {
             min_free_space,
             bandwidth,
             direct_unpack_enabled: AtomicBool::new(direct_unpack),
-            conn_tracker,
-            worker_pool,
+            dispatch,
             abort_hopeless,
             early_failure_check,
             required_completion_pct: required_completion_pct.clamp(100.0, 200.0),
@@ -790,31 +780,31 @@ impl QueueManager {
     /// connection pool. `active` is by-construction `<= limit` because the
     /// pool is semaphore-backed.
     pub fn connection_snapshot(&self) -> Vec<(String, usize, usize)> {
-        self.conn_tracker.snapshot()
+        self.dispatch.connection_snapshot()
     }
 
-    /// Per-server established NNTP sockets, excluding workers that only hold
-    /// a pool permit while disconnected or reconnecting.
+    /// Per-server sockets actively transferring articles. Connected workers
+    /// waiting for work are reported as free capacity.
     pub fn connected_snapshot(&self) -> Vec<(String, usize, usize)> {
-        self.conn_tracker.connected_snapshot()
+        self.dispatch.active_connection_snapshot()
     }
 
     /// Total currently-held NNTP connection slots across all servers.
     pub fn connection_total(&self) -> usize {
-        self.conn_tracker.total()
+        self.dispatch.connection_total()
     }
 
     /// Override the worker idle eviction threshold (Phase 5 watchdog).
     /// Test harnesses use this to make the eviction trigger in seconds.
     pub fn set_max_worker_idle(&self, d: std::time::Duration) {
-        self.worker_pool.set_max_worker_idle(d);
+        self.dispatch.set_max_worker_idle(d);
     }
 
     /// Lifetime count of worker evictions performed by the Phase 5 idle
     /// watchdog. Each increment means the supervisor reclaimed a worker
     /// that had stalled past `max_worker_idle`.
     pub fn worker_eviction_count(&self) -> u64 {
-        self.worker_pool.eviction_count()
+        self.dispatch.eviction_count()
     }
 
     /// Phase 6: override the time-based hopeless threshold. Tests use this
@@ -863,7 +853,7 @@ impl QueueManager {
                     state.job.error_message = Some(abort.reason.clone());
                 }
             }
-            if !self.worker_pool.abort_job(&job_id, abort.reason) {
+            if !self.dispatch.abort_job(&job_id, abort.reason) {
                 crate::increment_counter("jobs.duplicate_terminal_attempts");
                 debug!(job_id = %job_id, "Duplicate terminal abort request ignored");
             }
@@ -1142,8 +1132,9 @@ impl QueueManager {
         // can fall behind. Unbounded was a memory hazard. With a 10K cap
         // the worst case is bounded buffering plus a `WARN` from
         // `try_send_or_warn` when the channel is full.
-        let (progress_tx, progress_rx) =
-            mpsc::channel::<ProgressUpdate>(crate::download_engine::PROGRESS_CHANNEL_CAPACITY);
+        let (progress_tx, progress_rx) = mpsc::channel::<ProgressUpdate>(
+            nzb_dispatch::download_engine::PROGRESS_CHANNEL_CAPACITY,
+        );
 
         {
             let srv = self.servers.lock();
@@ -1159,9 +1150,7 @@ impl QueueManager {
             }
         }
 
-        // Build the per-job context and work items, submit to the worker pool.
-        let (ctx, items) = build_job_submission(&job, progress_tx);
-        self.worker_pool.submit_job(ctx, items);
+        self.dispatch.submit_job(&job, progress_tx);
 
         // Spawn the per-job progress handler and record its handle.
         let qm = Arc::clone(self);
@@ -1226,7 +1215,7 @@ impl QueueManager {
                                 let revealed_par2 =
                                     clean_name.to_ascii_lowercase().ends_with(".par2");
                                 if !revealed_par2
-                                    && crate::download_engine::has_known_extension(clean_name)
+                                    && nzb_dispatch::has_known_extension(clean_name)
                                     && let Some(tracker) = state.hopeless_tracker.as_mut()
                                 {
                                     tracker.mark_file_classified(&file_id);
@@ -1513,7 +1502,7 @@ impl QueueManager {
                         // Tell the worker pool to drain the job and emit
                         // JobAborted — the JobAborted arm below handles the
                         // rest of the teardown.
-                        if !self.worker_pool.abort_job(&job_id, abort.reason) {
+                        if !self.dispatch.abort_job(&job_id, abort.reason) {
                             crate::increment_counter("jobs.duplicate_terminal_attempts");
                             debug!(job_id = %job_id, "Duplicate terminal abort request ignored");
                         }
@@ -1555,7 +1544,7 @@ impl QueueManager {
                     // another segment for this job. Release the worker-pool
                     // context now to close its persistent assembler handles
                     // before PAR2/unpack opens the completed files.
-                    self.worker_pool.release_completed_job(&job_id);
+                    self.dispatch.release_completed_job(&job_id);
 
                     // Mark as PostProcessing immediately so the slot is freed
                     // for the next queued job. This lets the next download ramp
@@ -1572,24 +1561,6 @@ impl QueueManager {
 
                     self.on_job_finished(&job_id, success, articles_failed)
                         .await;
-                    break;
-                }
-                ProgressUpdate::NoServersAvailable { reason, .. } => {
-                    warn!(
-                        job_id = %job_id,
-                        reason = %reason,
-                        "No servers available — pausing job for retry"
-                    );
-                    {
-                        let mut jobs = self.jobs.lock();
-                        if let Some(state) = jobs.get_mut(&job_id) {
-                            state.job.status = JobStatus::Paused;
-                            state.job.error_message = Some(reason);
-                        }
-                    }
-                    self.persist_job_progress(&job_id);
-                    // Release the download slot so queued jobs can start
-                    self.start_next_queued();
                     break;
                 }
                 ProgressUpdate::JobAborted {
@@ -1609,7 +1580,7 @@ impl QueueManager {
                     // in-flight articles drain. Dropping this context closes
                     // all assembler handles before history or any later stage
                     // can inspect the work directory.
-                    self.worker_pool.release_completed_job(&job_id);
+                    self.dispatch.release_completed_job(&job_id);
                     {
                         let mut jobs = self.jobs.lock();
                         if let Some(state) = jobs.get_mut(&job_id) {
@@ -2111,7 +2082,7 @@ impl QueueManager {
                     );
 
                     // Pause the lower-priority download via the worker pool.
-                    self.worker_pool.pause_job(d_id);
+                    self.dispatch.pause_job(d_id);
                     {
                         let mut jobs = self.jobs.lock();
                         if let Some(state) = jobs.get_mut(d_id.as_str()) {
@@ -2149,7 +2120,7 @@ impl QueueManager {
     /// Pause a specific job.
     pub fn pause_job(self: &Arc<Self>, id: &str) -> crate::nzb_core::Result<()> {
         // Tell the pool first — workers stop pulling this job's items.
-        self.worker_pool.pause_job(id);
+        self.dispatch.pause_job(id);
         {
             let mut jobs = self.jobs.lock();
             let state = jobs
@@ -2190,7 +2161,7 @@ impl QueueManager {
             ));
         }
 
-        let ctx_alive = self.worker_pool.has_job(id);
+        let ctx_alive = self.dispatch.has_job(id);
 
         let needs_launch = {
             let mut jobs = self.jobs.lock();
@@ -2235,7 +2206,7 @@ impl QueueManager {
         };
 
         if ctx_alive {
-            self.worker_pool.resume_job(id);
+            self.dispatch.resume_job(id);
         } else if needs_launch {
             self.launch_download(id);
         }
@@ -2271,7 +2242,7 @@ impl QueueManager {
         }
 
         // Silently cancel in the pool — drains queued items and unregisters.
-        self.worker_pool.cancel_job(id);
+        self.dispatch.cancel_job(id);
         let removed = self.jobs.lock().remove(id);
         if let Some(state) = removed {
             self.globally_paused_jobs.lock().remove(id);
@@ -2413,7 +2384,7 @@ impl QueueManager {
             .extend(to_pause.iter().cloned());
         self.persist_globally_paused_jobs();
         for id in to_pause {
-            self.worker_pool.pause_job(&id);
+            self.dispatch.pause_job(&id);
         }
         info!("All downloads paused");
     }
@@ -2475,7 +2446,7 @@ impl QueueManager {
                 };
                 if state.job.status == JobStatus::Paused {
                     state.job.error_message = None;
-                    if self.worker_pool.has_job(&id) {
+                    if self.dispatch.has_job(&id) {
                         state.job.status = JobStatus::Downloading;
                         to_unpause.push(id);
                     } else {
@@ -2485,7 +2456,7 @@ impl QueueManager {
             }
         }
         for id in to_unpause {
-            self.worker_pool.resume_job(&id);
+            self.dispatch.resume_job(&id);
         }
 
         // Start queued jobs up to the concurrency limit
@@ -2507,33 +2478,7 @@ impl QueueManager {
         let enabled = servers.iter().filter(|s| s.enabled).count();
         info!(total = servers.len(), enabled, "Updating server list");
 
-        // Reconcile the connection tracker:
-        //  - Updated/added servers: set_limit (grows in place or replaces).
-        //  - Removed servers: remove_server (orphans the slot, workers detect
-        //    via slot_is_current and exit on next iteration).
-        let new_ids: std::collections::HashSet<String> =
-            servers.iter().map(|s| s.id.clone()).collect();
-        let old_ids: Vec<String> = self
-            .conn_tracker
-            .snapshot()
-            .into_iter()
-            .map(|(id, _, _)| id)
-            .collect();
-        for old_id in &old_ids {
-            if !new_ids.contains(old_id) {
-                self.conn_tracker.remove_server(old_id);
-            }
-        }
-        for server in &servers {
-            self.conn_tracker
-                .set_limit(&server.id, &server.name, server.connections as usize);
-        }
-        *self.servers.lock() = servers;
-
-        // Reconcile the worker pool to match the new server list (spawns or
-        // retires workers so per-server connection counts stay exactly in
-        // line with server.connections).
-        self.worker_pool.reconcile_servers();
+        self.dispatch.update_servers(servers);
 
         // Auto-resume jobs paused by server errors now that config changed
         if enabled > 0 {
@@ -2543,8 +2488,8 @@ impl QueueManager {
 
     /// Resume jobs that were paused due to server unavailability.
     ///
-    /// Only targets jobs where `error_message` is set (i.e. paused by the
-    /// circuit breaker / `NoServersAvailable`), not user-paused jobs.
+    /// Only targets legacy/restored jobs where `error_message` is set, not
+    /// user-paused jobs. New transient provider failures remain downloading.
     fn resume_server_paused_jobs(self: &Arc<Self>) {
         let _transition = self.pause_transition.lock();
         if self.globally_paused.load(Ordering::SeqCst) {
@@ -2559,7 +2504,7 @@ impl QueueManager {
             for (id, state) in jobs.iter_mut() {
                 if state.job.status == JobStatus::Paused && state.job.error_message.is_some() {
                     state.job.error_message = None;
-                    if self.worker_pool.has_job(id) {
+                    if self.dispatch.has_job(id) {
                         state.job.status = JobStatus::Downloading;
                         to_unpause.push(id.clone());
                     } else {
@@ -2570,7 +2515,7 @@ impl QueueManager {
             }
         }
         for id in to_unpause {
-            self.worker_pool.resume_job(&id);
+            self.dispatch.resume_job(&id);
         }
         if resumed > 0 {
             info!(
@@ -3189,7 +3134,7 @@ impl QueueManager {
 
         // 3. Shut down the worker pool gracefully. In-flight articles finish
         //    first (finish-in-flight), then workers exit.
-        self.worker_pool.shutdown().await;
+        self.dispatch.shutdown().await;
 
         // 4. Abort the per-job progress listeners (their sender sides are
         //    dropped, so the loops would exit anyway; we just don't want to
@@ -3369,7 +3314,7 @@ impl QueueManager {
                 tick_count += 1;
                 if tick_count.is_multiple_of(30) {
                     // Log active NNTP connections per server
-                    let snapshot = qm.conn_tracker.snapshot();
+                    let snapshot = qm.dispatch.active_connection_snapshot();
                     let total: usize = snapshot.iter().map(|(_, c, _)| *c).sum();
                     if total > 0 {
                         for (server_id, count, limit) in &snapshot {
@@ -3672,11 +3617,7 @@ mod hopeless_tests {
         let mut t = make_tracker(1000, 50);
         // Fail 5 articles (at the grace threshold)
         for _ in 0..5 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         assert!(
             t.check(true, true, 100.2).is_none(),
@@ -3688,11 +3629,7 @@ mod hopeless_tests {
     fn grace_period_disabled_when_abort_hopeless_off() {
         let mut t = make_tracker(100, 10);
         for _ in 0..100 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         assert!(
             t.check(false, true, 100.2).is_none(),
@@ -3705,11 +3642,7 @@ mod hopeless_tests {
         let mut t = make_tracker(1000, 50);
         // Simulate: 8 failures, 2 successes out of first 10
         for _ in 0..8 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         for _ in 0..2 {
             t.record_success(false);
@@ -3726,11 +3659,7 @@ mod hopeless_tests {
         let mut t = make_tracker(1000, 50);
         // 7 failures, 3 successes = 70% failure
         for _ in 0..7 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         for _ in 0..3 {
             t.record_success(false);
@@ -3759,11 +3688,7 @@ mod hopeless_tests {
         let mut t = make_tracker(100, 10);
         // Fail all 100 content articles
         for _ in 0..100 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         let result = t.check(true, false, 100.0);
         assert!(
@@ -3780,11 +3705,7 @@ mod hopeless_tests {
         let mut t = make_tracker(100, 50);
         // Fail 20 par2 articles — should not affect content tracking
         for _ in 0..20 {
-            t.record_failure(
-                true,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(true, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         assert_eq!(t.content_articles_failed, 0);
         assert_eq!(t.content_bytes_missing, 0);
@@ -3798,11 +3719,7 @@ mod hopeless_tests {
         // Fail 11 out of 100 articles with only 10 articles worth of
         // recovery. Effective completion is 99%, so this is hopeless.
         for _ in 0..11 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         for _ in 0..40 {
             t.record_success(false);
@@ -3818,11 +3735,7 @@ mod hopeless_tests {
     fn recovery_capacity_covers_more_than_five_missing_articles() {
         let mut t = make_tracker(100, 12);
         for _ in 0..10 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         assert!(t.check(true, false, 100.2).is_none());
     }
@@ -3831,11 +3744,7 @@ mod hopeless_tests {
     fn damage_exactly_at_capacity_still_requires_safety_reserve() {
         let mut t = make_tracker(100, 10);
         for _ in 0..10 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         let abort = t
             .check(true, false, 100.2)
@@ -3858,7 +3767,7 @@ mod hopeless_tests {
                 Some("file-b"),
                 false,
                 750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
+                nzb_dispatch::ArticleFailureKind::NotFound,
             );
         }
 
@@ -3891,11 +3800,7 @@ mod hopeless_tests {
         // first.
         let mut t = make_tracker(40, 5);
         for _ in 0..9 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         for _ in 0..2 {
             t.record_success(false);
@@ -3914,11 +3819,7 @@ mod hopeless_tests {
         let mut t = make_tracker(10000, 500);
         // First 10 articles all fail — exactly the scenario from the bug report
         for _ in 0..10 {
-            t.record_failure(
-                false,
-                750_000,
-                crate::article_failure::ArticleFailureKind::NotFound,
-            );
+            t.record_failure(false, 750_000, nzb_dispatch::ArticleFailureKind::NotFound);
         }
         let result = t.check(true, true, 100.2);
         assert!(

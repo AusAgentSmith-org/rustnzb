@@ -92,7 +92,10 @@ pub async fn extract_rar(
     output_dir: &Path,
     password: Option<&str>,
 ) -> anyhow::Result<UnpackResult> {
-    // Try unrar first, fall back to 7z which also handles RAR files
+    // Prefer an unrar-capable binary. Some 7z builds (notably Alpine's
+    // p7zip package) are deliberately compiled without the proprietary RAR
+    // codec, so treating every 7z binary as a RAR fallback creates a late
+    // post-processing failure after an otherwise successful download.
     let (bin, use_7z) = if let Some(unrar) = find_unrar() {
         (unrar, false)
     } else if let Some(sevenz) = find_7z() {

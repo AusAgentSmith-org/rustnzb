@@ -1,6 +1,21 @@
 # syntax=docker/dockerfile:1.7
 
 ARG CROSS_IMAGE=repo.indexarr.net/indexarr/rustnzb-ci-cross@sha256:89f1f570acb0f8e6514ffcca39bd9f26305263d95274e4c170eedf867d113ad9
+ARG UNRAR_VERSION=7.2.3
+ARG UNRAR_SHA256=3995af0aa32b1505a566da053725551a1f0698dc42b2fdf7ba7d65db0d004e33
+
+FROM alpine:3.23 AS unrar-builder
+
+ARG UNRAR_VERSION
+ARG UNRAR_SHA256
+
+RUN apk add --no-cache build-base curl \
+    && curl -fsSLo /tmp/unrar.tar.gz \
+        "https://www.rarlab.com/rar/unrarsrc-${UNRAR_VERSION}.tar.gz" \
+    && echo "${UNRAR_SHA256}  /tmp/unrar.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/unrar.tar.gz -C /tmp \
+    && make -C /tmp/unrar -j"$(getconf _NPROCESSORS_ONLN)" \
+    && install -Dm755 /tmp/unrar/unrar /out/unrar
 
 FROM --platform=$BUILDPLATFORM ${CROSS_IMAGE} AS builder
 
@@ -63,9 +78,12 @@ ARG RUSTNZB_BUILD_REF
 RUN apk add --no-cache \
         7zip \
         ca-certificates \
-        curl
+        curl \
+        libgcc \
+        libstdc++
 
 COPY --from=builder /out/rustnzb /usr/local/bin/rustnzb
+COPY --from=unrar-builder /out/unrar /usr/local/bin/unrar
 COPY apps/rustnzb/root/ /
 
 LABEL org.opencontainers.image.title="rustnzb" \

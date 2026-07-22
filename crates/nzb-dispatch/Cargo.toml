@@ -11,7 +11,6 @@ readme = "README.md"
 nzb-nntp = { version = "0.2.22", path = "../nzb-nntp" }
 nzb-decode = { version = "0.1.2", path = "../nzb-decode" }
 nzb-core = { version = "0.2.16", path = "../nzb-core" }
-nzb-news = { version = "0.1.12", path = "../nzb-news" }
 
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
@@ -19,6 +18,7 @@ parking_lot = "0.12"
 arc-swap = "1"
 governor = "0.10"
 tracing = "0.1"
+opentelemetry.workspace = true
 serde = { version = "1", features = ["derive"] }
 anyhow = "1"
 thiserror = "2"
