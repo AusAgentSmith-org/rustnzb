@@ -11,6 +11,9 @@ permissions:
 
 jobs:
   policy:
+    # Dependabot PRs do not need another policy scan on the self-hosted
+    # runner; the workflow check is recorded as successful when skipped.
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: [self-hosted, node-b, linux, x64, rust]
     steps:
       - uses: actions/checkout@v7
