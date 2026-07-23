@@ -16,7 +16,7 @@ jobs:
     # Dependabot PRs update dependency metadata only; avoid consuming a
     # self-hosted runner for every automated update. Skipped jobs report a
     # successful check, so required checks do not remain pending.
-    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]'
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.type != 'Bot'
     runs-on: [self-hosted, node-b, linux, x64, rust]
     env:
       FORGEJO_CARGO_TOKEN: ${{ secrets.FORGEJO_CARGO_TOKEN }}
@@ -41,7 +41,7 @@ jobs:
       - run: cargo test --workspace
 
   frontend:
-    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]'
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.type != 'Bot'
     runs-on: [self-hosted, node-b, linux, x64, rust]
     steps:
       - uses: actions/checkout@v7
