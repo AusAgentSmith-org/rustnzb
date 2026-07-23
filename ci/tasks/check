@@ -8,4 +8,18 @@ setup_cargo_auth
 task_target_dir check
 prepare_placeholder_frontend
 cargo check --workspace --locked
+
+# Keep the dispatch boundary enforceable: QueueManager may depend on the
+# trait, but the old duplicate implementation modules must not return.
+if find "$REPO_ROOT/crates/nzb-web/src" -maxdepth 1 -type f \
+    \( -name download_engine.rs -o -name article_failure.rs -o -name bandwidth.rs \) \
+    | grep -q .; then
+    printf 'nzb-web still contains a duplicate dispatch implementation\n' >&2
+    exit 1
+fi
+if grep -Eq 'WorkerPool|ConnectionTracker|crate::download_engine|crate::bandwidth|crate::article_failure' \
+    "$REPO_ROOT/crates/nzb-web/src/queue_manager.rs"; then
+    printf 'QueueManager imports concrete/local dispatch internals\n' >&2
+    exit 1
+fi
 show_sccache_stats

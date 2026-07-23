@@ -13,9 +13,8 @@
 //!   never torn down on job transitions. Pausing a job causes workers holding
 //!   one of its items to return that item to the queue and pull something
 //!   else. Cancelling a job drains its items and drops in-flight results.
-//! - A supervisor task detects "all enabled servers circuit-broken for a
-//!   given job" and emits [`ProgressUpdate::NoServersAvailable`] so the user
-//!   can fix config and resume, matching the prior per-engine behaviour.
+//! - Transient provider outages leave work queued until circuit-breaker
+//!   cooldown expires; only definitive provider outcomes resolve an article.
 //!
 //! Retry logic (per article):
 //! 1. Try the article on the current server up to [`MAX_TRIES_PER_SERVER`]
@@ -25,8 +24,9 @@
 //! 3. On connection loss — requeue and reconnect.
 //! 4. On decode error — treated like "not available on this server", try
 //!    another.
-//! 5. When every enabled server is in `tried_servers` (or circuit-broken),
-//!    the article is marked failed.
+//! 5. An article is missing only when every enabled provider explicitly
+//!    returned `430`. Circuit-broken and transiently failing providers do
+//!    not contribute evidence of absence.
 //! 6. A job only fails if failed articles exceed the threshold and no par2
 //!    recovery is possible.
 
@@ -50,6 +50,14 @@ use nzb_nntp::connection::NntpConnection;
 use nzb_nntp::error::NntpError;
 
 use crate::bandwidth::BandwidthLimiter;
+
+fn increment_counter(name: &'static str) {
+    opentelemetry::global::meter_provider()
+        .meter("nzb-dispatch")
+        .u64_counter(name)
+        .build()
+        .add(1, &[]);
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -142,6 +150,7 @@ struct ServerSlot {
     name: String,
     limit: usize,
     semaphore: Arc<tokio::sync::Semaphore>,
+    connected: Arc<AtomicUsize>,
 }
 
 impl ConnectionTracker {
@@ -190,6 +199,7 @@ impl ConnectionTracker {
                         name: server_name.to_string(),
                         limit,
                         semaphore: Arc::new(tokio::sync::Semaphore::new(limit)),
+                        connected: Arc::new(AtomicUsize::new(0)),
                     },
                 );
                 if let Some(prev) = prev_limit {
@@ -241,6 +251,8 @@ impl ConnectionTracker {
             server_id: server_id.to_string(),
             server_name: server_slot.name,
             semaphore_origin: server_slot.semaphore,
+            connected: server_slot.connected,
+            is_connected: false,
             _permit: permit,
         })
     }
@@ -281,6 +293,22 @@ impl ConnectionTracker {
                     .limit
                     .saturating_sub(slot.semaphore.available_permits());
                 (id.clone(), active, slot.limit)
+            })
+            .collect()
+    }
+
+    /// `(server_id, active, limit)` triples for sockets currently transferring
+    /// an article. Authenticated sockets waiting for work are idle/free.
+    pub fn connected_snapshot(&self) -> Vec<(String, usize, usize)> {
+        let pools = self.pools.lock();
+        pools
+            .iter()
+            .map(|(id, slot)| {
+                (
+                    id.clone(),
+                    slot.connected.load(Ordering::Relaxed).min(slot.limit),
+                    slot.limit,
+                )
             })
             .collect()
     }
@@ -326,6 +354,8 @@ pub struct ConnectionSlot {
     /// Used by `ConnectionTracker::slot_is_current` to detect a stale slot
     /// after a `set_limit` shrink (which replaces the semaphore).
     semaphore_origin: Arc<tokio::sync::Semaphore>,
+    connected: Arc<AtomicUsize>,
+    is_connected: bool,
     _permit: tokio::sync::OwnedSemaphorePermit,
 }
 
@@ -335,6 +365,44 @@ impl ConnectionSlot {
     }
     pub fn server_name(&self) -> &str {
         &self.server_name
+    }
+
+    fn mark_active(&mut self) {
+        if !self.is_connected {
+            self.connected.fetch_add(1, Ordering::Relaxed);
+            self.is_connected = true;
+        }
+    }
+
+    fn mark_inactive(&mut self) {
+        if self.is_connected {
+            self.connected.fetch_sub(1, Ordering::Relaxed);
+            self.is_connected = false;
+        }
+    }
+
+    fn activity(&mut self) -> ConnectionActivity<'_> {
+        self.mark_active();
+        ConnectionActivity { slot: self }
+    }
+}
+
+impl Drop for ConnectionSlot {
+    fn drop(&mut self) {
+        self.mark_inactive();
+    }
+}
+
+/// Marks a connection as actively transferring an article for the lifetime
+/// of the guard. An authenticated but idle socket does not consume a "used"
+/// connection in API/UI accounting.
+struct ConnectionActivity<'a> {
+    slot: &'a mut ConnectionSlot,
+}
+
+impl Drop for ConnectionActivity<'_> {
+    fn drop(&mut self) {
+        self.slot.mark_inactive();
     }
 }
 
@@ -408,6 +476,9 @@ pub enum ProgressUpdate {
         decoded_bytes: u64,
         file_complete: bool,
         server_id: Option<String>,
+        /// Filename declared by the yEnc header. This lets the queue layer
+        /// recognize obfuscated PAR2 files before terminal completion.
+        yenc_filename: Option<String>,
     },
     /// An article could not be retrieved. `failure` carries the typed
     /// classification of *why* (NotFound, ServerDown, AuthFailed, …).
@@ -422,15 +493,13 @@ pub enum ProgressUpdate {
         job_id: String,
         success: bool,
         articles_failed: usize,
-    },
-    NoServersAvailable {
-        job_id: String,
-        reason: String,
+        download_time_secs: f64,
     },
     JobAborted {
         job_id: String,
         reason: String,
         articles_failed: usize,
+        download_time_secs: f64,
     },
 }
 
@@ -484,6 +553,8 @@ pub(crate) struct JobContext {
     pub total_assemble_us: Arc<AtomicU64>,
     pub total_articles_decoded: Arc<AtomicU64>,
     pub engine_start: Instant,
+    active_started: Mutex<Option<Instant>>,
+    active_elapsed: Mutex<Duration>,
     /// Total bytes across all files (for perf summary throughput).
     pub total_bytes: u64,
     /// Ensures JobFinished/JobAborted is only emitted once.
@@ -520,20 +591,34 @@ impl JobContext {
             total_assemble_us: Arc::new(AtomicU64::new(0)),
             total_articles_decoded: Arc::new(AtomicU64::new(0)),
             engine_start: Instant::now(),
+            active_started: Mutex::new(Some(Instant::now())),
+            active_elapsed: Mutex::new(Duration::ZERO),
             total_bytes: job.total_bytes,
             finished: AtomicBool::new(false),
         }
     }
 
-    /// Crate-public accessor for [`resolve_one`](Self::resolve_one). Used
-    /// by alternative `DispatchEngine` impls in sibling modules.
-    pub(crate) fn resolve_one_public(&self) {
-        self.resolve_one();
+    fn pause_clock(&self) {
+        let mut started = self.active_started.lock();
+        if let Some(at) = started.take() {
+            *self.active_elapsed.lock() += at.elapsed();
+        }
     }
 
-    /// Crate-public accessor for [`emit_terminal`](Self::emit_terminal).
-    pub(crate) fn emit_terminal_public(&self) {
-        self.emit_terminal();
+    fn resume_clock(&self) {
+        let mut started = self.active_started.lock();
+        if started.is_none() {
+            *started = Some(Instant::now());
+        }
+    }
+
+    fn active_elapsed(&self) -> Duration {
+        let elapsed = *self.active_elapsed.lock();
+        elapsed
+            + self
+                .active_started
+                .lock()
+                .map_or(Duration::ZERO, |at| at.elapsed())
     }
 
     /// Decrement articles_remaining. If it reaches zero, run deobfuscation
@@ -558,6 +643,7 @@ impl JobContext {
         self.deobfuscate_files();
 
         let download_elapsed = self.engine_start.elapsed();
+        let active_elapsed = self.active_elapsed();
         let decode_total_us = self.total_decode_us.load(Ordering::Relaxed);
         let assemble_total_us = self.total_assemble_us.load(Ordering::Relaxed);
         let articles_decoded = self.total_articles_decoded.load(Ordering::Relaxed);
@@ -591,6 +677,7 @@ impl JobContext {
                     job_id: self.job_id.clone(),
                     reason,
                     articles_failed: failed,
+                    download_time_secs: active_elapsed.as_secs_f64(),
                 },
             );
             return;
@@ -604,6 +691,7 @@ impl JobContext {
                 job_id: self.job_id.clone(),
                 success: failed == 0,
                 articles_failed: failed,
+                download_time_secs: active_elapsed.as_secs_f64(),
             },
         );
     }
@@ -674,31 +762,14 @@ impl JobContext {
 /// per-job ordering), while data files land at the tail. Cross-job ordering
 /// is FIFO by submission time, per the chosen FIFO priority model.
 pub(crate) struct SharedWorkQueue {
-    inner: Mutex<InnerState>,
+    inner: Mutex<VecDeque<WorkItem>>,
     notify: Notify,
-}
-
-struct InnerState {
-    /// FIFO-ish queue of work items. Ordering is PAR2-first within each
-    /// `submit_items` batch; `push_front` (used for fast failover after a
-    /// per-server failure) prepends.
-    items: VecDeque<WorkItem>,
-    /// Per-server round-robin cursor: the `job_id` of the most recent item
-    /// this server popped. On the next pop the scan prefers items whose
-    /// `job_id` differs from this value so one active job with a large
-    /// backlog can't monopolise the server's workers while a sibling job
-    /// has workable items. Falls back to same-job items when no other
-    /// job has anything eligible.
-    last_served: HashMap<String, String>,
 }
 
 impl SharedWorkQueue {
     pub fn new() -> Self {
         Self {
-            inner: Mutex::new(InnerState {
-                items: VecDeque::new(),
-                last_served: HashMap::new(),
-            }),
+            inner: Mutex::new(VecDeque::new()),
             notify: Notify::new(),
         }
     }
@@ -710,10 +781,10 @@ impl SharedWorkQueue {
         items.sort_by_key(|item| par2_sort_key(&item.filename));
         let had_items = !items.is_empty();
         {
-            let mut state = self.inner.lock();
-            state.items.reserve(items.len());
+            let mut q = self.inner.lock();
+            q.reserve(items.len());
             for item in items {
-                state.items.push_back(item);
+                q.push_back(item);
             }
         }
         if had_items {
@@ -725,14 +796,14 @@ impl SharedWorkQueue {
     /// returning an item because its job is paused or its server was just
     /// tried for this item).
     fn push_front(&self, item: WorkItem) {
-        self.inner.lock().items.push_front(item);
+        self.inner.lock().push_front(item);
         self.notify.notify_waiters();
     }
 
     /// Push a single item to the back (used after handle_article_not_available
     /// when another server can still try it).
     fn push_back(&self, item: WorkItem) {
-        self.inner.lock().items.push_back(item);
+        self.inner.lock().push_back(item);
         self.notify.notify_waiters();
     }
 
@@ -755,10 +826,9 @@ impl SharedWorkQueue {
         server_id: &str,
         higher_priority_servers: &[String],
     ) -> (usize, usize) {
-        let state = self.inner.lock();
-        let total = state.items.len();
-        let workable = state
-            .items
+        let q = self.inner.lock();
+        let total = q.len();
+        let workable = q
             .iter()
             .filter(|i| !i.tried_servers.iter().any(|s| s == server_id))
             .filter(|i| {
@@ -770,107 +840,68 @@ impl SharedWorkQueue {
         (workable, total)
     }
 
-    /// Pop the next item that can be processed by a worker on `server_id`,
-    /// biased toward fair round-robin across active jobs.
+    /// Pop the next item that can be processed by a worker on `server_id`.
     ///
-    /// Two-pass scan:
-    /// 1. Prefer an item whose `job_id` differs from the last one served to
-    ///    this server (fairness — sibling jobs don't starve behind a
-    ///    backlog-heavy job).
-    /// 2. Fall back to any eligible item (the sibling-preferred pass found
-    ///    nothing; same-job work is fine).
-    ///
-    /// Eligibility:
-    /// - `server_id` NOT in `item.tried_servers`, AND
-    /// - every server in `higher_priority_servers` IS in `item.tried_servers`
-    ///   (priority gate — matches SABnzbd `get_article()`).
+    /// Skips items that have already tried `server_id`, rotating them to the
+    /// back of the queue. Also enforces server priority: items where any
+    /// healthy higher-priority server has not yet tried the article are
+    /// rotated to the back so the primary server sees them first.
     ///
     /// `higher_priority_servers` is a caller-prepared list of server IDs with
-    /// strictly higher priority than the caller, filtered to only enabled +
-    /// healthy servers. Empty slice disables the priority gate (priority-0
-    /// servers, single-server setups, or all peers circuit-broken).
+    /// strictly higher priority (lower priority number) than the caller, filtered
+    /// to only enabled + healthy servers. See `run_worker_pipelined` and
+    /// `run_worker_serial` for the canonical computation. Empty slice disables
+    /// the priority gate (priority-0 servers, single-server setups, or all
+    /// higher-priority peers circuit-broken → backup can take over).
+    ///
+    /// Returns `None` if the queue is empty or if every item is either already
+    /// tried here or pending a higher-priority server.
     fn pop_workable(
         &self,
         server_id: &str,
         higher_priority_servers: &[String],
     ) -> Option<WorkItem> {
-        let mut state = self.inner.lock();
-
-        let eligible = |item: &WorkItem| -> bool {
-            !item.tried_servers.iter().any(|s| s == server_id)
-                && higher_priority_servers
-                    .iter()
-                    .all(|hp| item.tried_servers.contains(hp))
-        };
-
-        let last_served = state.last_served.get(server_id).cloned();
-
-        // Pass 1: prefer different job than last served.
-        let mut chosen = None;
-        if let Some(ref last) = last_served {
-            chosen = state
-                .items
+        let mut q = self.inner.lock();
+        let len = q.len();
+        for _ in 0..len {
+            let item = q.pop_front()?;
+            if item.tried_servers.iter().any(|s| s == server_id) {
+                q.push_back(item);
+                continue;
+            }
+            // Priority gate: rotate back if any higher-priority server still
+            // needs to try this item. Matches SABnzbd's get_article() behaviour
+            // (sabnzbd/nzb/article.py:149-170).
+            if higher_priority_servers
                 .iter()
-                .position(|item| eligible(item) && item.job_id != *last);
+                .any(|hp| !item.tried_servers.contains(hp))
+            {
+                q.push_back(item);
+                continue;
+            }
+            return Some(item);
         }
-
-        // Pass 2: any eligible (fallback when no non-last-job eligible items exist).
-        if chosen.is_none() {
-            chosen = state.items.iter().position(eligible);
-        }
-
-        let idx = chosen?;
-        // VecDeque::remove(i) is O(min(i, len - i)) — acceptable for typical
-        // queue lengths. Not using swap_remove_back because it would break
-        // PAR2-first ordering.
-        let item = state.items.remove(idx)?;
-        state
-            .last_served
-            .insert(server_id.to_string(), item.job_id.clone());
-        Some(item)
+        None
     }
 
     /// Remove all items belonging to `job_id`. Used on cancel_job / remove_job.
     fn drain_job(&self, job_id: &str) -> Vec<WorkItem> {
-        let mut state = self.inner.lock();
-        let mut kept = VecDeque::with_capacity(state.items.len());
+        let mut q = self.inner.lock();
+        let mut kept = VecDeque::with_capacity(q.len());
         let mut drained = Vec::new();
-        while let Some(item) = state.items.pop_front() {
+        while let Some(item) = q.pop_front() {
             if item.job_id == job_id {
                 drained.push(item);
             } else {
                 kept.push_back(item);
             }
         }
-        state.items = kept;
-        // Drop any round-robin cursors pointing at the removed job so the
-        // next pop doesn't try to prefer items for a job that no longer
-        // exists. Purely a tidy-up; correctness isn't affected.
-        state.last_served.retain(|_, v| v != job_id);
+        *q = kept;
         drained
     }
 
     pub fn len(&self) -> usize {
-        self.inner.lock().items.len()
-    }
-
-    /// For one job, return `(queued_items, any_healthy_candidate)`. This is
-    /// used only by the supervisor after all in-flight work has settled.
-    fn job_workability(
-        &self,
-        job_id: &str,
-        healthy_server_ids: &std::collections::HashSet<String>,
-    ) -> (usize, bool) {
-        let state = self.inner.lock();
-        let mut queued = 0;
-        let mut any_candidate = false;
-        for item in state.items.iter().filter(|item| item.job_id == job_id) {
-            queued += 1;
-            any_candidate |= healthy_server_ids
-                .iter()
-                .any(|server_id| !item.tried_servers.contains(server_id));
-        }
-        (queued, any_candidate)
+        self.inner.lock().len()
     }
 }
 
@@ -898,7 +929,7 @@ struct ActiveWorker {
 pub struct WorkerPool {
     work_queue: Arc<SharedWorkQueue>,
     job_contexts: JobContextMap,
-    servers: Arc<Mutex<Vec<ServerConfig>>>,
+    pub(crate) servers: Arc<Mutex<Vec<ServerConfig>>>,
     server_health: ServerHealthMap,
     bandwidth: Arc<BandwidthLimiter>,
     conn_tracker: Arc<ConnectionTracker>,
@@ -1101,10 +1132,28 @@ impl WorkerPool {
         debug!(job_id = %job_id, queue_len = self.work_queue.len(), "Job submitted to worker pool");
     }
 
+    /// Unregister a normally completed job and close its assembler files.
+    ///
+    /// This must only be called after `JobFinished` is received, which means
+    /// every article has reached a definitive result and no worker can write
+    /// another segment for this job. Abort and cancellation paths unregister
+    /// their contexts separately because they may still have in-flight work.
+    pub(crate) fn release_completed_job(&self, job_id: &str) {
+        let ctx = self.job_contexts.lock().remove(job_id);
+        if let Some(ctx) = ctx {
+            // Workers can briefly retain an Arc<JobContext> after resolving
+            // the final article. Clear the assembler explicitly so those
+            // transient references do not keep every output file open during
+            // post-processing.
+            ctx.assembler.clear_job(job_id);
+        }
+    }
+
     /// Pause a job: workers stop pulling its items, and any item currently
     /// being held while paused is returned to the queue.
     pub fn pause_job(&self, job_id: &str) {
         if let Some(ctx) = self.job_contexts.lock().get(job_id) {
+            ctx.pause_clock();
             ctx.paused.store(true, Ordering::Relaxed);
         }
     }
@@ -1112,6 +1161,7 @@ impl WorkerPool {
     /// Resume a paused job.
     pub fn resume_job(&self, job_id: &str) {
         if let Some(ctx) = self.job_contexts.lock().get(job_id) {
+            ctx.resume_clock();
             ctx.paused.store(false, Ordering::Relaxed);
             // Wake any workers that were idle waiting for work.
             self.work_queue.notify.notify_waiters();
@@ -1139,6 +1189,9 @@ impl WorkerPool {
         for _ in drained {
             ctx.resolve_one();
         }
+        // In-flight items still own the remaining count. They will resolve
+        // (without writing) as their responses arrive or after a connection
+        // failure requeues them. Only the final resolution emits JobAborted.
         if ctx.articles_remaining.load(Ordering::Relaxed) == 0 {
             ctx.emit_terminal();
         }
@@ -1157,30 +1210,12 @@ impl WorkerPool {
         let _ = self.work_queue.drain_job(job_id);
     }
 
-    /// Emit NoServersAvailable for a stuck job and unregister it.
-    fn mark_no_servers(&self, job_id: &str, reason: String) {
-        let ctx = self.job_contexts.lock().remove(job_id);
-        let Some(ctx) = ctx else {
-            return;
-        };
-        ctx.paused.store(true, Ordering::Relaxed);
-        try_send_progress(
-            &ctx.progress_tx,
-            &ctx.job_id,
-            ProgressUpdate::NoServersAvailable {
-                job_id: ctx.job_id.clone(),
-                reason,
-            },
-        );
-        // Remove pending work for this job so other jobs aren't blocked.
-        let _ = self.work_queue.drain_job(job_id);
-    }
-
-    /// Supervisor loop: periodically detects jobs whose remaining articles
-    /// cannot possibly be fetched (all enabled servers circuit-broken or
     /// Per-tick checks that maintain pool health: idle-worker eviction,
-    /// dead-worker reaping, reconcile (respawn missing workers), starvation
-    /// diagnostics, and the legacy "all servers broken" pause.
+    /// dead-worker reaping, worker reconciliation, and starvation diagnostics.
+    ///
+    /// Circuit-broken providers retain their queued articles. Workers retry
+    /// after the provider cooldown instead of converting a transient outage
+    /// into a persistent per-job pause.
     async fn supervisor_loop(self: Arc<Self>) {
         let mut ticker = tokio::time::interval(SUPERVISOR_INTERVAL);
         loop {
@@ -1265,8 +1300,6 @@ impl WorkerPool {
             // can mean either (a) every item has already been tried here, or
             // (b) every item is still waiting on a higher-priority server
             // (backup server legitimately idle — not a bug).
-            let enabled_servers: Vec<String> =
-                server_priorities.iter().map(|(id, _)| id.clone()).collect();
             let now_instant = Instant::now();
             for (sid, prio) in &server_priorities {
                 let hp = self.higher_priority_servers(*prio, sid);
@@ -1291,55 +1324,6 @@ impl WorkerPool {
                             "Queue has items but none are workable for this server ({reason})"
                         );
                     }
-                }
-            }
-
-            // ---------- 4. Legacy "all servers broken" pause ----------
-            if enabled_servers.is_empty() {
-                continue;
-            }
-            let healthy_servers: Vec<String> = {
-                let health = self.server_health.lock();
-                enabled_servers
-                    .iter()
-                    .filter(|sid| health.get(sid.as_str()).is_none_or(|h| h.is_available()))
-                    .cloned()
-                    .collect()
-            };
-            let all_broken = healthy_servers.is_empty();
-            let healthy_server_ids = healthy_servers.iter().cloned().collect();
-
-            let ctxs: Vec<Arc<JobContext>> = self.job_contexts.lock().values().cloned().collect();
-            for ctx in ctxs {
-                if ctx.articles_remaining.load(Ordering::Relaxed) == 0 {
-                    continue;
-                }
-                if ctx.cancelled.load(Ordering::Relaxed) {
-                    continue;
-                }
-                let remaining = ctx.articles_remaining.load(Ordering::Relaxed);
-                let (queued, any_healthy_candidate) = self
-                    .work_queue
-                    .job_workability(&ctx.job_id, &healthy_server_ids);
-                let unresolved_providers =
-                    queued == remaining && queued > 0 && !any_healthy_candidate;
-                if all_broken || unresolved_providers {
-                    let reason = {
-                        let health = self.server_health.lock();
-                        health
-                            .values()
-                            .filter_map(|h| h.reason.clone())
-                            .next()
-                            .unwrap_or_else(|| "All servers unavailable".into())
-                    };
-                    warn!(
-                        job_id = %ctx.job_id,
-                        remaining,
-                        queued,
-                        all_servers_broken = all_broken,
-                        "No healthy untried provider remains — pausing job for retry"
-                    );
-                    self.mark_no_servers(&ctx.job_id, reason);
                 }
             }
         }
@@ -1509,7 +1493,6 @@ async fn pool_worker(
             tokio::time::sleep(RECONNECT_DELAY).await;
             continue 'reconnect;
         }
-
         let pipe_depth = primary_server.pipelining.max(1);
         let active_conns = pool.conn_tracker.total();
         info!(
@@ -1552,7 +1535,6 @@ async fn pool_worker(
         };
 
         let _ = conn.quit().await;
-
         match reconnect_needed {
             WorkerExit::Reconnect => {
                 // Loop back to the top and reconnect — slot is preserved.
@@ -1629,7 +1611,7 @@ async fn run_worker_serial(
     worker_id: &str,
     worker_shutdown: &Arc<AtomicBool>,
     conn: &mut NntpConnection,
-    _conn_slot: &mut ConnectionSlot,
+    conn_slot: &mut ConnectionSlot,
     last_progress: &Arc<AtomicU64>,
 ) -> WorkerExit {
     let mut consecutive_errors: u32 = 0;
@@ -1685,25 +1667,28 @@ async fn run_worker_serial(
             return WorkerExit::Exit;
         };
 
-        let fetch_fut =
-            fetch_article_with_retry(conn, &item, &ctx.assembler, primary_server, worker_id);
-        let result = if let Some(timeout) = pool.stall_timeout {
-            match tokio::time::timeout(timeout, fetch_fut).await {
-                Ok(r) => r,
-                Err(_) => {
-                    warn!(
-                        worker = %worker_id,
-                        server = %primary_server.name,
-                        article = %item.message_id,
-                        "Connection stalled — no response within {}s, reconnecting",
-                        timeout.as_secs()
-                    );
-                    pool.work_queue.push_front(item);
-                    return WorkerExit::Reconnect;
+        let result = {
+            let _activity = conn_slot.activity();
+            let fetch_fut =
+                fetch_article_with_retry(conn, &item, &ctx.assembler, primary_server, worker_id);
+            if let Some(timeout) = pool.stall_timeout {
+                match tokio::time::timeout(timeout, fetch_fut).await {
+                    Ok(r) => r,
+                    Err(_) => {
+                        warn!(
+                            worker = %worker_id,
+                            server = %primary_server.name,
+                            article = %item.message_id,
+                            "Connection stalled — no response within {}s, reconnecting",
+                            timeout.as_secs()
+                        );
+                        pool.work_queue.push_front(item);
+                        return WorkerExit::Reconnect;
+                    }
                 }
+            } else {
+                fetch_fut.await
             }
-        } else {
-            fetch_fut.await
         };
 
         match result {
@@ -1733,6 +1718,7 @@ async fn run_worker_serial(
                         decoded_bytes: process_result.decoded_bytes,
                         file_complete: process_result.file_complete,
                         server_id: Some(primary_server.id.clone()),
+                        yenc_filename: process_result.yenc_filename.clone(),
                     },
                 );
                 ctx.resolve_one();
@@ -1755,6 +1741,7 @@ async fn run_worker_serial(
                 }
             }
             Err(ArticleError::ConnectionLost(msg)) => {
+                increment_counter("nntp.transient_reconnects");
                 consecutive_errors += 1;
                 warn!(
                     worker = %worker_id,
@@ -1779,6 +1766,7 @@ async fn run_worker_serial(
                 return WorkerExit::Reconnect;
             }
             Err(ArticleError::ProviderUnavailable { kind, message }) => {
+                increment_counter("nntp.transient_reconnects");
                 let is_auth = matches!(
                     kind,
                     crate::article_failure::ArticleFailureKind::AuthFailed
@@ -1848,7 +1836,7 @@ async fn run_worker_pipelined(
     pipe_depth: u8,
     worker_shutdown: &Arc<AtomicBool>,
     conn: &mut NntpConnection,
-    _conn_slot: &mut ConnectionSlot,
+    conn_slot: &mut ConnectionSlot,
     last_progress: &Arc<AtomicU64>,
 ) -> WorkerExit {
     let mut pipeline = Pipeline::new(pipe_depth);
@@ -1962,6 +1950,7 @@ async fn run_worker_pipelined(
             in_flight_items.insert(tag, first_item);
         }
 
+        let _activity = conn_slot.activity();
         let flush_t = Instant::now();
         if let Err(e) = pipeline.flush_sends(conn).await {
             warn!(
@@ -2074,6 +2063,7 @@ async fn run_worker_pipelined(
                                         decoded_bytes: process_result.decoded_bytes,
                                         file_complete: process_result.file_complete,
                                         server_id: Some(primary_server.id.clone()),
+                                        yenc_filename: process_result.yenc_filename.clone(),
                                     },
                                 );
                                 ctx.resolve_one();
@@ -2162,7 +2152,11 @@ async fn run_worker_pipelined(
                         }
                     }
                     Err(NntpError::Connection(_) | NntpError::Io(_)) => {
+                        increment_counter("nntp.transient_reconnects");
                         warn!(
+                            job_id = %item.job_id,
+                            file_id = %item.file_id,
+                            segment_number = item.segment_number,
                             worker = %worker_id,
                             server = %primary_server.name,
                             host = %primary_server.host,
@@ -2181,6 +2175,7 @@ async fn run_worker_pipelined(
                         return WorkerExit::Reconnect;
                     }
                     Err(e) => {
+                        increment_counter("nntp.transient_reconnects");
                         let failure = crate::article_failure::ArticleFailure::from_nntp(
                             &e,
                             &primary_server.id,
@@ -2377,13 +2372,8 @@ fn handle_article_not_available(
     }
     item.tries_on_current = 0;
 
-    let all_definitive = {
-        let servers = all_servers.lock();
-        servers
-            .iter()
-            .filter(|s| s.enabled)
-            .all(|s| item.provider_outcomes.contains_key(&s.id))
-    };
+    let all_definitive =
+        all_enabled_providers_definitive(&all_servers.lock(), &item.provider_outcomes);
 
     debug!(
         article = %item.message_id,
@@ -2432,6 +2422,7 @@ fn handle_article_not_available(
                 format!("{error_msg}; provider outcomes: {outcomes}"),
             )
         } else {
+            increment_counter("articles.explicit_global_absence");
             crate::article_failure::ArticleFailure::not_found_anywhere(&primary_server.id, outcomes)
         };
         try_send_progress(
@@ -2460,6 +2451,16 @@ fn handle_article_not_available(
     }
 }
 
+fn all_enabled_providers_definitive(
+    servers: &[ServerConfig],
+    outcomes: &HashMap<String, crate::article_failure::ArticleFailureKind>,
+) -> bool {
+    servers
+        .iter()
+        .filter(|server| server.enabled)
+        .all(|server| outcomes.contains_key(&server.id))
+}
+
 /// Re-queue all in-flight items back to the work queue (on connection loss).
 fn requeue_all(in_flight: &mut HashMap<u64, WorkItem>, work_queue: &Arc<SharedWorkQueue>) {
     let items: Vec<WorkItem> = in_flight.drain().map(|(_, item)| item).collect();
@@ -2479,7 +2480,7 @@ fn par2_sort_key(filename: &str) -> u8 {
     }
 }
 
-fn has_known_extension(name: &str) -> bool {
+pub fn has_known_extension(name: &str) -> bool {
     let lower = name.to_lowercase();
     if let Some(dot_pos) = lower.rfind('.') {
         let ext = &lower[dot_pos + 1..];
@@ -2800,6 +2801,98 @@ fn decode_and_assemble(
 mod tests {
     use super::*;
 
+    fn worker_pool_without_servers() -> Arc<WorkerPool> {
+        WorkerPool::new(
+            Arc::new(Mutex::new(Vec::new())),
+            Arc::new(BandwidthLimiter::new(Default::default())),
+            Arc::new(ConnectionTracker::new()),
+            0,
+        )
+    }
+
+    fn test_job(job_id: &str, root: &std::path::Path) -> NzbJob {
+        NzbJob {
+            id: job_id.to_string(),
+            name: job_id.to_string(),
+            category: "Default".to_string(),
+            status: nzb_core::models::JobStatus::Downloading,
+            priority: nzb_core::models::Priority::Normal,
+            total_bytes: 1,
+            downloaded_bytes: 0,
+            file_count: 1,
+            files_completed: 0,
+            article_count: 1,
+            articles_downloaded: 0,
+            articles_failed: 0,
+            added_at: chrono::Utc::now(),
+            completed_at: None,
+            work_dir: root.to_path_buf(),
+            output_dir: root.join("complete"),
+            password: None,
+            error_message: None,
+            speed_bps: 0,
+            server_stats: Vec::new(),
+            files: Vec::new(),
+        }
+    }
+
+    fn insert_test_context(pool: &WorkerPool, job: &NzbJob, assembler: Arc<FileAssembler>) {
+        let (progress_tx, _progress_rx) = mpsc::channel(1);
+        let ctx = Arc::new(JobContext::new(job, assembler, progress_tx, 1));
+        pool.job_contexts.lock().insert(job.id.clone(), ctx);
+    }
+
+    #[test]
+    fn submission_preserves_declared_segment_numbers() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut job = test_job("segment-identity", temp.path());
+        let article = |message_id: &str, segment_number: u32, bytes: u64| nzb_nntp::Article {
+            message_id: message_id.to_string(),
+            segment_number,
+            bytes,
+            downloaded: false,
+            data_begin: None,
+            data_size: None,
+            crc32: None,
+            tried_servers: Vec::new(),
+            tries: 0,
+        };
+        job.files.push(nzb_core::models::NzbFile {
+            id: "file-1".into(),
+            filename: "out-of-order.bin".into(),
+            bytes: 1_000,
+            bytes_downloaded: 0,
+            is_par2: false,
+            par2_setname: None,
+            par2_vol: None,
+            par2_blocks: None,
+            assembled: false,
+            groups: Vec::new(),
+            articles: vec![article("third", 3, 300), article("first", 1, 100)],
+        });
+        let (tx, _rx) = mpsc::channel(4);
+
+        let (_ctx, items) = build_job_submission(&job, tx);
+
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| (item.message_id.as_str(), item.segment_number))
+                .collect::<Vec<_>>(),
+            vec![("third", 3), ("first", 1)]
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    fn open_fd_count_under(root: &std::path::Path) -> usize {
+        std::fs::read_dir("/proc/self/fd")
+            .expect("read /proc/self/fd")
+            .filter_map(Result::ok)
+            .filter_map(|entry| std::fs::read_link(entry.path()).ok())
+            .filter(|target| target.starts_with(root))
+            .count()
+    }
+
     #[test]
     fn has_known_extension_recognizes_archives() {
         assert!(has_known_extension("movie.rar"));
@@ -2896,6 +2989,67 @@ mod tests {
     }
 
     #[test]
+    fn unavailable_provider_does_not_prove_global_absence() {
+        let servers = vec![
+            ServerConfig::new("srv1", "one.invalid"),
+            ServerConfig::new("srv2", "two.invalid"),
+        ];
+        let mut outcomes = HashMap::new();
+        outcomes.insert(
+            "srv1".to_string(),
+            crate::article_failure::ArticleFailureKind::NotFound,
+        );
+
+        assert!(!all_enabled_providers_definitive(&servers, &outcomes));
+        outcomes.insert(
+            "srv2".to_string(),
+            crate::article_failure::ArticleFailureKind::NotFound,
+        );
+        assert!(all_enabled_providers_definitive(&servers, &outcomes));
+    }
+
+    #[tokio::test]
+    async fn abort_has_one_owner_and_waits_for_in_flight_resolution() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = worker_pool_without_servers();
+        let job = test_job("abort-drain", temp.path());
+        let assembler = Arc::new(FileAssembler::new());
+        let (progress_tx, mut progress_rx) = mpsc::channel(8);
+        let ctx = Arc::new(JobContext::new(&job, assembler, progress_tx, 3));
+        ctx.articles_failed.store(2, Ordering::Relaxed);
+        pool.job_contexts
+            .lock()
+            .insert(job.id.clone(), Arc::clone(&ctx));
+        pool.work_queue.submit_items(vec![
+            make_item(&job.id, "queued-1", "file.rar"),
+            make_item(&job.id, "queued-2", "file.rar"),
+        ]);
+
+        assert!(pool.abort_job(&job.id, "original reason".into()));
+        assert!(!pool.abort_job(&job.id, "overwritten reason".into()));
+        assert_eq!(ctx.articles_remaining.load(Ordering::Relaxed), 1);
+        assert!(!ctx.finished.load(Ordering::Relaxed));
+        assert!(progress_rx.try_recv().is_err());
+
+        // Simulate the sole in-flight worker settling after its write handle
+        // is no longer usable. Only now may the terminal event be published.
+        ctx.resolve_one();
+        match progress_rx.recv().await.unwrap() {
+            ProgressUpdate::JobAborted {
+                reason,
+                articles_failed,
+                download_time_secs,
+                ..
+            } => {
+                assert_eq!(reason, "original reason");
+                assert_eq!(articles_failed, 2);
+                assert!(download_time_secs >= 0.0);
+            }
+            other => panic!("unexpected terminal event: {other:?}"),
+        }
+    }
+
+    #[test]
     fn pop_workable_respects_priority() {
         // Fresh item (tried_servers empty). A backup-priority caller whose
         // higher_priority_servers list is non-empty must NOT get the item —
@@ -2973,115 +3127,66 @@ mod tests {
         assert_eq!(remaining.job_id, "j2");
     }
 
-    // -----------------------------------------------------------------------
-    // Per-job round-robin fairness
-    // -----------------------------------------------------------------------
-
     #[test]
-    fn pop_workable_alternates_between_jobs_on_single_server() {
-        // Prod scenario: two jobs both have many workable items; a single
-        // server must not drain one job entirely before touching the other.
-        let q = SharedWorkQueue::new();
-        q.submit_items(vec![
-            make_item("j1", "a1", "a1.rar"),
-            make_item("j1", "a2", "a2.rar"),
-            make_item("j1", "a3", "a3.rar"),
-            make_item("j2", "b1", "b1.rar"),
-            make_item("j2", "b2", "b2.rar"),
-            make_item("j2", "b3", "b3.rar"),
-        ]);
-        // Expect alternation: j1, j2, j1, j2, j1, j2.
-        let mut order: Vec<String> = Vec::new();
-        while let Some(item) = q.pop_workable("srv1", &[]) {
-            order.push(item.job_id);
+    fn release_completed_job_drops_context_and_closes_assembler_files() {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let assembler = Arc::new(FileAssembler::new());
+        let job_id = "completed-job";
+        assembler
+            .register_file(job_id, "file-1", tempdir.path().join("file.rar"), 1)
+            .expect("register file");
+        assert_eq!(assembler.get_file_progress(job_id, "file-1"), (0, 1));
+
+        let job = test_job(job_id, tempdir.path());
+        let pool = worker_pool_without_servers();
+        insert_test_context(&pool, &job, Arc::clone(&assembler));
+        assert!(pool.has_job(job_id));
+
+        pool.release_completed_job(job_id);
+
+        assert!(!pool.has_job(job_id));
+        assert_eq!(assembler.get_file_progress(job_id, "file-1"), (0, 0));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn repeated_completed_jobs_do_not_accumulate_file_descriptors() {
+        const JOBS: usize = 64;
+        const FILES_PER_JOB: usize = 8;
+
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let pool = worker_pool_without_servers();
+        assert_eq!(open_fd_count_under(tempdir.path()), 0);
+
+        for job_index in 0..JOBS {
+            let job_id = format!("job-{job_index}");
+            let job_dir = tempdir.path().join(&job_id);
+            let assembler = Arc::new(FileAssembler::new());
+            for file_index in 0..FILES_PER_JOB {
+                assembler
+                    .register_file(
+                        &job_id,
+                        &format!("file-{file_index}"),
+                        job_dir.join(format!("file-{file_index}.rar")),
+                        1,
+                    )
+                    .expect("register file");
+            }
+            assert_eq!(open_fd_count_under(tempdir.path()), FILES_PER_JOB);
+
+            let job = test_job(&job_id, &job_dir);
+            insert_test_context(&pool, &job, assembler);
+            pool.release_completed_job(&job_id);
+
+            assert!(!pool.has_job(&job_id));
+            assert_eq!(
+                open_fd_count_under(tempdir.path()),
+                0,
+                "completed job {job_index} retained output file descriptors"
+            );
         }
-        assert_eq!(
-            order,
-            vec!["j1", "j2", "j1", "j2", "j1", "j2"],
-            "single-server pops must alternate across jobs, not drain one"
-        );
-    }
 
-    #[test]
-    fn pop_workable_falls_back_when_only_same_job_is_available() {
-        // Round-robin PREFERS the other job but doesn't forbid same-job when
-        // that's all that's eligible.
-        let q = SharedWorkQueue::new();
-        q.submit_items(vec![
-            make_item("j1", "a1", "a.rar"),
-            make_item("j1", "a2", "b.rar"),
-        ]);
-        let first = q.pop_workable("srv1", &[]).unwrap();
-        assert_eq!(first.job_id, "j1");
-        let second = q.pop_workable("srv1", &[]).unwrap();
-        assert_eq!(
-            second.job_id, "j1",
-            "falls back to same job when no sibling"
-        );
-    }
-
-    #[test]
-    fn per_server_cursors_are_independent() {
-        // Two servers; cursor state is tracked per server so one server's
-        // round-robin choice doesn't bias the other.
-        let q = SharedWorkQueue::new();
-        q.submit_items(vec![
-            make_item("j1", "a1", "a1.rar"),
-            make_item("j2", "b1", "b1.rar"),
-            make_item("j1", "a2", "a2.rar"),
-            make_item("j2", "b2", "b2.rar"),
-        ]);
-        // srv_x has no cursor → picks first eligible = j1-a1.
-        let x1 = q.pop_workable("srv_x", &[]).unwrap();
-        assert_eq!(x1.job_id, "j1");
-        // srv_x's cursor is now j1 → next pop wants != j1 = j2-b1.
-        let x2 = q.pop_workable("srv_x", &[]).unwrap();
-        assert_eq!(x2.job_id, "j2");
-        // srv_y has never popped — independent from srv_x's j2 cursor. Picks
-        // first eligible in the remaining queue = j1-a2.
-        let y1 = q.pop_workable("srv_y", &[]).unwrap();
-        assert_eq!(
-            y1.job_id, "j1",
-            "srv_y has its own cursor state; srv_x's j2 cursor must not leak"
-        );
-    }
-
-    #[test]
-    fn fairness_respects_tried_servers_and_priority() {
-        // The fairness preference must not override eligibility: a "preferred
-        // other-job" item that the server has already tried cannot be picked
-        // just because of round-robin. Same for priority-gated items.
-        let q = SharedWorkQueue::new();
-        let mut j2_tried = make_item("j2", "b1", "b1.rar");
-        j2_tried.tried_servers.push("srv1".to_string());
-        q.submit_items(vec![make_item("j1", "a1", "a1.rar"), j2_tried]);
-        // First pop: j1 (no cursor, first eligible).
-        let first = q.pop_workable("srv1", &[]).unwrap();
-        assert_eq!(first.job_id, "j1");
-        // Cursor now points at j1. Fairness wants j2. But j2's item was
-        // tried by srv1 already → must fall through, returning None.
-        assert!(
-            q.pop_workable("srv1", &[]).is_none(),
-            "must not serve an ineligible item just to satisfy fairness"
-        );
-    }
-
-    #[test]
-    fn drained_jobs_clear_last_served_cursor() {
-        // When a job is drained (cancelled), its entry in the last_served
-        // map should be cleared so future pops aren't biased toward an
-        // extinct job.
-        let q = SharedWorkQueue::new();
-        q.submit_items(vec![
-            make_item("j1", "a1", "a1.rar"),
-            make_item("j2", "b1", "b1.rar"),
-        ]);
-        let _ = q.pop_workable("srv1", &[]).unwrap(); // serves j1, cursor=j1
-        q.drain_job("j1");
-        // With j1 gone and last_served cleared, the next pop is unbiased
-        // and simply returns the first eligible item — j2.
-        let pick = q.pop_workable("srv1", &[]).unwrap();
-        assert_eq!(pick.job_id, "j2");
+        assert!(pool.job_contexts.lock().is_empty());
     }
 
     // -----------------------------------------------------------------------
@@ -3190,5 +3295,36 @@ mod tests {
         assert_eq!(snap.len(), 2);
         assert_eq!(snap[0], ("srv1".into(), 2, 3));
         assert_eq!(snap[1], ("srv2".into(), 1, 5));
+    }
+
+    #[tokio::test]
+    async fn active_snapshot_counts_only_article_activity() {
+        let t = ConnectionTracker::new();
+        t.set_limit("srv1", "Server 1", 3);
+
+        let mut connected = t.acquire("srv1").await.unwrap();
+        let _disconnected = t.acquire("srv1").await.unwrap();
+        assert_eq!(t.connected_snapshot(), vec![("srv1".into(), 0, 3)]);
+
+        connected.mark_active();
+        assert_eq!(t.connected_snapshot(), vec![("srv1".into(), 1, 3)]);
+
+        connected.mark_inactive();
+        assert_eq!(t.connected_snapshot(), vec![("srv1".into(), 0, 3)]);
+    }
+
+    #[tokio::test]
+    async fn activity_guard_clears_count_when_fetch_scope_ends() {
+        let t = ConnectionTracker::new();
+        t.set_limit("srv1", "Server 1", 1);
+        let mut slot = t.acquire("srv1").await.unwrap();
+
+        {
+            let _activity = slot.activity();
+            assert_eq!(t.connected_snapshot(), vec![("srv1".into(), 1, 1)]);
+        }
+
+        assert_eq!(t.connected_snapshot(), vec![("srv1".into(), 0, 1)]);
+        assert_eq!(t.snapshot(), vec![("srv1".into(), 1, 1)]);
     }
 }

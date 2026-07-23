@@ -102,7 +102,7 @@ interface PipelineStep {
     <div class="panel pool-panel" [class.collapsed]="poolCollapsed()">
       <h3>
         NNTP connection pool
-        <span class="hint">priority failover · TLS via rustls · live</span>
+        <span class="hint">priority failover · TLS via rustls · active transfers</span>
         <button
           class="collapse-btn"
           (click)="togglePool()"
@@ -149,7 +149,7 @@ interface PipelineStep {
             </div>
           }
           <div class="legend">
-            <span class="sw a">Connected now</span>
+            <span class="sw a">Transferring now</span>
             <span class="sw r">Recent (held 5s)</span>
             <span style="margin-left:auto">NNTPS · rustls (ring)</span>
           </div>
@@ -1254,7 +1254,7 @@ export class QueueViewComponent implements OnInit, OnDestroy {
   });
 
   /**
-   * Live established sockets per server. A just-finished non-zero value is
+   * Live article transfers per server. A just-finished non-zero value is
    * retained for five seconds and explicitly marked `recent` so short backup
    * cascades remain visible between two-second polling ticks.
    */

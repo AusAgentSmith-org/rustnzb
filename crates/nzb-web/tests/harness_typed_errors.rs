@@ -232,7 +232,7 @@ async fn stale_session_idle_timeout_reconnects_without_recording_missing_article
 }
 
 #[tokio::test]
-async fn permission_denied_pauses_provider_without_becoming_not_found() {
+async fn permission_denied_keeps_job_retryable_without_becoming_not_found() {
     let fixture = NzbFixture::new("permission-denied")
         .add_file("denied.bin", &[("denied-1", b"unreachable")])
         .build();
@@ -256,20 +256,19 @@ async fn permission_denied_pauses_provider_without_becoming_not_found() {
         .submit_nzb_xml("permission-denied", fixture.xml)
         .expect("submit");
 
-    let paused = engine
-        .wait_for_status(&job_id, Duration::from_secs(10), &[JobStatus::Paused])
-        .await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
     let view = engine.job(&job_id).expect("job remains visible");
-    assert!(
-        paused,
-        "permission failure did not pause provider/job: {view:?}"
+    assert_eq!(
+        view.status,
+        JobStatus::Downloading,
+        "job was stranded: {view:?}"
     );
     assert_eq!(view.articles_failed, 0);
     assert_eq!(view.articles_downloaded, 0);
 }
 
 #[tokio::test]
-async fn not_found_plus_unavailable_provider_remains_unresolved() {
+async fn not_found_plus_unavailable_provider_remains_downloading_and_unresolved() {
     let fixture = NzbFixture::new("mixed-unresolved")
         .add_file("mixed.bin", &[("mixed-1", b"unreachable")])
         .build();
@@ -307,11 +306,13 @@ async fn not_found_plus_unavailable_provider_remains_unresolved() {
         .submit_nzb_xml("mixed-unresolved", fixture.xml)
         .expect("submit");
 
-    let paused = engine
-        .wait_for_status(&job_id, Duration::from_secs(10), &[JobStatus::Paused])
-        .await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
     let view = engine.job(&job_id).expect("job remains visible");
-    assert!(paused, "mixed provider outcomes did not pause: {view:?}");
+    assert_eq!(
+        view.status,
+        JobStatus::Downloading,
+        "job was stranded: {view:?}"
+    );
     assert_eq!(
         view.articles_failed, 0,
         "430 + unavailable provider must not become global absence"

@@ -16,8 +16,11 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 
-use crate::download_engine::{ProgressUpdate, WorkerPool, build_job_submission};
+use crate::bandwidth::BandwidthLimiter;
+use crate::download_engine::{ConnectionTracker, ProgressUpdate, WorkerPool, build_job_submission};
+use nzb_core::config::ServerConfig;
 use nzb_core::models::NzbJob;
+use parking_lot::Mutex;
 
 /// Article-dispatch engine: accepts jobs, drives NNTP fetches, emits progress.
 ///
@@ -54,6 +57,22 @@ pub trait DispatchEngine: Send + Sync {
 
     /// Is `job_id` currently known to the dispatcher?
     fn has_job(&self, job_id: &str) -> bool;
+
+    /// Release a terminal job's dispatcher and assembler resources before
+    /// post-processing opens the completed files.
+    fn release_completed_job(&self, job_id: &str);
+
+    /// Replace server configuration and reconcile connection budgets/workers.
+    fn update_servers(&self, servers: Vec<ServerConfig>);
+
+    /// Per-server allocated worker slots and configured limits.
+    fn connection_snapshot(&self) -> Vec<(String, usize, usize)>;
+
+    /// Per-server connections actively transferring articles and limits.
+    fn active_connection_snapshot(&self) -> Vec<(String, usize, usize)>;
+
+    /// Total allocated worker slots across current server pools.
+    fn connection_total(&self) -> usize;
 
     /// Re-read the server list and adjust workers to match. Call after any
     /// mutation to the server config (add, remove, enable, disable, resize).
@@ -108,15 +127,21 @@ pub struct ServerAttemptStats {
 pub struct DispatchHandle(Arc<WorkerPool>);
 
 impl DispatchHandle {
-    pub fn new(pool: Arc<WorkerPool>) -> Self {
-        Self(pool)
-    }
-
-    /// Escape hatch: access the underlying pool. Intended for callers that
-    /// still need pool-specific APIs not yet promoted to the trait (none
-    /// today, but keeps the migration incremental).
-    pub fn pool(&self) -> &Arc<WorkerPool> {
-        &self.0
+    pub fn new(
+        servers: Arc<Mutex<Vec<ServerConfig>>>,
+        bandwidth: Arc<BandwidthLimiter>,
+        article_timeout_secs: u64,
+    ) -> Self {
+        let tracker = Arc::new(ConnectionTracker::new());
+        for server in servers.lock().iter() {
+            tracker.set_limit(&server.id, &server.name, server.connections as usize);
+        }
+        Self(WorkerPool::new(
+            servers,
+            bandwidth,
+            tracker,
+            article_timeout_secs,
+        ))
     }
 }
 
@@ -149,6 +174,39 @@ impl DispatchEngine for DispatchHandle {
 
     fn has_job(&self, job_id: &str) -> bool {
         self.0.has_job(job_id)
+    }
+
+    fn release_completed_job(&self, job_id: &str) {
+        self.0.release_completed_job(job_id);
+    }
+
+    fn update_servers(&self, servers: Vec<ServerConfig>) {
+        let new_ids: std::collections::HashSet<_> =
+            servers.iter().map(|server| server.id.clone()).collect();
+        for (old_id, _, _) in self.0.conn_tracker().snapshot() {
+            if !new_ids.contains(&old_id) {
+                self.0.conn_tracker().remove_server(&old_id);
+            }
+        }
+        for server in &servers {
+            self.0
+                .conn_tracker()
+                .set_limit(&server.id, &server.name, server.connections as usize);
+        }
+        *self.0.servers.lock() = servers;
+        self.0.reconcile_servers();
+    }
+
+    fn connection_snapshot(&self) -> Vec<(String, usize, usize)> {
+        self.0.conn_tracker().snapshot()
+    }
+
+    fn active_connection_snapshot(&self) -> Vec<(String, usize, usize)> {
+        self.0.conn_tracker().connected_snapshot()
+    }
+
+    fn connection_total(&self) -> usize {
+        self.0.conn_tracker().total()
     }
 
     fn reconcile_servers(&self) {

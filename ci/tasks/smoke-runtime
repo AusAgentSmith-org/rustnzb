@@ -106,6 +106,10 @@ if [ -n "$expected_ref" ]; then
     printf '%s' "$setup" | grep -Fq "$expected_ref"
 fi
 docker exec "$name" 7z i >/dev/null
+docker exec "$name" unrar >/dev/null 2>&1 || [ "$?" -eq 7 ]
+rar_smoke='UmFyIRoHAQAzkrXlCgEFBgAFAQGAgACMe8YhPAIDC5IABJIApIMC3gHLb4AAAR50bXAvdG1wLkNTZUZSbEhxZkkvcGF5bG9hZC50eHQKAxPkjmBqAU1HMnJ1c3RuemIgcmFyIHNtb2tlCh13VlEDBQQA'
+printf '%s' "$rar_smoke" | base64 -d | docker exec -i "$name" sh -c 'cat >/tmp/rustnzb-smoke.rar'
+docker exec "$name" unrar t -inul /tmp/rustnzb-smoke.rar
 docker stop --time 15 "$name" >/dev/null
 docker wait "$name" >/dev/null 2>&1 || true
 rm -rf "$logs"
