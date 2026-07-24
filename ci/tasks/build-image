@@ -3,7 +3,7 @@ set -eu
 . "$(dirname "$0")/lib.sh"
 task_start build-image docker
 
-: "${GIT_AUTH_TOKEN:?GIT_AUTH_TOKEN is required for the private WebDAV crates}"
+: "${GIT_AUTH_TOKEN:?GIT_AUTH_TOKEN is required for the Forgejo rollback image registry}"
 image=${1:-rustnzb:local}
 build_ref=${RUSTNZB_BUILD_REF:-$(git rev-parse --short=12 HEAD)}
 docker_config=$(mktemp -d)
@@ -32,7 +32,6 @@ set -- \
     --target runtime \
     --platform "${RUSTNZB_PLATFORM:-linux/amd64}" \
     --provenance=false \
-    --secret id=forgejo_token,env=GIT_AUTH_TOKEN \
     --build-arg "RUSTNZB_BUILD_REF=$build_ref" \
     --tag "$image"
 if [ "${RUSTNZB_PUSH:-false}" = true ]; then

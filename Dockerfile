@@ -41,10 +41,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY apps apps
 COPY crates crates
 
-# The Forgejo credential exists only in this BuildKit secret-mounted RUN. It
-# is never a Docker ARG, image ENV value, Cargo file, or cache layer.
-RUN --mount=type=secret,id=forgejo_token,required=true \
-    --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+# The build uses only public crates.io dependencies for the rustnzb binary.
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/build/target,sharing=locked \
     set -eu; \
@@ -53,22 +51,17 @@ RUN --mount=type=secret,id=forgejo_token,required=true \
         linux/arm64) rust_target=aarch64-unknown-linux-musl ;; \
         *) printf 'unsupported target platform: %s\n' "$TARGETPLATFORM" >&2; exit 1 ;; \
     esac; \
-    token=$(cat /run/secrets/forgejo_token); \
     if [ "$RELEASE_OPTIMIZED" = true ]; then \
         export CARGO_PROFILE_RELEASE_LTO=thin \
             CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
             CARGO_PROFILE_RELEASE_STRIP=symbols; \
     fi; \
-    CARGO_REGISTRIES_FORGEJO_INDEX='sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/' \
-    CARGO_REGISTRIES_FORGEJO_CREDENTIAL_PROVIDER='cargo:token' \
-    CARGO_REGISTRIES_FORGEJO_TOKEN="Bearer $token" \
     CARGO_TARGET_DIR=/build/target \
     RUSTNZB_BUILD_REF="$RUSTNZB_BUILD_REF" \
         cargo zigbuild --release --locked -p rustnzb \
             --features webdav,vendored-openssl --target "$rust_target"; \
     mkdir -p /out; \
     cp "/build/target/$rust_target/release/rustnzb" /out/rustnzb; \
-    unset token CARGO_REGISTRIES_FORGEJO_TOKEN
 
 
 FROM lscr.io/linuxserver/baseimage-alpine:3.23@sha256:46d690858431e262d574274bb2863e1fbaf8de61c6f7677150dd79c2cc65cdcf AS runtime
