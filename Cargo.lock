@@ -102,7 +102,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -113,7 +113,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -783,7 +783,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -890,28 +890,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures"
-version = "0.3.32"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-executor",
- "futures-io",
- "futures-sink",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
 name = "futures-channel"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07bbe89c50d7a535e539b8c17bc0b49bdb77747034daa8087407d655f3f7cc1d"
 dependencies = [
  "futures-core",
- "futures-sink",
 ]
 
 [[package]]
@@ -930,12 +914,6 @@ dependencies = [
  "futures-task",
  "futures-util",
 ]
-
-[[package]]
-name = "futures-io"
-version = "0.3.32"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cecba35d7ad927e23624b22ad55235f2239cfa44fd10428eecbeba6d6a717718"
 
 [[package]]
 name = "futures-macro"
@@ -972,13 +950,10 @@ version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6"
 dependencies = [
- "futures-channel",
  "futures-core",
- "futures-io",
  "futures-macro",
  "futures-sink",
  "futures-task",
- "memchr",
  "pin-project-lite",
  "slab",
 ]
@@ -1813,7 +1788,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1990,9 +1965,9 @@ dependencies = [
 
 [[package]]
 name = "nzbdav-core"
-version = "0.4.1"
-source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
-checksum = "b78de0e6a22cc7d42030b234d55d8de82fae66355b6ad6eef30db435190a288f"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4944d0fe6852b88c8ebf12e01da82040d0216a395a2493e5cf8a7b4c12056910"
 dependencies = [
  "async-trait",
  "bincode",
@@ -2013,9 +1988,9 @@ dependencies = [
 
 [[package]]
 name = "nzbdav-dav"
-version = "0.4.1"
-source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
-checksum = "73a1534d092ef82f455a5822c1d8676815bd65287226f90c1e9ee1fbafe58f05"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af22d2a6a356f724327316f8d52df8f4380666ffe4d721c9700aef2651fa270a"
 dependencies = [
  "axum 0.8.9",
  "bincode",
@@ -2037,9 +2012,9 @@ dependencies = [
 
 [[package]]
 name = "nzbdav-pipeline"
-version = "0.4.1"
-source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
-checksum = "4bebc904b75cb6dfe0c08679f8884a585797066795f5572258c15e642c19b709"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bd37aa91fd1c87c7c58d076f562da09afd97b78e445343317388343e06c10a4"
 dependencies = [
  "bincode",
  "chrono",
@@ -2060,9 +2035,9 @@ dependencies = [
 
 [[package]]
 name = "nzbdav-rar"
-version = "0.4.1"
-source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
-checksum = "3ca35f912dc719c8570e164f35c0fb8c625f5497121bcbf4dee429896818e6a8"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f352aa02829c45d32f2c7c96d1c1dfce86087f23f92f4cceda2af0c35778dcb4"
 dependencies = [
  "aes 0.8.4",
  "cbc",
@@ -2076,17 +2051,14 @@ dependencies = [
 
 [[package]]
 name = "nzbdav-stream"
-version = "0.4.1"
-source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
-checksum = "eebfb27f7dd8c48884399eb1ce56bb6893560f435fdec23a54633eb5718929a4"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d5fb58a1838a0513f3b3a5f6b32204b73114e6f4d662951bd7f954109340914"
 dependencies = [
  "aes 0.8.4",
  "arc-swap",
- "async-trait",
  "bytes",
  "cbc",
- "crc32fast",
- "futures",
  "nzb-decode",
  "nzb-nntp",
  "nzbdav-core",
@@ -2480,7 +2452,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.4",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2806,7 +2778,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3168,7 +3140,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3272,7 +3244,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3992,7 +3964,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

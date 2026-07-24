@@ -63,8 +63,6 @@ jobs:
           build-args: |
             RUSTNZB_BUILD_REF=${{ github.ref_name }}
             RELEASE_OPTIMIZED=true
-          secrets: |
-            forgejo_token=${{ secrets.FORGEJO_CARGO_TOKEN }}
           cache-from: ''
           cache-to: ''
       - name: Smoke-test the exact amd64 release image

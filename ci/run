@@ -35,12 +35,6 @@ case "$task" in
     *) usage ;;
 esac
 
-needs_cargo_auth=false
-case "$task" in
-    fmt|check|test|clippy|e2e|desktop-test|build-linux|build-linux-arm64|build-windows|build-image|build-ci-images)
-        needs_cargo_auth=true
-        ;;
-esac
 needs_registry_auth=false
 if [ "$image_key" != host ] || [ "$task" = smoke-image ]; then
     needs_registry_auth=true
@@ -48,7 +42,7 @@ fi
 
 # The authenticated wrapper fetches secrets into this process only. Docker is
 # given environment variable names, never token values in argv.
-if { [ "$needs_cargo_auth" = true ] || [ "$needs_registry_auth" = true ]; } \
+if [ "$needs_registry_auth" = true ] \
     && [ -z "${GIT_AUTH_TOKEN:-}" ] && [ -z "${FORGEJO_TOKEN_FILE:-}" ]; then
     if [ -z "${RUSTNZB_CI_AUTH_ACTIVE:-}" ] && command -v mydevenv2-agent-auth >/dev/null 2>&1; then
         export RUSTNZB_CI_AUTH_ACTIVE=1
@@ -139,17 +133,6 @@ else
         --env CARGO_HOME=/ci-cache/cargo-home
         --env npm_config_cache=/ci-cache/npm
     )
-fi
-
-if [ "$needs_cargo_auth" = true ]; then
-    if [ -n "${GIT_AUTH_TOKEN:-}" ]; then
-        docker_args+=(--env GIT_AUTH_TOKEN)
-    else
-        docker_args+=(
-            --mount "type=bind,src=$FORGEJO_TOKEN_FILE,dst=/run/secrets/forgejo_token,readonly"
-            --env FORGEJO_TOKEN_FILE=/run/secrets/forgejo_token
-        )
-    fi
 fi
 
 for name in CI_COMMIT_SHA CI_COMMIT_TAG CI_PIPELINE_NUMBER RUSTNZB_BUILD_REF CI_ARTIFACT_DIR CI_PACKAGE_DIR; do
